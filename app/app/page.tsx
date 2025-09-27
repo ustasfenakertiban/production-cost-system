@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wrench, Users, Package, BarChart3 } from "lucide-react";
+import { Wrench, Users, Package, BarChart3, PackageOpen, Calendar } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -20,7 +20,8 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
+        <div className="grid md:grid-cols-3 lg:grid-cols-3 gap-6 mb-8">
+          {/* Первый ряд - 3 карточки */}
           <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
             <CardHeader className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -73,6 +74,47 @@ export default function HomePage() {
               <Button asChild className="w-full">
                 <Link href="/products">
                   Управлять товарами
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6 mb-12 max-w-4xl mx-auto">
+          {/* Второй ряд - 2 карточки по центру */}
+          <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <PackageOpen className="w-8 h-8 text-orange-600" />
+              </div>
+              <CardTitle>Материалы</CardTitle>
+              <CardDescription>
+                Справочник производственных материалов и их стоимости
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button asChild className="w-full">
+                <Link href="/materials">
+                  Управлять материалами
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="w-8 h-8 text-red-600" />
+              </div>
+              <CardTitle>Периодические расходы</CardTitle>
+              <CardDescription>
+                Регулярные производственные затраты и расходы
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button asChild className="w-full">
+                <Link href="/recurring-expenses">
+                  Управлять расходами
                 </Link>
               </Button>
             </CardContent>

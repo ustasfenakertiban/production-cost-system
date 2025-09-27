@@ -14,6 +14,14 @@ enum PaymentType {
   PIECE_RATE // сдельная
 }
 
+enum ExpensePeriod {
+  DAY       // день
+  WEEK      // неделя
+  MONTH     // месяц
+  QUARTER   // квартал
+  YEAR      // год
+}
+
 model Equipment {
   id                    String   @id @default(cuid())
   name                  String   // название
@@ -48,4 +56,40 @@ model Product {
   updatedAt      DateTime @updatedAt
 
   @@map("products")
+}
+
+model MaterialCategory {
+  id        String     @id @default(cuid())
+  name      String     @unique // наименование категории
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  materials Material[]
+
+  @@map("material_categories")
+}
+
+model Material {
+  id         String           @id @default(cuid())
+  name       String           // наименование материала
+  categoryId String           // ID категории
+  unit       String           // единица измерения
+  cost       Float            // стоимость
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  
+  category   MaterialCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("materials")
+}
+
+model RecurringExpense {
+  id        String        @id @default(cuid())
+  name      String        // наименование расхода
+  period    ExpensePeriod // период расхода
+  amount    Float         // сумма
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("recurring_expenses")
 }
