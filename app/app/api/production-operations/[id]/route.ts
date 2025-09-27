@@ -1,0 +1,110 @@
+
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// GET - получить конкретную производственную операцию
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const operation = await prisma.productionOperation.findUnique({
+      where: { id: params.id },
+      include: {
+        chain: {
+          include: {
+            process: {
+              include: { product: true }
+            }
+          }
+        },
+        operationMaterials: {
+          include: { material: { include: { category: true } } }
+        },
+        operationEquipment: {
+          include: { equipment: true }
+        },
+        operationRoles: {
+          include: { role: true }
+        }
+      }
+    });
+
+    if (!operation) {
+      return NextResponse.json(
+        { error: 'Производственная операция не найдена' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(operation);
+  } catch (error) {
+    console.error('Ошибка получения производственной операции:', error);
+    return NextResponse.json(
+      { error: 'Ошибка получения данных' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - обновить производственную операцию
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const data = await request.json();
+    const { name, description, orderIndex } = data;
+
+    const operation = await prisma.productionOperation.update({
+      where: { id: params.id },
+      data: {
+        name,
+        description,
+        ...(orderIndex !== undefined && { orderIndex }),
+      },
+      include: {
+        chain: {
+          include: {
+            process: {
+              include: { product: true }
+            }
+          }
+        },
+        operationMaterials: true,
+        operationEquipment: true,
+        operationRoles: true
+      }
+    });
+
+    return NextResponse.json(operation);
+  } catch (error) {
+    console.error('Ошибка обновления производственной операции:', error);
+    return NextResponse.json(
+      { error: 'Ошибка обновления операции' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - удалить производственную операцию
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await prisma.productionOperation.delete({
+      where: { id: params.id }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Ошибка удаления производственной операции:', error);
+    return NextResponse.json(
+      { error: 'Ошибка удаления операции' },
+      { status: 500 }
+    );
+  }
+}

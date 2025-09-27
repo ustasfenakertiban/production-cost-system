@@ -121,6 +121,34 @@ export default function HomePage() {
           </Card>
         </div>
 
+        {/* Третий ряд - Производственные процессы */}
+        <div className="mb-12 max-w-2xl mx-auto">
+          <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-indigo-600">
+                  <path d="M2 20h20"></path>
+                  <path d="M7 16v4"></path>
+                  <path d="M12 12v8"></path>
+                  <path d="M17 8v12"></path>
+                  <path d="M7 8a4 4 0 0 1 8 0"></path>
+                </svg>
+              </div>
+              <CardTitle>Производственные процессы</CardTitle>
+              <CardDescription>
+                Технологические процессы и операции производства товаров
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button asChild className="w-full">
+                <Link href="/production-processes">
+                  Управлять процессами
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
         <div className="text-center">
           <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
             <CardContent className="p-8">

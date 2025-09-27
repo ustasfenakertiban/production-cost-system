@@ -1,0 +1,219 @@
+
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Plus, Settings } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { OperationChainCard } from "./operation-chain-card";
+import { OperationChainDialog } from "./operation-chain-dialog";
+
+interface Product {
+  id: string;
+  name: string;
+}
+
+interface ProductionProcess {
+  id: string;
+  name: string;
+  description?: string;
+  productId: string;
+  product: Product;
+  operationChains: Array<{
+    id: string;
+    name: string;
+    chainType: string;
+    operations: Array<{
+      id: string;
+      name: string;
+      orderIndex: number;
+    }>;
+  }>;
+}
+
+export default function ProductionProcessDetailPage({ params }: { params: { id: string } }) {
+  const [process, setProcess] = useState<ProductionProcess | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [chainDialogOpen, setChainDialogOpen] = useState(false);
+  const [editingChain, setEditingChain] = useState<any>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    loadProcess();
+  }, [params.id]);
+
+  const loadProcess = async () => {
+    try {
+      const response = await fetch(`/api/production-processes/${params.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProcess(data);
+      } else {
+        throw new Error('Процесс не найден');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки процесса:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось загрузить процесс",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddChain = () => {
+    setEditingChain(null);
+    setChainDialogOpen(true);
+  };
+
+  const handleEditChain = (chain: any) => {
+    setEditingChain(chain);
+    setChainDialogOpen(true);
+  };
+
+  const handleChainDialogClose = () => {
+    setChainDialogOpen(false);
+    setEditingChain(null);
+    loadProcess();
+  };
+
+  const getChainTypeLabel = (chainType: string) => {
+    switch (chainType) {
+      case 'ONE_TIME':
+        return 'Разовая';
+      case 'PER_UNIT':
+        return 'На единицу';
+      default:
+        return chainType;
+    }
+  };
+
+  const getChainTypeBadgeColor = (chainType: string) => {
+    switch (chainType) {
+      case 'ONE_TIME':
+        return 'bg-orange-100 text-orange-700';
+      case 'PER_UNIT':
+        return 'bg-blue-100 text-blue-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Загрузка процесса...</div>
+      </div>
+    );
+  }
+
+  if (!process) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-gray-500 mb-4">Процесс не найден</div>
+          <Button asChild>
+            <Link href="/production-processes">Вернуться к списку</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+        <div className="flex items-center gap-4 mb-8">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/production-processes">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              К списку процессов
+            </Link>
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-gray-900">{process.name}</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-gray-600">Товар:</span>
+              <Badge variant="outline" className="bg-green-50 text-green-700">
+                {process.product.name}
+              </Badge>
+            </div>
+            {process.description && (
+              <p className="text-gray-600 mt-2">{process.description}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Цепочки операций */}
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Цепочки операций</h2>
+            <Button onClick={handleAddChain}>
+              <Plus className="w-4 h-4 mr-2" />
+              Добавить цепочку
+            </Button>
+          </div>
+
+          {process.operationChains.length > 0 ? (
+            <div className="grid gap-6">
+              {process.operationChains.map((chain) => (
+                <Card key={chain.id} className="border-l-4 border-l-blue-500">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{chain.name}</CardTitle>
+                        <Badge 
+                          variant="secondary" 
+                          className={`mt-2 ${getChainTypeBadgeColor(chain.chainType)}`}
+                        >
+                          {getChainTypeLabel(chain.chainType)}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditChain(chain)}
+                      >
+                        <Settings className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <OperationChainCard 
+                      chain={chain} 
+                      onUpdate={loadProcess}
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="text-center py-8">
+                <div className="text-gray-500">
+                  <Plus className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Цепочки операций не созданы</p>
+                  <Button variant="outline" className="mt-4" onClick={handleAddChain}>
+                    Добавить первую цепочку
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <OperationChainDialog
+          chain={editingChain}
+          processId={process.id}
+          open={chainDialogOpen}
+          onClose={handleChainDialogClose}
+        />
+      </div>
+    </div>
+  );
+}
