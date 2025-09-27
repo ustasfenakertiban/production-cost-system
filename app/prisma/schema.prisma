@@ -1,0 +1,51 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/production_cost_system/app/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+enum PaymentType {
+  HOURLY     // почасовая
+  PIECE_RATE // сдельная
+}
+
+model Equipment {
+  id                    String   @id @default(cuid())
+  name                  String   // название
+  estimatedCost         Float    // оценочная стоимость
+  hourlyDepreciation    Float    // амортизация в час
+  maxProductivity       Float    // максимальная производительность
+  productivityUnits     String   // единицы производительности
+  comment               String?  // комментарий
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("equipment")
+}
+
+model EmployeeRole {
+  id           String      @id @default(cuid())
+  name         String      // наименование роли
+  paymentType  PaymentType // тип оплаты
+  hourlyRate   Float       // базовая стоимость часа
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("employee_roles")
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  name           String   // наименование
+  description    String?  // описание
+  imagePath      String?  // путь к фото (cloud_storage_path)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("products")
+}
