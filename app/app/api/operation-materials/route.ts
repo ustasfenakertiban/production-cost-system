@@ -4,55 +4,43 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// GET - получить материалы операции
+// GET /api/operation-materials?operationId=xxx - получить материалы операции
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const operationId = searchParams.get('operationId');
 
-    const where = operationId ? { operationId } : {};
+    if (!operationId) {
+      return NextResponse.json({ error: 'operationId is required' }, { status: 400 });
+    }
 
-    const materials = await prisma.operationMaterial.findMany({
-      where,
+    const operationMaterials = await prisma.operationMaterial.findMany({
+      where: { operationId },
       include: {
-        operation: {
-          include: {
-            chain: {
-              include: {
-                process: {
-                  include: { product: true }
-                }
-              }
-            }
-          }
-        },
         material: {
-          include: { category: true }
-        }
-      }
+          include: {
+            category: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
     });
 
-    return NextResponse.json(materials);
+    return NextResponse.json(operationMaterials);
   } catch (error) {
     console.error('Ошибка получения материалов операции:', error);
-    return NextResponse.json(
-      { error: 'Ошибка получения данных' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
-// POST - добавить материал в операцию
+// POST /api/operation-materials - добавить материал к операции
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
     const { operationId, materialId, quantity, unitPrice, variance } = data;
 
     if (!operationId || !materialId || !quantity || !unitPrice) {
-      return NextResponse.json(
-        { error: 'Обязательные поля: operationId, materialId, quantity, unitPrice' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
     }
 
     const totalCost = quantity * unitPrice;
@@ -61,25 +49,23 @@ export async function POST(request: NextRequest) {
       data: {
         operationId,
         materialId,
-        quantity: parseFloat(quantity.toString()),
-        unitPrice: parseFloat(unitPrice.toString()),
-        totalCost: parseFloat(totalCost.toString()),
-        variance: variance ? parseFloat(variance.toString()) : null,
+        quantity: parseFloat(quantity),
+        unitPrice: parseFloat(unitPrice),
+        totalCost,
+        variance: variance ? parseFloat(variance) : null,
       },
       include: {
-        operation: true,
         material: {
-          include: { category: true }
-        }
-      }
+          include: {
+            category: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json(operationMaterial);
   } catch (error) {
-    console.error('Ошибка добавления материала в операцию:', error);
-    return NextResponse.json(
-      { error: 'Ошибка добавления материала' },
-      { status: 500 }
-    );
+    console.error('Ошибка добавления материала:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// PUT - обновить оборудование в операции
+// PUT /api/operation-equipment/[id] - обновить оборудование операции
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -14,54 +14,44 @@ export async function PUT(
     const { machineTime, hourlyRate, variance } = data;
 
     if (!machineTime || !hourlyRate) {
-      return NextResponse.json(
-        { error: 'Обязательные поля: machineTime, hourlyRate' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
     }
 
-    const totalCost = machineTime * hourlyRate;
+    const totalCost = parseFloat(machineTime) * parseFloat(hourlyRate);
 
     const operationEquipment = await prisma.operationEquipment.update({
       where: { id: params.id },
       data: {
-        machineTime: parseFloat(machineTime.toString()),
-        hourlyRate: parseFloat(hourlyRate.toString()),
-        totalCost: parseFloat(totalCost.toString()),
-        variance: variance ? parseFloat(variance.toString()) : null,
+        machineTime: parseFloat(machineTime),
+        hourlyRate: parseFloat(hourlyRate),
+        totalCost,
+        variance: variance ? parseFloat(variance) : null,
       },
       include: {
-        operation: true,
-        equipment: true
-      }
+        equipment: true,
+      },
     });
 
     return NextResponse.json(operationEquipment);
   } catch (error) {
-    console.error('Ошибка обновления оборудования операции:', error);
-    return NextResponse.json(
-      { error: 'Ошибка обновления оборудования' },
-      { status: 500 }
-    );
+    console.error('Ошибка обновления оборудования:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
-// DELETE - удалить оборудование из операции
+// DELETE /api/operation-equipment/[id] - удалить оборудование из операции
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     await prisma.operationEquipment.delete({
-      where: { id: params.id }
+      where: { id: params.id },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Ошибка удаления оборудования операции:', error);
-    return NextResponse.json(
-      { error: 'Ошибка удаления оборудования' },
-      { status: 500 }
-    );
+    console.error('Ошибка удаления оборудования:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

@@ -4,64 +4,55 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// PUT - обновить роль в операции
+// PUT /api/operation-roles/[id] - обновить роль операции
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const data = await request.json();
-    const { timeSpent, paymentType, rate } = data;
+    const { timeSpent, paymentType, rate, variance } = data;
 
     if (!timeSpent || !paymentType || !rate) {
-      return NextResponse.json(
-        { error: 'Обязательные поля: timeSpent, paymentType, rate' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
     }
 
-    const totalCost = timeSpent * rate;
+    const totalCost = parseFloat(timeSpent) * parseFloat(rate);
 
     const operationRole = await prisma.operationRole.update({
       where: { id: params.id },
       data: {
-        timeSpent: parseFloat(timeSpent.toString()),
+        timeSpent: parseFloat(timeSpent),
         paymentType,
-        rate: parseFloat(rate.toString()),
-        totalCost: parseFloat(totalCost.toString()),
+        rate: parseFloat(rate),
+        totalCost,
+        variance: variance ? parseFloat(variance) : null,
       },
       include: {
-        operation: true,
-        role: true
-      }
+        role: true,
+      },
     });
 
     return NextResponse.json(operationRole);
   } catch (error) {
-    console.error('Ошибка обновления роли операции:', error);
-    return NextResponse.json(
-      { error: 'Ошибка обновления роли' },
-      { status: 500 }
-    );
+    console.error('Ошибка обновления роли:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
-// DELETE - удалить роль из операции
+// DELETE /api/operation-roles/[id] - удалить роль из операции
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     await prisma.operationRole.delete({
-      where: { id: params.id }
+      where: { id: params.id },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Ошибка удаления роли операции:', error);
-    return NextResponse.json(
-      { error: 'Ошибка удаления роли' },
-      { status: 500 }
-    );
+    console.error('Ошибка удаления роли:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }

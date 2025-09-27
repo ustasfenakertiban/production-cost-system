@@ -2,9 +2,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronUp, ChevronDown, Edit, Trash2 } from "lucide-react";
+import { Plus, ChevronUp, ChevronDown, Edit, Trash2, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductionOperationDialog } from "./production-operation-dialog";
 
@@ -136,6 +137,16 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                 </div>
                 
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    title="Управление материалами, оборудованием и персоналом"
+                  >
+                    <Link href={`/operations/${operation.id}`}>
+                      <Settings className="w-4 h-4" />
+                    </Link>
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

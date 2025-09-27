@@ -4,78 +4,61 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// GET - получить роли операции
+// GET /api/operation-roles?operationId=xxx - получить роли операции
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const operationId = searchParams.get('operationId');
 
-    const where = operationId ? { operationId } : {};
+    if (!operationId) {
+      return NextResponse.json({ error: 'operationId is required' }, { status: 400 });
+    }
 
-    const roles = await prisma.operationRole.findMany({
-      where,
+    const operationRoles = await prisma.operationRole.findMany({
+      where: { operationId },
       include: {
-        operation: {
-          include: {
-            chain: {
-              include: {
-                process: {
-                  include: { product: true }
-                }
-              }
-            }
-          }
-        },
-        role: true
-      }
+        role: true,
+      },
+      orderBy: { createdAt: 'asc' },
     });
 
-    return NextResponse.json(roles);
+    return NextResponse.json(operationRoles);
   } catch (error) {
     console.error('Ошибка получения ролей операции:', error);
-    return NextResponse.json(
-      { error: 'Ошибка получения данных' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
 
-// POST - добавить роль в операцию
+// POST /api/operation-roles - добавить роль к операции
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { operationId, roleId, timeSpent, paymentType, rate } = data;
+    const { operationId, roleId, timeSpent, paymentType, rate, variance } = data;
 
     if (!operationId || !roleId || !timeSpent || !paymentType || !rate) {
-      return NextResponse.json(
-        { error: 'Обязательные поля: operationId, roleId, timeSpent, paymentType, rate' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
     }
 
-    const totalCost = timeSpent * rate;
+    const totalCost = parseFloat(timeSpent) * parseFloat(rate);
 
     const operationRole = await prisma.operationRole.create({
       data: {
         operationId,
         roleId,
-        timeSpent: parseFloat(timeSpent.toString()),
+        timeSpent: parseFloat(timeSpent),
         paymentType,
-        rate: parseFloat(rate.toString()),
-        totalCost: parseFloat(totalCost.toString()),
+        rate: parseFloat(rate),
+        totalCost,
+        variance: variance ? parseFloat(variance) : null,
       },
       include: {
-        operation: true,
-        role: true
-      }
+        role: true,
+      },
     });
 
     return NextResponse.json(operationRole);
   } catch (error) {
-    console.error('Ошибка добавления роли в операцию:', error);
-    return NextResponse.json(
-      { error: 'Ошибка добавления роли' },
-      { status: 500 }
-    );
+    console.error('Ошибка добавления роли:', error);
+    return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
   }
 }
