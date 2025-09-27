@@ -10,6 +10,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Check, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface MaterialCategory {
   id: string;
@@ -44,6 +54,9 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showAddCategory, setShowAddCategory] = useState(false);
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{ open: boolean; categoryId: string; categoryName: string }>({ open: false, categoryId: "", categoryName: "" });
+  const [editConfirmDialog, setEditConfirmDialog] = useState<{ open: boolean; categoryId: string; categoryName: string }>({ open: false, categoryId: "", categoryName: "" });
+  const [editCategoryName, setEditCategoryName] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -162,8 +175,14 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     }
   };
 
-  const handleEditCategory = async (categoryId: string, newName: string) => {
-    if (!newName.trim()) return;
+  const handleOpenEditDialog = (categoryId: string, categoryName: string) => {
+    setEditConfirmDialog({ open: true, categoryId, categoryName });
+    setEditCategoryName(categoryName);
+  };
+
+  const handleConfirmEdit = async () => {
+    const { categoryId } = editConfirmDialog;
+    if (!editCategoryName.trim()) return;
 
     try {
       const response = await fetch(`/api/material-categories/${categoryId}`, {
@@ -171,7 +190,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: newName.trim() }),
+        body: JSON.stringify({ name: editCategoryName.trim() }),
       });
 
       if (response.ok) {
@@ -179,7 +198,8 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         setCategories(prev => prev.map(cat => 
           cat.id === categoryId ? updatedCategory : cat
         ));
-        setEditingCategory(null);
+        setEditConfirmDialog({ open: false, categoryId: "", categoryName: "" });
+        setEditCategoryName("");
         toast({
           title: "Успешно",
           description: "Категория обновлена",
@@ -194,10 +214,12 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     }
   };
 
-  const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('Вы уверены, что хотите удалить эту категорию?')) {
-      return;
-    }
+  const handleOpenDeleteDialog = (categoryId: string, categoryName: string) => {
+    setDeleteConfirmDialog({ open: true, categoryId, categoryName });
+  };
+
+  const handleConfirmDelete = async () => {
+    const { categoryId } = deleteConfirmDialog;
 
     try {
       const response = await fetch(`/api/material-categories/${categoryId}`, {
@@ -209,6 +231,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         if (formData.categoryId === categoryId) {
           setFormData(prev => ({ ...prev, categoryId: "" }));
         }
+        setDeleteConfirmDialog({ open: false, categoryId: "", categoryName: "" });
         toast({
           title: "Успешно",
           description: "Категория удалена",
@@ -254,18 +277,28 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                 <SelectContent>
                   {categories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
-                      <div className="flex items-center justify-between w-full">
-                        <span>{category.name}</span>
-                        <div className="flex gap-1 ml-2">
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Управление категориями */}
+              {categories.length > 0 && (
+                <div className="border rounded-lg p-3 bg-gray-50">
+                  <div className="text-sm font-medium mb-2">Управление категориями:</div>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {categories.map((category) => (
+                      <div key={category.id} className="flex items-center justify-between bg-white px-2 py-1 rounded border">
+                        <span className="text-sm">{category.name}</span>
+                        <div className="flex gap-1">
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingCategory(category.id);
-                            }}
+                            onClick={() => handleOpenEditDialog(category.id, category.name)}
+                            title="Редактировать категорию"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -273,20 +306,18 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 text-red-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCategory(category.id);
-                            }}
+                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                            onClick={() => handleOpenDeleteDialog(category.id, category.name)}
+                            title="Удалить категорию"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {!showAddCategory ? (
                 <Button
@@ -365,6 +396,60 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
           </div>
         </form>
       </DialogContent>
+      
+      {/* Диалог подтверждения удаления категории */}
+      <AlertDialog open={deleteConfirmDialog.open} onOpenChange={(open) => setDeleteConfirmDialog({ ...deleteConfirmDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить категорию?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы действительно хотите удалить категорию "{deleteConfirmDialog.categoryName}"? 
+              Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmDialog({ open: false, categoryId: "", categoryName: "" })}>
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600 hover:bg-red-700">
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Диалог подтверждения редактирования категории */}
+      <AlertDialog open={editConfirmDialog.open} onOpenChange={(open) => setEditConfirmDialog({ ...editConfirmDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Редактировать категорию</AlertDialogTitle>
+            <AlertDialogDescription>
+              Изменить название категории "{editConfirmDialog.categoryName}"?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="edit-category-name">Новое название категории</Label>
+            <Input
+              id="edit-category-name"
+              value={editCategoryName}
+              onChange={(e) => setEditCategoryName(e.target.value)}
+              placeholder="Введите новое название"
+              onKeyPress={(e) => e.key === 'Enter' && handleConfirmEdit()}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setEditConfirmDialog({ open: false, categoryId: "", categoryName: "" });
+              setEditCategoryName("");
+            }}>
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmEdit} disabled={!editCategoryName.trim()}>
+              Сохранить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
