@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, ChevronUp, ChevronDown, Edit, Trash2, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductionOperationDialog } from "./production-operation-dialog";
+import { calculateOperationCosts, formatCurrency, formatPercent } from "@/lib/cost-calculations";
 
 interface Operation {
   id: string;
@@ -16,6 +17,33 @@ interface Operation {
   orderIndex: number;
   comments?: string;
   enabled: boolean;
+  operationMaterials?: Array<{
+    id: string;
+    quantity: number;
+    unitPrice: number;
+    totalCost: number;
+    variance?: number;
+    enabled: boolean;
+    material: {
+      vatPercentage: number;
+    };
+  }>;
+  operationEquipment?: Array<{
+    id: string;
+    machineTime: number;
+    hourlyRate: number;
+    totalCost: number;
+    variance?: number;
+    enabled: boolean;
+  }>;
+  operationRoles?: Array<{
+    id: string;
+    timeSpent: number;
+    rate: number;
+    totalCost: number;
+    variance?: number;
+    enabled: boolean;
+  }>;
 }
 
 interface Chain {
@@ -144,7 +172,7 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                   }`}>
                     {index + 1}
                   </Badge>
-                  <div>
+                  <div className="flex-1">
                     <div className={`font-medium ${
                       operation.enabled ? 'text-gray-900' : 'text-gray-500'
                     }`}>
@@ -162,6 +190,32 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                         {operation.description}
                       </div>
                     )}
+                    
+                    {/* Стоимость операции */}
+                    {operation.operationMaterials || operation.operationEquipment || operation.operationRoles ? (() => {
+                      const costs = calculateOperationCosts({
+                        id: operation.id,
+                        name: operation.name,
+                        enabled: operation.enabled,
+                        operationMaterials: operation.operationMaterials || [],
+                        operationEquipment: operation.operationEquipment || [],
+                        operationRoles: operation.operationRoles || []
+                      });
+                      
+                      return costs.total > 0 && (
+                        <div className={`text-xs mt-1 ${operation.enabled ? 'text-gray-600' : 'text-gray-400'}`}>
+                          <span className="font-medium text-green-600">
+                            Стоимость: {formatCurrency(costs.total)}
+                          </span>
+                          {costs.vat > 0 && (
+                            <span className="ml-2 text-orange-600">
+                              (вкл. НДС: {formatCurrency(costs.vat)})
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })() : null}
+                    
                     <div className="flex items-center gap-2 mt-1">
                       <Badge 
                         variant={operation.enabled ? 'default' : 'secondary'}
