@@ -13,8 +13,8 @@ interface Equipment {
   name: string;
   estimatedCost: number;
   hourlyDepreciation: number;
-  maxProductivity: number;
-  productivityUnits: string;
+  maxProductivity?: number | null;
+  productivityUnits?: string | null;
   comment?: string;
   createdAt: string;
   updatedAt: string;
@@ -144,8 +144,12 @@ export function EquipmentTable() {
                 </td>
                 <td className="p-3 text-right">
                   <div className="text-sm">
-                    <div className="font-medium">{item.maxProductivity}</div>
-                    <div className="text-gray-500">{item.productivityUnits}</div>
+                    <div className="font-medium">
+                      {item.maxProductivity ? item.maxProductivity : "Не указано"}
+                    </div>
+                    <div className="text-gray-500">
+                      {item.productivityUnits || "—"}
+                    </div>
                   </div>
                 </td>
                 <td className="p-3">

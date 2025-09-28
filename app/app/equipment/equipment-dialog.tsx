@@ -14,8 +14,8 @@ interface Equipment {
   name: string;
   estimatedCost: number;
   hourlyDepreciation: number;
-  maxProductivity: number;
-  productivityUnits: string;
+  maxProductivity?: number | null;
+  productivityUnits?: string | null;
   comment?: string;
 }
 
@@ -43,8 +43,8 @@ export function EquipmentDialog({ equipment, open, onClose }: EquipmentDialogPro
         name: equipment.name,
         estimatedCost: equipment.estimatedCost.toString(),
         hourlyDepreciation: equipment.hourlyDepreciation.toString(),
-        maxProductivity: equipment.maxProductivity.toString(),
-        productivityUnits: equipment.productivityUnits,
+        maxProductivity: equipment.maxProductivity?.toString() || "",
+        productivityUnits: equipment.productivityUnits || "",
         comment: equipment.comment || "",
       });
     } else {
@@ -68,8 +68,8 @@ export function EquipmentDialog({ equipment, open, onClose }: EquipmentDialogPro
         name: formData.name,
         estimatedCost: parseFloat(formData.estimatedCost),
         hourlyDepreciation: parseFloat(formData.hourlyDepreciation),
-        maxProductivity: parseFloat(formData.maxProductivity),
-        productivityUnits: formData.productivityUnits,
+        maxProductivity: formData.maxProductivity ? parseFloat(formData.maxProductivity) : null,
+        productivityUnits: formData.productivityUnits || null,
         comment: formData.comment || null,
       };
 
@@ -159,25 +159,23 @@ export function EquipmentDialog({ equipment, open, onClose }: EquipmentDialogPro
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="maxProductivity">Производительность *</Label>
+              <Label htmlFor="maxProductivity">Производительность</Label>
               <Input
                 id="maxProductivity"
                 type="number"
                 step="0.01"
                 value={formData.maxProductivity}
                 onChange={(e) => handleChange('maxProductivity', e.target.value)}
-                placeholder="0"
-                required
+                placeholder="Не указано"
               />
             </div>
             <div>
-              <Label htmlFor="productivityUnits">Единицы *</Label>
+              <Label htmlFor="productivityUnits">Единицы измерения</Label>
               <Input
                 id="productivityUnits"
                 value={formData.productivityUnits}
                 onChange={(e) => handleChange('productivityUnits', e.target.value)}
                 placeholder="шт/час, м²/час"
-                required
               />
             </div>
           </div>

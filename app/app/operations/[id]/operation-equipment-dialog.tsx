@@ -15,8 +15,8 @@ interface Equipment {
   id: string;
   name: string;
   hourlyDepreciation: number;
-  maxProductivity: number;
-  productivityUnits: string;
+  maxProductivity?: number | null;
+  productivityUnits?: string | null;
 }
 
 interface OperationEquipment {
@@ -188,7 +188,11 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
             </Select>
             {selectedEquipment && (
               <div className="text-sm text-gray-500 mt-1">
-                Производительность: {selectedEquipment.maxProductivity} {selectedEquipment.productivityUnits}
+                Производительность: {
+                  selectedEquipment.maxProductivity && selectedEquipment.productivityUnits
+                    ? `${selectedEquipment.maxProductivity} ${selectedEquipment.productivityUnits}`
+                    : "Не указана"
+                }
               </div>
             )}
           </div>

@@ -32,8 +32,8 @@ model Equipment {
   name                  String   // название
   estimatedCost         Float    // оценочная стоимость
   hourlyDepreciation    Float    // амортизация в час
-  maxProductivity       Float    // максимальная производительность
-  productivityUnits     String   // единицы производительности
+  maxProductivity       Float?   // максимальная производительность (необязательно)
+  productivityUnits     String?  // единицы производительности (необязательно)
   comment               String?  // комментарий
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt

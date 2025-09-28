@@ -68,8 +68,8 @@ interface OperationEquipment {
     id: string;
     name: string;
     hourlyDepreciation: number;
-    maxProductivity: number;
-    productivityUnits: string;
+    maxProductivity?: number | null;
+    productivityUnits?: string | null;
   };
 }
 
