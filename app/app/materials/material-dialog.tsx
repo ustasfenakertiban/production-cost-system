@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Check, X } from "lucide-react";
 import {
@@ -441,7 +442,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
             <Textarea
               id="comment"
               value={formData.comment}
-              onChange={(e) => handleChange('comment', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleChange('comment', e.target.value)}
               placeholder="Дополнительная информация о материале"
               rows={3}
             />

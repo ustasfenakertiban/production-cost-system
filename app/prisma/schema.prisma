@@ -87,6 +87,7 @@ model Material {
   unit          String           // единица измерения
   cost          Float            // стоимость
   vatPercentage Float            @default(0) // процент НДС
+  comment       String?          // комментарий
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   
