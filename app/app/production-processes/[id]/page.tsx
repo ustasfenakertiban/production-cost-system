@@ -277,6 +277,13 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
                             {chain.enabled ? '✓ Включена' : '✗ Выключена'}
                           </Badge>
                         </div>
+                        
+                        {/* Порядок выполнения */}
+                        <div className={`text-sm mt-2 ${
+                          chain.enabled ? 'text-gray-600' : 'text-gray-400'
+                        }`}>
+                          <span className="font-medium">Порядок: {chain.orderIndex}</span>
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
