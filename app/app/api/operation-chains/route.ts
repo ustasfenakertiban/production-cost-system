@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
           orderBy: { orderIndex: 'asc' }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: [{ orderIndex: 'asc' }, { createdAt: 'asc' }]
     });
 
     return NextResponse.json(chains);
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { processId, name, chainType } = data;
+    const { processId, name, chainType, orderIndex, comment, enabled } = data;
 
     if (!processId || !name || !chainType) {
       return NextResponse.json(
@@ -53,6 +53,9 @@ export async function POST(request: NextRequest) {
         processId,
         name,
         chainType,
+        orderIndex: orderIndex || 1,
+        comment,
+        enabled: enabled !== undefined ? enabled : true,
       },
       include: {
         process: {

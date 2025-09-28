@@ -57,13 +57,16 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { name, chainType } = data;
+    const { name, chainType, orderIndex, comment, enabled } = data;
 
     const chain = await prisma.operationChain.update({
       where: { id: params.id },
       data: {
         name,
         chainType,
+        orderIndex,
+        comment,
+        enabled,
       },
       include: {
         process: {

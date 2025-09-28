@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { chainId, name, description } = data;
+    const { chainId, name, description, comment, enabled } = data;
 
     if (!chainId || !name) {
       return NextResponse.json(
@@ -72,7 +72,9 @@ export async function POST(request: NextRequest) {
         chainId,
         name,
         description,
+        comment,
         orderIndex: nextOrderIndex,
+        enabled: enabled !== undefined ? enabled : true,
       },
       include: {
         chain: {

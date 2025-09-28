@@ -113,6 +113,7 @@ model ProductionProcess {
   productId   String   // связь с товаром
   name        String   // наименование процесса
   description String?  // описание процесса
+  comment     String?  // комментарий к процессу
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -124,12 +125,15 @@ model ProductionProcess {
 
 // Цепочки операций
 model OperationChain {
-  id        String    @id @default(cuid())
-  processId String    // связь с производственным процессом
-  name      String    // наименование цепочки
-  chainType ChainType // тип цепочки (разовая/на единицу)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  processId  String    // связь с производственным процессом
+  name       String    // наименование цепочки
+  chainType  ChainType // тип цепочки (разовая/на единицу)
+  orderIndex Int       @default(1) // порядок выполнения цепочки
+  comment    String?   // комментарий к цепочке
+  enabled    Boolean   @default(true) // включена ли цепочка в расчет
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   process    ProductionProcess    @relation(fields: [processId], references: [id], onDelete: Cascade)
   operations ProductionOperation[]
@@ -143,7 +147,9 @@ model ProductionOperation {
   chainId     String   // связь с цепочкой операций
   name        String   // наименование операции
   description String?  // описание операции
+  comment     String?  // комментарий к операции
   orderIndex  Int      // порядок операции в цепочке
+  enabled     Boolean  @default(true) // включена ли операция в расчет
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -164,6 +170,7 @@ model OperationMaterial {
   unitPrice   Float   // цена за единицу
   totalCost   Float   // общая стоимость
   variance    Float?  // разброс в %
+  comment     String? // комментарий к материалу в операции
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -182,6 +189,7 @@ model OperationEquipment {
   hourlyRate   Float   // стоимость в час
   totalCost    Float   // общая стоимость
   variance     Float?  // разброс в %
+  comment      String? // комментарий к оборудованию в операции
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -201,6 +209,7 @@ model OperationRole {
   rate        Float       // ставка
   totalCost   Float       // общая стоимость
   variance    Float?      // разброс в %
+  comment     String?     // комментарий к роли в операции
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 

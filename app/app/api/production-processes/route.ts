@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { productId, name, description } = data;
+    const { productId, name, description, comment } = data;
 
     if (!productId || !name) {
       return NextResponse.json(
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         productId,
         name,
         description,
+        comment,
       },
       include: {
         product: true,

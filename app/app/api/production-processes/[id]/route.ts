@@ -59,13 +59,14 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { name, description } = data;
+    const { name, description, comment } = data;
 
     const process = await prisma.productionProcess.update({
       where: { id: params.id },
       data: {
         name,
         description,
+        comment,
       },
       include: {
         product: true,
