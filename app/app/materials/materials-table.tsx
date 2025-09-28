@@ -20,6 +20,7 @@ interface Material {
   categoryId: string;
   unit: string;
   cost: number;
+  vatPercentage: number;
   category: MaterialCategory;
   createdAt: string;
   updatedAt: string;
@@ -129,6 +130,7 @@ export function MaterialsTable() {
               <th className="text-left p-3 font-semibold">Категория</th>
               <th className="text-center p-3 font-semibold">Единица</th>
               <th className="text-right p-3 font-semibold">Стоимость</th>
+              <th className="text-center p-3 font-semibold">НДС</th>
               <th className="text-center p-3 font-semibold">Действия</th>
             </tr>
           </thead>
@@ -156,6 +158,21 @@ export function MaterialsTable() {
                     })} ₽
                   </div>
                   <div className="text-xs text-gray-500">за {material.unit}</div>
+                </td>
+                <td className="p-3 text-center">
+                  <div className="text-sm">
+                    <div className="font-medium text-orange-600">
+                      {material.vatPercentage}%
+                    </div>
+                    {material.vatPercentage > 0 && (
+                      <div className="text-xs text-gray-500">
+                        {((material.cost * material.vatPercentage) / 100).toLocaleString('ru-RU', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })} ₽
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="p-3 text-center">
                   <div className="flex justify-center gap-2">

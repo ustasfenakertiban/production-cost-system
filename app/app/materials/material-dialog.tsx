@@ -32,6 +32,7 @@ interface Material {
   categoryId: string;
   unit: string;
   cost: number;
+  vatPercentage: number;
   category: MaterialCategory;
 }
 
@@ -47,6 +48,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     categoryId: "",
     unit: "",
     cost: "",
+    vatPercentage: "",
   });
   
   const [categories, setCategories] = useState<MaterialCategory[]>([]);
@@ -72,6 +74,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         categoryId: material.categoryId,
         unit: material.unit,
         cost: material.cost.toString(),
+        vatPercentage: material.vatPercentage?.toString() || "0",
       });
     } else {
       setFormData({
@@ -79,6 +82,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         categoryId: "",
         unit: "",
         cost: "",
+        vatPercentage: "0",
       });
     }
   }, [material]);
@@ -105,6 +109,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         categoryId: formData.categoryId,
         unit: formData.unit,
         cost: parseFloat(formData.cost),
+        vatPercentage: parseFloat(formData.vatPercentage) || 0,
       };
 
       const url = material ? `/api/materials/${material.id}` : '/api/materials';
@@ -383,6 +388,47 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                 placeholder="0.00"
                 required
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="vat">Процент НДС (%)</Label>
+              <Input
+                id="vat"
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={formData.vatPercentage}
+                onChange={(e) => handleChange('vatPercentage', e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <Label htmlFor="vat-amount">Сумма НДС (₽)</Label>
+              <div className="relative">
+                <Input
+                  id="vat-amount"
+                  type="text"
+                  value={
+                    formData.cost && formData.vatPercentage
+                      ? (
+                          (parseFloat(formData.cost) * parseFloat(formData.vatPercentage)) /
+                          100
+                        ).toLocaleString("ru-RU", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })
+                      : "0.00"
+                  }
+                  readOnly
+                  className="bg-gray-50 text-gray-600"
+                />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
+                  за {formData.unit || "ед"}
+                </div>
+              </div>
             </div>
           </div>
 

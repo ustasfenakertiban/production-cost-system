@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
         categoryId: data.categoryId,
         unit: data.unit,
         cost: data.cost,
+        vatPercentage: data.vatPercentage || 0,
       },
       include: {
         category: true,

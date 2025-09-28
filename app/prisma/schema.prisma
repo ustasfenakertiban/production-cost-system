@@ -81,13 +81,14 @@ model MaterialCategory {
 }
 
 model Material {
-  id         String           @id @default(cuid())
-  name       String           // наименование материала
-  categoryId String           // ID категории
-  unit       String           // единица измерения
-  cost       Float            // стоимость
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  name          String           // наименование материала
+  categoryId    String           // ID категории
+  unit          String           // единица измерения
+  cost          Float            // стоимость
+  vatPercentage Float            @default(0) // процент НДС
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   
   category   MaterialCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   operationMaterials OperationMaterial[]
