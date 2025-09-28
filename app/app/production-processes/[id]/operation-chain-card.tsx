@@ -127,26 +127,62 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
             {sortedOperations.map((operation, index) => (
               <div 
                 key={operation.id}
-                className="flex items-center justify-between bg-gray-50 p-3 rounded border"
+                className={`flex items-center justify-between p-3 rounded border relative ${
+                  operation.enabled 
+                    ? 'bg-gray-50 border-gray-200' 
+                    : 'bg-red-50/50 border-red-200'
+                }`}
               >
+                {/* Индикатор состояния в углу */}
+                <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                  operation.enabled ? 'bg-green-500' : 'bg-red-500'
+                }`} title={operation.enabled ? 'Включена в расчеты' : 'Выключена из расчетов'} />
+                
                 <div className="flex items-center gap-3">
-                  <Badge variant="secondary" className="min-w-[40px] justify-center">
+                  <Badge variant="secondary" className={`min-w-[40px] justify-center ${
+                    !operation.enabled ? 'opacity-60' : ''
+                  }`}>
                     {index + 1}
                   </Badge>
                   <div>
-                    <div className="font-medium">{operation.name}</div>
+                    <div className={`font-medium ${
+                      operation.enabled ? 'text-gray-900' : 'text-gray-500'
+                    }`}>
+                      {operation.name}
+                      {!operation.enabled && (
+                        <span className="ml-2 text-xs text-red-600">
+                          (выключена)
+                        </span>
+                      )}
+                    </div>
                     {operation.description && (
-                      <div className="text-sm text-gray-500">{operation.description}</div>
+                      <div className={`text-sm ${
+                        operation.enabled ? 'text-gray-500' : 'text-gray-400'
+                      }`}>
+                        {operation.description}
+                      </div>
                     )}
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge 
+                        variant={operation.enabled ? 'default' : 'secondary'}
+                        className={`text-xs ${operation.enabled 
+                          ? 'bg-green-100 text-green-700 hover:bg-green-100' 
+                          : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {operation.enabled ? '✓ Включена' : '✗ Выключена'}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-1">
+                <div className={`flex items-center gap-1 ${!operation.enabled ? 'opacity-60' : ''}`}>
                   <Button
                     variant="ghost"
                     size="sm"
                     asChild
                     title="Управление материалами, оборудованием и персоналом"
+                    className={!operation.enabled ? 'opacity-70' : ''}
                   >
                     <Link href={`/operations/${operation.id}`}>
                       <Settings className="w-4 h-4" />
@@ -158,6 +194,7 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                     onClick={() => handleMoveOperation(operation.id, 'up')}
                     disabled={index === 0}
                     title="Переместить вверх"
+                    className={!operation.enabled ? 'opacity-70' : ''}
                   >
                     <ChevronUp className="w-4 h-4" />
                   </Button>
@@ -167,6 +204,7 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                     onClick={() => handleMoveOperation(operation.id, 'down')}
                     disabled={index === sortedOperations.length - 1}
                     title="Переместить вниз"
+                    className={!operation.enabled ? 'opacity-70' : ''}
                   >
                     <ChevronDown className="w-4 h-4" />
                   </Button>
@@ -175,6 +213,7 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                     size="sm"
                     onClick={() => handleEditOperation(operation)}
                     title="Редактировать операцию"
+                    className={!operation.enabled ? 'opacity-70' : ''}
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
@@ -182,7 +221,7 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteOperation(operation.id)}
-                    className="text-red-600 hover:text-red-700"
+                    className={`text-red-600 hover:text-red-700 ${!operation.enabled ? 'opacity-70' : ''}`}
                     title="Удалить операцию"
                   >
                     <Trash2 className="w-4 h-4" />

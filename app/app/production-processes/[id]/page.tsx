@@ -26,10 +26,14 @@ interface ProductionProcess {
     id: string;
     name: string;
     chainType: string;
+    comments?: string;
+    orderIndex: number;
+    enabled: boolean;
     operations: Array<{
       id: string;
       name: string;
       orderIndex: number;
+      enabled: boolean;
     }>;
   }>;
 }
@@ -162,28 +166,60 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
           {process.operationChains.length > 0 ? (
             <div className="grid gap-6">
               {process.operationChains.map((chain) => (
-                <Card key={chain.id} className="border-l-4 border-l-blue-500">
+                <Card key={chain.id} className={`border-l-4 ${
+                  chain.enabled 
+                    ? 'border-l-blue-500 bg-white' 
+                    : 'border-l-gray-400 bg-gray-50/50'
+                } relative`}>
+                  {/* Индикатор состояния в углу */}
+                  <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${
+                    chain.enabled ? 'bg-green-500' : 'bg-red-500'
+                  }`} title={chain.enabled ? 'Включена в расчеты' : 'Выключена из расчетов'} />
+                  
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-lg">{chain.name}</CardTitle>
-                        <Badge 
-                          variant="secondary" 
-                          className={`mt-2 ${getChainTypeBadgeColor(chain.chainType)}`}
-                        >
-                          {getChainTypeLabel(chain.chainType)}
-                        </Badge>
+                        <CardTitle className={`text-lg ${
+                          chain.enabled ? 'text-gray-900' : 'text-gray-500'
+                        }`}>
+                          {chain.name}
+                          {!chain.enabled && (
+                            <span className="ml-2 text-sm font-normal text-red-600">
+                              (выключена)
+                            </span>
+                          )}
+                        </CardTitle>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge 
+                            variant="secondary" 
+                            className={`${getChainTypeBadgeColor(chain.chainType)} ${
+                              !chain.enabled ? 'opacity-60' : ''
+                            }`}
+                          >
+                            {getChainTypeLabel(chain.chainType)}
+                          </Badge>
+                          <Badge 
+                            variant={chain.enabled ? 'default' : 'secondary'}
+                            className={chain.enabled 
+                              ? 'bg-green-100 text-green-700 hover:bg-green-100' 
+                              : 'bg-red-100 text-red-700'
+                            }
+                          >
+                            {chain.enabled ? '✓ Включена' : '✗ Выключена'}
+                          </Badge>
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleEditChain(chain)}
+                        className={!chain.enabled ? 'opacity-60' : ''}
                       >
                         <Settings className="w-4 h-4" />
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className={!chain.enabled ? 'opacity-80' : ''}>
                     <OperationChainCard 
                       chain={chain} 
                       onUpdate={loadProcess}

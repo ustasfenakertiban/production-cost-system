@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { operationId, materialId, quantity, unitPrice, variance, comment } = data;
+    const { operationId, materialId, quantity, unitPrice, variance, comments, enabled } = data;
 
     if (!operationId || !materialId || !quantity || !unitPrice) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
         unitPrice: parseFloat(unitPrice),
         totalCost,
         variance: variance ? parseFloat(variance) : null,
-        comment,
+        comment: comments,
+        enabled: enabled !== undefined ? enabled : true,
       },
       include: {
         material: {

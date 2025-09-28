@@ -368,38 +368,65 @@ export default function OperationDetailPage({ params }: { params: { id: string }
                 {materials.length > 0 ? (
                   <div className="space-y-4">
                     {materials.map((material) => (
-                      <div key={material.id} className="flex items-center justify-between bg-gray-50 p-4 rounded border">
+                      <div key={material.id} className={`flex items-center justify-between p-4 rounded border relative ${
+                        material.enabled 
+                          ? 'bg-gray-50 border-gray-200' 
+                          : 'bg-red-50/50 border-red-200'
+                      }`}>
+                        {/* Индикатор состояния в углу */}
+                        <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                          material.enabled ? 'bg-green-500' : 'bg-red-500'
+                        }`} title={material.enabled ? 'Включен в расчеты' : 'Выключен из расчетов'} />
+                        
                         <div className="flex-1">
-                          <div className="font-medium">{material.material.name}</div>
-                          <div className="text-sm text-gray-500 mb-2">
+                          <div className={`font-medium flex items-center gap-2 ${
+                            material.enabled ? 'text-gray-900' : 'text-gray-500'
+                          }`}>
+                            {material.material.name}
+                            <Badge 
+                              variant={material.enabled ? 'default' : 'secondary'}
+                              className={`text-xs ${material.enabled 
+                                ? 'bg-green-100 text-green-700 hover:bg-green-100' 
+                                : 'bg-red-100 text-red-700'
+                              }`}
+                            >
+                              {material.enabled ? '✓ Включен' : '✗ Выключен'}
+                            </Badge>
+                          </div>
+                          <div className={`text-sm mb-2 ${
+                            material.enabled ? 'text-gray-500' : 'text-gray-400'
+                          }`}>
                             Категория: {material.material.category.name}
                           </div>
                           <div className="grid grid-cols-4 gap-4 text-sm">
                             <div>
-                              <span className="text-gray-500">Количество:</span>
-                              <div className="font-medium">{material.quantity} {material.material.unit}</div>
+                              <span className={material.enabled ? 'text-gray-500' : 'text-gray-400'}>Количество:</span>
+                              <div className={`font-medium ${!material.enabled ? 'opacity-60' : ''}`}>{material.quantity} {material.material.unit}</div>
                             </div>
                             <div>
-                              <span className="text-gray-500">Цена за единицу:</span>
-                              <div className="font-medium">{formatCurrency(material.unitPrice)}</div>
+                              <span className={material.enabled ? 'text-gray-500' : 'text-gray-400'}>Цена за единицу:</span>
+                              <div className={`font-medium ${!material.enabled ? 'opacity-60' : ''}`}>{formatCurrency(material.unitPrice)}</div>
                             </div>
                             <div>
-                              <span className="text-gray-500">Общая стоимость:</span>
-                              <div className="font-medium text-green-600">{formatCurrency(material.totalCost)}</div>
+                              <span className={material.enabled ? 'text-gray-500' : 'text-gray-400'}>Общая стоимость:</span>
+                              <div className={`font-medium ${
+                                material.enabled ? 'text-green-600' : 'text-gray-400'
+                              }`}>{formatCurrency(material.totalCost)}</div>
                             </div>
                             {material.variance && (
                               <div>
-                                <span className="text-gray-500">Разброс:</span>
-                                <div className="font-medium">±{material.variance}%</div>
+                                <span className={material.enabled ? 'text-gray-500' : 'text-gray-400'}>Разброс:</span>
+                                <div className={`font-medium ${!material.enabled ? 'opacity-60' : ''}`}>±{material.variance}%</div>
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className={`flex gap-2 ${!material.enabled ? 'opacity-60' : ''}`}>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => { setEditingMaterial(material); setMaterialDialogOpen(true); }}
+                            className={!material.enabled ? 'opacity-70' : ''}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -407,7 +434,7 @@ export default function OperationDetailPage({ params }: { params: { id: string }
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteMaterial(material.id)}
-                            className="text-red-600 hover:text-red-700"
+                            className={`text-red-600 hover:text-red-700 ${!material.enabled ? 'opacity-70' : ''}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -448,35 +475,60 @@ export default function OperationDetailPage({ params }: { params: { id: string }
                 {equipment.length > 0 ? (
                   <div className="space-y-4">
                     {equipment.map((eq) => (
-                      <div key={eq.id} className="flex items-center justify-between bg-gray-50 p-4 rounded border">
+                      <div key={eq.id} className={`flex items-center justify-between p-4 rounded border relative ${
+                        eq.enabled 
+                          ? 'bg-gray-50 border-gray-200' 
+                          : 'bg-red-50/50 border-red-200'
+                      }`}>
+                        {/* Индикатор состояния в углу */}
+                        <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                          eq.enabled ? 'bg-green-500' : 'bg-red-500'
+                        }`} title={eq.enabled ? 'Включено в расчеты' : 'Выключено из расчетов'} />
+                        
                         <div className="flex-1">
-                          <div className="font-medium">{eq.equipment.name}</div>
+                          <div className={`font-medium flex items-center gap-2 ${
+                            eq.enabled ? 'text-gray-900' : 'text-gray-500'
+                          }`}>
+                            {eq.equipment.name}
+                            <Badge 
+                              variant={eq.enabled ? 'default' : 'secondary'}
+                              className={`text-xs ${eq.enabled 
+                                ? 'bg-green-100 text-green-700 hover:bg-green-100' 
+                                : 'bg-red-100 text-red-700'
+                              }`}
+                            >
+                              {eq.enabled ? '✓ Включено' : '✗ Выключено'}
+                            </Badge>
+                          </div>
                           <div className="grid grid-cols-4 gap-4 text-sm mt-2">
                             <div>
-                              <span className="text-gray-500">Машинное время:</span>
-                              <div className="font-medium">{eq.machineTime} ч</div>
+                              <span className={eq.enabled ? 'text-gray-500' : 'text-gray-400'}>Машинное время:</span>
+                              <div className={`font-medium ${!eq.enabled ? 'opacity-60' : ''}`}>{eq.machineTime} ч</div>
                             </div>
                             <div>
-                              <span className="text-gray-500">Ставка в час:</span>
-                              <div className="font-medium">{formatCurrency(eq.hourlyRate)}</div>
+                              <span className={eq.enabled ? 'text-gray-500' : 'text-gray-400'}>Ставка в час:</span>
+                              <div className={`font-medium ${!eq.enabled ? 'opacity-60' : ''}`}>{formatCurrency(eq.hourlyRate)}</div>
                             </div>
                             <div>
-                              <span className="text-gray-500">Общая стоимость:</span>
-                              <div className="font-medium text-green-600">{formatCurrency(eq.totalCost)}</div>
+                              <span className={eq.enabled ? 'text-gray-500' : 'text-gray-400'}>Общая стоимость:</span>
+                              <div className={`font-medium ${
+                                eq.enabled ? 'text-green-600' : 'text-gray-400'
+                              }`}>{formatCurrency(eq.totalCost)}</div>
                             </div>
                             {eq.variance && (
                               <div>
-                                <span className="text-gray-500">Разброс:</span>
-                                <div className="font-medium">±{eq.variance}%</div>
+                                <span className={eq.enabled ? 'text-gray-500' : 'text-gray-400'}>Разброс:</span>
+                                <div className={`font-medium ${!eq.enabled ? 'opacity-60' : ''}`}>±{eq.variance}%</div>
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className={`flex gap-2 ${!eq.enabled ? 'opacity-60' : ''}`}>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => { setEditingEquipment(eq); setEquipmentDialogOpen(true); }}
+                            className={!eq.enabled ? 'opacity-70' : ''}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -484,7 +536,7 @@ export default function OperationDetailPage({ params }: { params: { id: string }
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteEquipment(eq.id)}
-                            className="text-red-600 hover:text-red-700"
+                            className={`text-red-600 hover:text-red-700 ${!eq.enabled ? 'opacity-70' : ''}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -525,39 +577,64 @@ export default function OperationDetailPage({ params }: { params: { id: string }
                 {roles.length > 0 ? (
                   <div className="space-y-4">
                     {roles.map((role) => (
-                      <div key={role.id} className="flex items-center justify-between bg-gray-50 p-4 rounded border">
+                      <div key={role.id} className={`flex items-center justify-between p-4 rounded border relative ${
+                        role.enabled 
+                          ? 'bg-gray-50 border-gray-200' 
+                          : 'bg-red-50/50 border-red-200'
+                      }`}>
+                        {/* Индикатор состояния в углу */}
+                        <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                          role.enabled ? 'bg-green-500' : 'bg-red-500'
+                        }`} title={role.enabled ? 'Включена в расчеты' : 'Выключена из расчетов'} />
+                        
                         <div className="flex-1">
-                          <div className="font-medium">{role.role.name}</div>
+                          <div className={`font-medium flex items-center gap-2 ${
+                            role.enabled ? 'text-gray-900' : 'text-gray-500'
+                          }`}>
+                            {role.role.name}
+                            <Badge 
+                              variant={role.enabled ? 'default' : 'secondary'}
+                              className={`text-xs ${role.enabled 
+                                ? 'bg-green-100 text-green-700 hover:bg-green-100' 
+                                : 'bg-red-100 text-red-700'
+                              }`}
+                            >
+                              {role.enabled ? '✓ Включена' : '✗ Выключена'}
+                            </Badge>
+                          </div>
                           <div className="grid grid-cols-4 gap-4 text-sm mt-2">
                             <div>
-                              <span className="text-gray-500">Время работы:</span>
-                              <div className="font-medium">{role.timeSpent} ч</div>
+                              <span className={role.enabled ? 'text-gray-500' : 'text-gray-400'}>Время работы:</span>
+                              <div className={`font-medium ${!role.enabled ? 'opacity-60' : ''}`}>{role.timeSpent} ч</div>
                             </div>
                             <div>
-                              <span className="text-gray-500">Тип оплаты:</span>
-                              <div className="font-medium">{getPaymentTypeLabel(role.paymentType)}</div>
+                              <span className={role.enabled ? 'text-gray-500' : 'text-gray-400'}>Тип оплаты:</span>
+                              <div className={`font-medium ${!role.enabled ? 'opacity-60' : ''}`}>{getPaymentTypeLabel(role.paymentType)}</div>
                             </div>
                             <div>
-                              <span className="text-gray-500">Ставка:</span>
-                              <div className="font-medium">{formatCurrency(role.rate)}</div>
+                              <span className={role.enabled ? 'text-gray-500' : 'text-gray-400'}>Ставка:</span>
+                              <div className={`font-medium ${!role.enabled ? 'opacity-60' : ''}`}>{formatCurrency(role.rate)}</div>
                             </div>
                             <div>
-                              <span className="text-gray-500">Общая стоимость:</span>
-                              <div className="font-medium text-green-600">{formatCurrency(role.totalCost)}</div>
+                              <span className={role.enabled ? 'text-gray-500' : 'text-gray-400'}>Общая стоимость:</span>
+                              <div className={`font-medium ${
+                                role.enabled ? 'text-green-600' : 'text-gray-400'
+                              }`}>{formatCurrency(role.totalCost)}</div>
                             </div>
                             {role.variance && (
                               <div className="col-span-4">
-                                <span className="text-gray-500">Разброс:</span>
-                                <span className="font-medium ml-2">±{role.variance}%</span>
+                                <span className={role.enabled ? 'text-gray-500' : 'text-gray-400'}>Разброс:</span>
+                                <span className={`font-medium ml-2 ${!role.enabled ? 'opacity-60' : ''}`}>±{role.variance}%</span>
                               </div>
                             )}
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className={`flex gap-2 ${!role.enabled ? 'opacity-60' : ''}`}>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => { setEditingRole(role); setRoleDialogOpen(true); }}
+                            className={!role.enabled ? 'opacity-70' : ''}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -565,7 +642,7 @@ export default function OperationDetailPage({ params }: { params: { id: string }
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteRole(role.id)}
-                            className="text-red-600 hover:text-red-700"
+                            className={`text-red-600 hover:text-red-700 ${!role.enabled ? 'opacity-70' : ''}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

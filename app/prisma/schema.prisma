@@ -171,6 +171,7 @@ model OperationMaterial {
   totalCost   Float   // общая стоимость
   variance    Float?  // разброс в %
   comment     String? // комментарий к материалу в операции
+  enabled     Boolean @default(true) // включен ли материал в расчет
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -190,6 +191,7 @@ model OperationEquipment {
   totalCost    Float   // общая стоимость
   variance     Float?  // разброс в %
   comment      String? // комментарий к оборудованию в операции
+  enabled      Boolean @default(true) // включено ли оборудование в расчет
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -210,6 +212,7 @@ model OperationRole {
   totalCost   Float       // общая стоимость
   variance    Float?      // разброс в %
   comment     String?     // комментарий к роли в операции
+  enabled     Boolean     @default(true) // включена ли роль в расчет
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
