@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
@@ -26,6 +28,8 @@ interface OperationMaterial {
   unitPrice: number;
   totalCost: number;
   variance?: number;
+  comments?: string;
+  enabled: boolean;
   material: Material;
 }
 
@@ -43,6 +47,8 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
     quantity: "",
     unitPrice: "",
     variance: "",
+    comments: "",
+    enabled: true,
   });
   
   const [loading, setLoading] = useState(false);
@@ -61,6 +67,8 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
         quantity: material.quantity.toString(),
         unitPrice: material.unitPrice.toString(),
         variance: material.variance?.toString() || "",
+        comments: material.comments || "",
+        enabled: material.enabled ?? true,
       });
     } else {
       setFormData({
@@ -68,6 +76,8 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
         quantity: "",
         unitPrice: "",
         variance: "",
+        comments: "",
+        enabled: true,
       });
     }
   }, [material]);
@@ -95,6 +105,8 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
         quantity: formData.quantity,
         unitPrice: formData.unitPrice,
         variance: formData.variance || null,
+        comments: formData.comments || null,
+        enabled: formData.enabled,
       };
 
       const url = material ? `/api/operation-materials/${material.id}` : '/api/operation-materials';
@@ -129,7 +141,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -219,6 +231,31 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
               onChange={(e) => handleChange('variance', e.target.value)}
               placeholder="Разброс в процентах"
             />
+          </div>
+
+          <div>
+            <Label htmlFor="comments">Комментарии</Label>
+            <Textarea
+              id="comments"
+              value={formData.comments}
+              onChange={(e) => handleChange('comments', e.target.value)}
+              placeholder="Дополнительные комментарии"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enabled"
+              checked={formData.enabled}
+              onCheckedChange={(checked) => handleChange('enabled', checked)}
+            />
+            <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Включить в расчеты
+            </Label>
+            <p className="text-sm text-gray-500">
+              (отключенные материалы не учитываются при расчете стоимости)
+            </p>
           </div>
 
           {formData.quantity && formData.unitPrice && (

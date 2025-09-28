@@ -14,12 +14,17 @@ interface Operation {
   name: string;
   description?: string;
   orderIndex: number;
+  comments?: string;
+  enabled: boolean;
 }
 
 interface Chain {
   id: string;
   name: string;
   chainType: string;
+  comments?: string;
+  orderIndex: number;
+  enabled: boolean;
   operations: Operation[];
 }
 

@@ -368,13 +368,12 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="unit">Единица измерения *</Label>
+              <Label htmlFor="unit">Единица измерения</Label>
               <Input
                 id="unit"
                 value={formData.unit}
                 onChange={(e) => handleChange('unit', e.target.value)}
-                placeholder="кг, м, шт"
-                required
+                placeholder="кг, м, шт (опционально)"
               />
             </div>
             <div>

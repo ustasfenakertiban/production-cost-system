@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +15,9 @@ interface OperationChain {
   id: string;
   name: string;
   chainType: string;
+  comments?: string;
+  orderIndex: number;
+  enabled: boolean;
 }
 
 interface OperationChainDialogProps {
@@ -26,6 +31,9 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
   const [formData, setFormData] = useState({
     name: "",
     chainType: "",
+    comments: "",
+    orderIndex: "1",
+    enabled: true,
   });
   
   const [loading, setLoading] = useState(false);
@@ -36,11 +44,17 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
       setFormData({
         name: chain.name,
         chainType: chain.chainType,
+        comments: chain.comments || "",
+        orderIndex: chain.orderIndex?.toString() || "1",
+        enabled: chain.enabled ?? true,
       });
     } else {
       setFormData({
         name: "",
         chainType: "",
+        comments: "",
+        orderIndex: "1",
+        enabled: true,
       });
     }
   }, [chain]);
@@ -54,6 +68,9 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
         processId,
         name: formData.name,
         chainType: formData.chainType,
+        comments: formData.comments || null,
+        orderIndex: parseInt(formData.orderIndex) || 1,
+        enabled: formData.enabled,
       };
 
       const url = chain ? `/api/operation-chains/${chain.id}` : '/api/operation-chains';
@@ -88,7 +105,7 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -130,11 +147,52 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
             </Select>
           </div>
 
+          <div>
+            <Label htmlFor="orderIndex">Порядок выполнения *</Label>
+            <Input
+              id="orderIndex"
+              type="number"
+              min="1"
+              value={formData.orderIndex}
+              onChange={(e) => handleChange('orderIndex', e.target.value)}
+              placeholder="1"
+              required
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Цепочки с одинаковым порядком выполняются параллельно
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="comments">Комментарии</Label>
+            <Textarea
+              id="comments"
+              value={formData.comments}
+              onChange={(e) => handleChange('comments', e.target.value)}
+              placeholder="Дополнительные комментарии"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enabled"
+              checked={formData.enabled}
+              onCheckedChange={(checked) => handleChange('enabled', checked)}
+            />
+            <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Включить в расчеты
+            </Label>
+            <p className="text-sm text-gray-500">
+              (отключенные цепочки не учитываются при расчете стоимости)
+            </p>
+          </div>
+
           <div className="flex gap-2 justify-end pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Отмена
             </Button>
-            <Button type="submit" disabled={loading || !formData.name || !formData.chainType}>
+            <Button type="submit" disabled={loading || !formData.name || !formData.chainType || !formData.orderIndex}>
               {loading ? 'Сохранение...' : 'Сохранить'}
             </Button>
           </div>

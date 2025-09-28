@@ -18,6 +18,8 @@ interface Operation {
   name: string;
   description?: string;
   orderIndex: number;
+  comments?: string;
+  enabled: boolean;
   chain: {
     id: string;
     name: string;
@@ -40,6 +42,8 @@ interface OperationMaterial {
   unitPrice: number;
   totalCost: number;
   variance?: number;
+  comments?: string;
+  enabled: boolean;
   material: {
     id: string;
     name: string;
@@ -58,6 +62,8 @@ interface OperationEquipment {
   hourlyRate: number;
   totalCost: number;
   variance?: number;
+  comments?: string;
+  enabled: boolean;
   equipment: {
     id: string;
     name: string;
@@ -75,6 +81,8 @@ interface OperationRole {
   rate: number;
   totalCost: number;
   variance?: number;
+  comments?: string;
+  enabled: boolean;
   role: {
     id: string;
     name: string;

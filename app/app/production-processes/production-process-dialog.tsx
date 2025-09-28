@@ -34,6 +34,7 @@ export function ProductionProcessDialog({ process, open, onClose }: ProductionPr
     name: "",
     description: "",
     productId: "",
+    comments: "",
   });
   
   const [products, setProducts] = useState<Product[]>([]);
@@ -52,12 +53,14 @@ export function ProductionProcessDialog({ process, open, onClose }: ProductionPr
         name: process.name,
         description: process.description || "",
         productId: process.productId,
+        comments: (process as any).comments || "",
       });
     } else {
       setFormData({
         name: "",
         description: "",
         productId: "",
+        comments: "",
       });
     }
   }, [process]);
@@ -83,6 +86,7 @@ export function ProductionProcessDialog({ process, open, onClose }: ProductionPr
         name: formData.name,
         description: formData.description || null,
         productId: formData.productId,
+        comments: formData.comments || null,
       };
 
       const url = process ? `/api/production-processes/${process.id}` : '/api/production-processes';
@@ -166,6 +170,17 @@ export function ProductionProcessDialog({ process, open, onClose }: ProductionPr
               onChange={(e) => handleChange('description', e.target.value)}
               placeholder="Описание производственного процесса"
               rows={3}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="comments">Комментарии</Label>
+            <Textarea
+              id="comments"
+              value={formData.comments}
+              onChange={(e) => handleChange('comments', e.target.value)}
+              placeholder="Дополнительные комментарии"
+              rows={2}
             />
           </div>
 

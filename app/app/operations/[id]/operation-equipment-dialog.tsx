@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,6 +26,8 @@ interface OperationEquipment {
   hourlyRate: number;
   totalCost: number;
   variance?: number;
+  comments?: string;
+  enabled: boolean;
   equipment: Equipment;
 }
 
@@ -41,6 +45,8 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
     machineTime: "",
     hourlyRate: "",
     variance: "",
+    comments: "",
+    enabled: true,
   });
   
   const [loading, setLoading] = useState(false);
@@ -59,6 +65,8 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
         machineTime: equipment.machineTime.toString(),
         hourlyRate: equipment.hourlyRate.toString(),
         variance: equipment.variance?.toString() || "",
+        comments: equipment.comments || "",
+        enabled: equipment.enabled ?? true,
       });
     } else {
       setFormData({
@@ -66,6 +74,8 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
         machineTime: "",
         hourlyRate: "",
         variance: "",
+        comments: "",
+        enabled: true,
       });
     }
   }, [equipment]);
@@ -93,6 +103,8 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
         machineTime: formData.machineTime,
         hourlyRate: formData.hourlyRate,
         variance: formData.variance || null,
+        comments: formData.comments || null,
+        enabled: formData.enabled,
       };
 
       const url = equipment ? `/api/operation-equipment/${equipment.id}` : '/api/operation-equipment';
@@ -127,7 +139,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -217,6 +229,31 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
               onChange={(e) => handleChange('variance', e.target.value)}
               placeholder="Разброс в процентах"
             />
+          </div>
+
+          <div>
+            <Label htmlFor="comments">Комментарии</Label>
+            <Textarea
+              id="comments"
+              value={formData.comments}
+              onChange={(e) => handleChange('comments', e.target.value)}
+              placeholder="Дополнительные комментарии"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enabled"
+              checked={formData.enabled}
+              onCheckedChange={(checked) => handleChange('enabled', checked)}
+            />
+            <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Включить в расчеты
+            </Label>
+            <p className="text-sm text-gray-500">
+              (отключенное оборудование не учитывается при расчете стоимости)
+            </p>
           </div>
 
           {formData.machineTime && formData.hourlyRate && (

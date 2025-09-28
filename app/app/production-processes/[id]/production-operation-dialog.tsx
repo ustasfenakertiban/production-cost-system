@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 
 interface Operation {
@@ -14,6 +15,8 @@ interface Operation {
   name: string;
   description?: string;
   orderIndex: number;
+  comments?: string;
+  enabled: boolean;
 }
 
 interface ProductionOperationDialogProps {
@@ -27,6 +30,8 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    comments: "",
+    enabled: true,
   });
   
   const [loading, setLoading] = useState(false);
@@ -37,11 +42,15 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
       setFormData({
         name: operation.name,
         description: operation.description || "",
+        comments: operation.comments || "",
+        enabled: operation.enabled ?? true,
       });
     } else {
       setFormData({
         name: "",
         description: "",
+        comments: "",
+        enabled: true,
       });
     }
   }, [operation]);
@@ -55,6 +64,8 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
         chainId,
         name: formData.name,
         description: formData.description || null,
+        comments: formData.comments || null,
+        enabled: formData.enabled,
       };
 
       const url = operation ? `/api/production-operations/${operation.id}` : '/api/production-operations';
@@ -89,7 +100,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -123,6 +134,31 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
               placeholder="Описание операции"
               rows={3}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="comments">Комментарии</Label>
+            <Textarea
+              id="comments"
+              value={formData.comments}
+              onChange={(e) => handleChange('comments', e.target.value)}
+              placeholder="Дополнительные комментарии"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enabled"
+              checked={formData.enabled}
+              onCheckedChange={(checked) => handleChange('enabled', checked)}
+            />
+            <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Включить в расчеты
+            </Label>
+            <p className="text-sm text-gray-500">
+              (отключенные операции не учитываются при расчете стоимости)
+            </p>
           </div>
 
           <div className="flex gap-2 justify-end pt-4">
