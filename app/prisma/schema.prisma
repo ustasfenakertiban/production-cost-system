@@ -126,15 +126,16 @@ model ProductionProcess {
 
 // Цепочки операций
 model OperationChain {
-  id         String    @id @default(cuid())
-  processId  String    // связь с производственным процессом
-  name       String    // наименование цепочки
-  chainType  ChainType // тип цепочки (разовая/на единицу)
-  orderIndex Int       @default(1) // порядок выполнения цепочки
-  comment    String?   // комментарий к цепочке
-  enabled    Boolean   @default(true) // включена ли цепочка в расчет
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  processId         String    // связь с производственным процессом
+  name              String    // наименование цепочки
+  chainType         ChainType // тип цепочки (разовая/на единицу)
+  orderIndex        Int       @default(1) // порядок выполнения цепочки
+  estimatedQuantity Int?      // расчетное количество деталей (для разовых цепочек)
+  comment           String?   // комментарий к цепочке
+  enabled           Boolean   @default(true) // включена ли цепочка в расчет
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   process    ProductionProcess    @relation(fields: [processId], references: [id], onDelete: Cascade)
   operations ProductionOperation[]

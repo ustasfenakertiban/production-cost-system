@@ -17,6 +17,7 @@ interface OperationChain {
   chainType: string;
   comments?: string;
   orderIndex: number;
+  estimatedQuantity?: number;
   enabled: boolean;
 }
 
@@ -33,6 +34,7 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
     chainType: "",
     comments: "",
     orderIndex: "1",
+    estimatedQuantity: "1",
     enabled: true,
   });
   
@@ -46,6 +48,7 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
         chainType: chain.chainType,
         comments: chain.comments || "",
         orderIndex: chain.orderIndex?.toString() || "1",
+        estimatedQuantity: chain.estimatedQuantity?.toString() || "1",
         enabled: chain.enabled ?? true,
       });
     } else {
@@ -54,6 +57,7 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
         chainType: "",
         comments: "",
         orderIndex: "1",
+        estimatedQuantity: "1",
         enabled: true,
       });
     }
@@ -70,6 +74,7 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
         chainType: formData.chainType,
         comments: formData.comments || null,
         orderIndex: parseInt(formData.orderIndex) || 1,
+        estimatedQuantity: formData.chainType === 'ONE_TIME' ? (parseInt(formData.estimatedQuantity) || 1) : null,
         enabled: formData.enabled,
       };
 
@@ -146,6 +151,25 @@ export function OperationChainDialog({ chain, processId, open, onClose }: Operat
               </SelectContent>
             </Select>
           </div>
+
+          {/* Поле для расчетного количества деталей (только для разовых цепочек) */}
+          {formData.chainType === 'ONE_TIME' && (
+            <div>
+              <Label htmlFor="estimatedQuantity">Расчетное количество деталей *</Label>
+              <Input
+                id="estimatedQuantity"
+                type="number"
+                min="1"
+                value={formData.estimatedQuantity}
+                onChange={(e) => handleChange('estimatedQuantity', e.target.value)}
+                placeholder="1"
+                required
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                Количество деталей для расчета стоимости на единицу изделия
+              </p>
+            </div>
+          )}
 
           <div>
             <Label htmlFor="orderIndex">Порядок выполнения *</Label>

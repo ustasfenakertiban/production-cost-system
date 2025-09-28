@@ -29,6 +29,7 @@ interface ProductionProcess {
     chainType: string;
     comments?: string;
     orderIndex: number;
+    estimatedQuantity?: number;
     enabled: boolean;
     operations: Array<{
       id: string;
@@ -255,6 +256,37 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
                                 </span>
                               )}
                             </div>
+                            
+                            {/* Стоимость на единицу изделия для разовых цепочек */}
+                            {chain.chainType === 'ONE_TIME' && chain.estimatedQuantity && chain.estimatedQuantity > 0 && (
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <div className="font-semibold text-blue-700">
+                                  На единицу изделия: {formatCurrency(chainCosts.total / chain.estimatedQuantity)}
+                                </div>
+                                <div className="mt-1 space-y-1">
+                                  {chainCosts.materials > 0 && (
+                                    <span className="inline-block mr-4 text-xs">
+                                      Материалы: {formatCurrency(chainCosts.materials / chain.estimatedQuantity)}
+                                    </span>
+                                  )}
+                                  {chainCosts.equipment > 0 && (
+                                    <span className="inline-block mr-4 text-xs">
+                                      Оборудование: {formatCurrency(chainCosts.equipment / chain.estimatedQuantity)}
+                                    </span>
+                                  )}
+                                  {chainCosts.roles > 0 && (
+                                    <span className="inline-block mr-4 text-xs">
+                                      Сотрудники: {formatCurrency(chainCosts.roles / chain.estimatedQuantity)}
+                                    </span>
+                                  )}
+                                  {chainCosts.vat > 0 && (
+                                    <span className="inline-block text-orange-600 text-xs">
+                                      НДС: {formatCurrency(chainCosts.vat / chain.estimatedQuantity)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         

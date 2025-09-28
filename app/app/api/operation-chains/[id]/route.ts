@@ -57,7 +57,7 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { name, chainType, orderIndex, comment, enabled } = data;
+    const { name, chainType, orderIndex, estimatedQuantity, comment, enabled } = data;
 
     const chain = await prisma.operationChain.update({
       where: { id: params.id },
@@ -65,6 +65,7 @@ export async function PUT(
         name,
         chainType,
         orderIndex,
+        estimatedQuantity,
         comment,
         enabled,
       },

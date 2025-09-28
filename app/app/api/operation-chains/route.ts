@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { processId, name, chainType, orderIndex, comment, enabled } = data;
+    const { processId, name, chainType, orderIndex, estimatedQuantity, comment, enabled } = data;
 
     if (!processId || !name || !chainType) {
       return NextResponse.json(
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
         name,
         chainType,
         orderIndex: orderIndex || 1,
+        estimatedQuantity,
         comment,
         enabled: enabled !== undefined ? enabled : true,
       },
