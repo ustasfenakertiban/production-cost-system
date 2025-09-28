@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
         unit: data.unit,
         cost: data.cost,
         vatPercentage: data.vatPercentage || 0,
+        comment: data.comment,
       },
       include: {
         category: true,

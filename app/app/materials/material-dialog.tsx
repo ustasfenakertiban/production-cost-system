@@ -33,6 +33,7 @@ interface Material {
   unit: string;
   cost: number;
   vatPercentage: number;
+  comment?: string;
   category: MaterialCategory;
 }
 
@@ -49,6 +50,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     unit: "",
     cost: "",
     vatPercentage: "",
+    comment: "",
   });
   
   const [categories, setCategories] = useState<MaterialCategory[]>([]);
@@ -75,6 +77,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: material.unit,
         cost: material.cost.toString(),
         vatPercentage: material.vatPercentage?.toString() || "0",
+        comment: material.comment || "",
       });
     } else {
       setFormData({
@@ -83,6 +86,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: "",
         cost: "",
         vatPercentage: "0",
+        comment: "",
       });
     }
   }, [material]);
@@ -110,6 +114,7 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: formData.unit,
         cost: parseFloat(formData.cost),
         vatPercentage: parseFloat(formData.vatPercentage) || 0,
+        comment: formData.comment || null,
       };
 
       const url = material ? `/api/materials/${material.id}` : '/api/materials';
@@ -429,6 +434,17 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                 </div>
               </div>
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="comment">Комментарий</Label>
+            <Textarea
+              id="comment"
+              value={formData.comment}
+              onChange={(e) => handleChange('comment', e.target.value)}
+              placeholder="Дополнительная информация о материале"
+              rows={3}
+            />
           </div>
 
           <div className="flex gap-2 justify-end pt-4">

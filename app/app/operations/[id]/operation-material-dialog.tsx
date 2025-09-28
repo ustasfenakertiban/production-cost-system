@@ -28,7 +28,7 @@ interface OperationMaterial {
   unitPrice: number;
   totalCost: number;
   variance?: number;
-  comments?: string;
+  comment?: string;
   enabled: boolean;
   material: Material;
 }
@@ -47,7 +47,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
     quantity: "",
     unitPrice: "",
     variance: "",
-    comments: "",
+    comment: "",
     enabled: true,
   });
   
@@ -67,7 +67,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
         quantity: material.quantity.toString(),
         unitPrice: material.unitPrice.toString(),
         variance: material.variance?.toString() || "",
-        comments: material.comments || "",
+        comment: material.comment || "",
         enabled: material.enabled ?? true,
       });
     } else {
@@ -76,7 +76,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
         quantity: "",
         unitPrice: "",
         variance: "",
-        comments: "",
+        comment: "",
         enabled: true,
       });
     }
@@ -105,7 +105,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
         quantity: formData.quantity,
         unitPrice: formData.unitPrice,
         variance: formData.variance || null,
-        comments: formData.comments || null,
+        comment: formData.comment || null,
         enabled: formData.enabled,
       };
 
@@ -234,11 +234,11 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
           </div>
 
           <div>
-            <Label htmlFor="comments">Комментарии</Label>
+            <Label htmlFor="comment">Комментарий</Label>
             <Textarea
-              id="comments"
-              value={formData.comments}
-              onChange={(e) => handleChange('comments', e.target.value)}
+              id="comment"
+              value={formData.comment}
+              onChange={(e) => handleChange('comment', e.target.value)}
               placeholder="Дополнительные комментарии"
               rows={2}
             />

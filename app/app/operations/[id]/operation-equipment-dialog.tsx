@@ -26,7 +26,7 @@ interface OperationEquipment {
   hourlyRate: number;
   totalCost: number;
   variance?: number;
-  comments?: string;
+  comment?: string;
   enabled: boolean;
   equipment: Equipment;
 }
@@ -45,7 +45,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
     machineTime: "",
     hourlyRate: "",
     variance: "",
-    comments: "",
+    comment: "",
     enabled: true,
   });
   
@@ -65,7 +65,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
         machineTime: equipment.machineTime.toString(),
         hourlyRate: equipment.hourlyRate.toString(),
         variance: equipment.variance?.toString() || "",
-        comments: equipment.comments || "",
+        comment: equipment.comment || "",
         enabled: equipment.enabled ?? true,
       });
     } else {
@@ -74,7 +74,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
         machineTime: "",
         hourlyRate: "",
         variance: "",
-        comments: "",
+        comment: "",
         enabled: true,
       });
     }
@@ -103,7 +103,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
         machineTime: formData.machineTime,
         hourlyRate: formData.hourlyRate,
         variance: formData.variance || null,
-        comments: formData.comments || null,
+        comment: formData.comment || null,
         enabled: formData.enabled,
       };
 
@@ -236,11 +236,11 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
           </div>
 
           <div>
-            <Label htmlFor="comments">Комментарии</Label>
+            <Label htmlFor="comment">Комментарий</Label>
             <Textarea
-              id="comments"
-              value={formData.comments}
-              onChange={(e) => handleChange('comments', e.target.value)}
+              id="comment"
+              value={formData.comment}
+              onChange={(e) => handleChange('comment', e.target.value)}
               placeholder="Дополнительные комментарии"
               rows={2}
             />

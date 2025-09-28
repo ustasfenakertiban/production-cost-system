@@ -26,7 +26,7 @@ interface OperationRole {
   rate: number;
   totalCost: number;
   variance?: number;
-  comments?: string;
+  comment?: string;
   enabled: boolean;
   role: EmployeeRole;
 }
@@ -46,7 +46,7 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
     paymentType: "",
     rate: "",
     variance: "",
-    comments: "",
+    comment: "",
     enabled: true,
   });
   
@@ -67,7 +67,7 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
         paymentType: role.paymentType,
         rate: role.rate.toString(),
         variance: role.variance?.toString() || "",
-        comments: role.comments || "",
+        comment: role.comment || "",
         enabled: role.enabled ?? true,
       });
     } else {
@@ -77,7 +77,7 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
         paymentType: "",
         rate: "",
         variance: "",
-        comments: "",
+        comment: "",
         enabled: true,
       });
     }
@@ -107,7 +107,7 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
         paymentType: formData.paymentType,
         rate: formData.rate,
         variance: formData.variance || null,
-        comments: formData.comments || null,
+        comment: formData.comment || null,
         enabled: formData.enabled,
       };
 
@@ -253,11 +253,11 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
           </div>
 
           <div>
-            <Label htmlFor="comments">Комментарии</Label>
+            <Label htmlFor="comment">Комментарий</Label>
             <Textarea
-              id="comments"
-              value={formData.comments}
-              onChange={(e) => handleChange('comments', e.target.value)}
+              id="comment"
+              value={formData.comment}
+              onChange={(e) => handleChange('comment', e.target.value)}
               placeholder="Дополнительные комментарии"
               rows={2}
             />

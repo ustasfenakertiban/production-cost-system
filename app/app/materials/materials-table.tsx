@@ -21,6 +21,7 @@ interface Material {
   unit: string;
   cost: number;
   vatPercentage: number;
+  comment?: string;
   category: MaterialCategory;
   createdAt: string;
   updatedAt: string;
@@ -131,6 +132,7 @@ export function MaterialsTable() {
               <th className="text-center p-3 font-semibold">Единица</th>
               <th className="text-right p-3 font-semibold">Стоимость</th>
               <th className="text-center p-3 font-semibold">НДС</th>
+              <th className="text-left p-3 font-semibold">Комментарий</th>
               <th className="text-center p-3 font-semibold">Действия</th>
             </tr>
           </thead>
@@ -172,6 +174,11 @@ export function MaterialsTable() {
                         })} ₽
                       </div>
                     )}
+                  </div>
+                </td>
+                <td className="p-3">
+                  <div className="text-sm text-gray-600 max-w-xs truncate">
+                    {material.comment || "—"}
                   </div>
                 </td>
                 <td className="p-3 text-center">

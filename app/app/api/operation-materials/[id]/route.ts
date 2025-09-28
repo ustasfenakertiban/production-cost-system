@@ -11,7 +11,7 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { quantity, unitPrice, variance, comments, enabled } = data;
+    const { quantity, unitPrice, variance, comment, enabled } = data;
 
     if (!quantity || !unitPrice) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
@@ -26,7 +26,7 @@ export async function PUT(
         unitPrice: parseFloat(unitPrice),
         totalCost,
         variance: variance ? parseFloat(variance) : null,
-        comment: comments,
+        comment: comment,
         enabled: enabled !== undefined ? enabled : true,
       },
       include: {
