@@ -9,61 +9,40 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-enum PaymentType {
-  HOURLY     // почасовая
-  PIECE_RATE // сдельная
-}
-
-enum ExpensePeriod {
-  DAY       // день
-  WEEK      // неделя
-  MONTH     // месяц
-  QUARTER   // квартал
-  YEAR      // год
-}
-
-enum ChainType {
-  ONE_TIME     // разовая (единожды для товара)
-  PER_UNIT     // на единицу товара
-}
-
 model Equipment {
-  id                    String   @id @default(cuid())
-  name                  String   // название
-  estimatedCost         Float    // оценочная стоимость
-  hourlyDepreciation    Float    // амортизация в час
-  maxProductivity       Float?   // максимальная производительность (необязательно)
-  productivityUnits     String?  // единицы производительности (необязательно)
-  comment               String?  // комментарий
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
+  id                 String               @id @default(cuid())
+  name               String
+  estimatedCost      Float
+  hourlyDepreciation Float
+  maxProductivity    Float?
+  productivityUnits  String?
+  comment            String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
   operationEquipment OperationEquipment[]
 
   @@map("equipment")
 }
 
 model EmployeeRole {
-  id           String      @id @default(cuid())
-  name         String      // наименование роли
-  paymentType  PaymentType // тип оплаты
-  hourlyRate   Float       // базовая стоимость часа
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
+  id             String          @id @default(cuid())
+  name           String
+  paymentType    PaymentType
+  hourlyRate     Float
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   operationRoles OperationRole[]
 
   @@map("employee_roles")
 }
 
 model Product {
-  id             String   @id @default(cuid())
-  name           String   // наименование
-  description    String?  // описание
-  imagePath      String?  // путь к фото (cloud_storage_path)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
+  id                  String              @id @default(cuid())
+  name                String
+  description         String?
+  imagePath           String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   productionProcesses ProductionProcess[]
 
   @@map("products")
@@ -71,27 +50,25 @@ model Product {
 
 model MaterialCategory {
   id        String     @id @default(cuid())
-  name      String     @unique // наименование категории
+  name      String     @unique
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  
   materials Material[]
 
   @@map("material_categories")
 }
 
 model Material {
-  id            String           @id @default(cuid())
-  name          String           // наименование материала
-  categoryId    String           // ID категории
-  unit          String           // единица измерения
-  cost          Float            // стоимость
-  vatPercentage Float            @default(0) // процент НДС
-  comment       String?          // комментарий
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  
-  category   MaterialCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id                 String              @id @default(cuid())
+  name               String
+  categoryId         String
+  unit               String
+  cost               Float
+  vatPercentage      Float               @default(0)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  comment            String?
+  category           MaterialCategory    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   operationMaterials OperationMaterial[]
 
   @@map("materials")
@@ -99,132 +76,119 @@ model Material {
 
 model RecurringExpense {
   id        String        @id @default(cuid())
-  name      String        // наименование расхода
-  period    ExpensePeriod // период расхода
-  amount    Float         // сумма
+  name      String
+  period    ExpensePeriod
+  amount    Float
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
   @@map("recurring_expenses")
 }
 
-// Производственные процессы
 model ProductionProcess {
-  id          String   @id @default(cuid())
-  productId   String   // связь с товаром
-  name        String   // наименование процесса
-  description String?  // описание процесса
-  comment     String?  // комментарий к процессу
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id              String           @id @default(cuid())
+  productId       String
+  name            String
+  description     String?
+  comment         String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   operationChains OperationChain[]
+  product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("production_processes")
 }
 
-// Цепочки операций
 model OperationChain {
-  id                String    @id @default(cuid())
-  processId         String    // связь с производственным процессом
-  name              String    // наименование цепочки
-  chainType         ChainType // тип цепочки (разовая/на единицу)
-  orderIndex        Int       @default(1) // порядок выполнения цепочки
-  estimatedQuantity Int?      // расчетное количество деталей (для разовых цепочек)
-  comment           String?   // комментарий к цепочке
-  enabled           Boolean   @default(true) // включена ли цепочка в расчет
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  process    ProductionProcess    @relation(fields: [processId], references: [id], onDelete: Cascade)
-  operations ProductionOperation[]
+  id                String                @id @default(cuid())
+  processId         String
+  name              String
+  chainType         ChainType
+  orderIndex        Int                   @default(1)
+  comment           String?
+  enabled           Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  estimatedQuantity Int?
+  process           ProductionProcess     @relation(fields: [processId], references: [id], onDelete: Cascade)
+  operations        ProductionOperation[]
 
   @@map("operation_chains")
 }
 
-// Производственные операции
 model ProductionOperation {
-  id          String   @id @default(cuid())
-  chainId     String   // связь с цепочкой операций
-  name        String   // наименование операции
-  description String?  // описание операции
-  comment     String?  // комментарий к операции
-  orderIndex  Int      // порядок операции в цепочке
-  enabled     Boolean  @default(true) // включена ли операция в расчет
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  chain              OperationChain      @relation(fields: [chainId], references: [id], onDelete: Cascade)
-  operationMaterials OperationMaterial[]
+  id                 String               @id @default(cuid())
+  chainId            String
+  name               String
+  description        String?
+  comment            String?
+  orderIndex         Int
+  enabled            Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
   operationEquipment OperationEquipment[]
+  operationMaterials OperationMaterial[]
   operationRoles     OperationRole[]
+  chain              OperationChain       @relation(fields: [chainId], references: [id], onDelete: Cascade)
 
   @@map("production_operations")
 }
 
-// Материалы в операции
 model OperationMaterial {
-  id          String  @id @default(cuid())
-  operationId String  // связь с операцией
-  materialId  String  // связь с материалом
-  quantity    Float   // количество
-  unitPrice   Float   // цена за единицу
-  totalCost   Float   // общая стоимость
-  variance    Float?  // разброс в %
-  comment     String? // комментарий к материалу в операции
-  enabled     Boolean @default(true) // включен ли материал в расчет
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  operation ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  material  Material             @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  id          String              @id @default(cuid())
+  operationId String
+  materialId  String
+  quantity    Float
+  unitPrice   Float
+  totalCost   Float
+  variance    Float?
+  comment     String?
+  enabled     Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  material    Material            @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  operation   ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
 
   @@map("operation_materials")
 }
 
-// Оборудование в операции
 model OperationEquipment {
-  id           String  @id @default(cuid())
-  operationId  String  // связь с операцией
-  equipmentId  String  // связь с оборудованием
-  machineTime  Float   // машинное время
-  hourlyRate   Float   // стоимость в час
-  totalCost    Float   // общая стоимость
-  variance     Float?  // разброс в %
-  comment      String? // комментарий к оборудованию в операции
-  enabled      Boolean @default(true) // включено ли оборудование в расчет
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  operation ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  equipment Equipment            @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  id          String              @id @default(cuid())
+  operationId String
+  equipmentId String
+  machineTime Float
+  hourlyRate  Float
+  totalCost   Float
+  variance    Float?
+  comment     String?
+  enabled     Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  equipment   Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  operation   ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
 
   @@map("operation_equipment")
 }
 
-// Роли сотрудников в операции
 model OperationRole {
-  id          String      @id @default(cuid())
-  operationId String      // связь с операцией
-  roleId      String      // связь с ролью сотрудника
-  timeSpent   Float       // время на операцию
-  paymentType PaymentType // вид оплаты (часовая/за операцию)
-  rate        Float       // ставка
-  totalCost   Float       // общая стоимость
-  variance    Float?      // разброс в %
-  comment     String?     // комментарий к роли в операции
-  enabled     Boolean     @default(true) // включена ли роль в расчет
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  operation ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  role      EmployeeRole         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  id          String              @id @default(cuid())
+  operationId String
+  roleId      String
+  timeSpent   Float
+  paymentType PaymentType
+  rate        Float
+  totalCost   Float
+  variance    Float?
+  comment     String?
+  enabled     Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  operation   ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  role        EmployeeRole        @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@map("operation_roles")
 }
 
-// Пользователи системы
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -234,9 +198,8 @@ model User {
   password      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  accounts Account[]
-  sessions Session[]
+  accounts      Account[]
+  sessions      Session[]
 
   @@map("users")
 }
@@ -247,15 +210,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
@@ -278,4 +240,22 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verificationtokens")
+}
+
+enum PaymentType {
+  HOURLY
+  PIECE_RATE
+}
+
+enum ExpensePeriod {
+  DAY
+  WEEK
+  MONTH
+  QUARTER
+  YEAR
+}
+
+enum ChainType {
+  ONE_TIME
+  PER_UNIT
 }
