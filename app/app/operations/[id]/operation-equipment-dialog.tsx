@@ -23,6 +23,7 @@ interface OperationEquipment {
   id: string;
   equipmentId: string;
   machineTime: number;
+  machineTimeSeconds?: number;
   hourlyRate: number;
   totalCost: number;
   variance?: number;
@@ -34,15 +35,17 @@ interface OperationEquipment {
 interface OperationEquipmentDialogProps {
   equipment: OperationEquipment | null;
   operationId: string;
+  estimatedProductivityPerHour?: number;
   open: boolean;
   onClose: () => void;
 }
 
-export function OperationEquipmentDialog({ equipment, operationId, open, onClose }: OperationEquipmentDialogProps) {
+export function OperationEquipmentDialog({ equipment, operationId, estimatedProductivityPerHour, open, onClose }: OperationEquipmentDialogProps) {
   const [availableEquipment, setAvailableEquipment] = useState<Equipment[]>([]);
   const [formData, setFormData] = useState({
     equipmentId: "",
     machineTime: "",
+    machineTimeSeconds: "",
     hourlyRate: "",
     variance: "",
     comment: "",
@@ -63,6 +66,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
       setFormData({
         equipmentId: equipment.equipmentId,
         machineTime: equipment.machineTime.toString(),
+        machineTimeSeconds: equipment.machineTimeSeconds?.toString() || "",
         hourlyRate: equipment.hourlyRate.toString(),
         variance: equipment.variance?.toString() || "",
         comment: equipment.comment || "",
@@ -72,6 +76,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
       setFormData({
         equipmentId: "",
         machineTime: "",
+        machineTimeSeconds: "",
         hourlyRate: "",
         variance: "",
         comment: "",
@@ -92,6 +97,62 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
     }
   };
 
+  // Функции для преобразования времени
+  const hoursToSeconds = (hours: number): number => {
+    return hours * 3600;
+  };
+
+  const secondsToHours = (seconds: number): number => {
+    return seconds / 3600;
+  };
+
+  // Обработчик изменения поля времени в часах
+  const handleMachineTimeChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, machineTime: value };
+      const hours = parseFloat(value);
+      if (!isNaN(hours) && hours > 0) {
+        newData.machineTimeSeconds = hoursToSeconds(hours).toString();
+      } else {
+        newData.machineTimeSeconds = "";
+      }
+      return newData;
+    });
+  };
+
+  // Обработчик изменения поля времени в секундах
+  const handleMachineTimeSecondsChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, machineTimeSeconds: value };
+      const seconds = parseFloat(value);
+      if (!isNaN(seconds) && seconds > 0) {
+        newData.machineTime = secondsToHours(seconds).toFixed(6);
+      } else {
+        newData.machineTime = "";
+      }
+      return newData;
+    });
+  };
+
+  // Заполнить время по расчётной производительности
+  const fillByEstimatedProductivity = () => {
+    if (estimatedProductivityPerHour && estimatedProductivityPerHour > 0) {
+      const timePerOperationSeconds = 3600 / estimatedProductivityPerHour;
+      const timePerOperationHours = timePerOperationSeconds / 3600;
+      
+      setFormData(prev => ({
+        ...prev,
+        machineTime: timePerOperationHours.toFixed(6),
+        machineTimeSeconds: timePerOperationSeconds.toFixed(2)
+      }));
+      
+      toast({
+        title: "Время заполнено",
+        description: `Рассчитано исходя из производительности ${estimatedProductivityPerHour} циклов/час`,
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -101,6 +162,7 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
         operationId,
         equipmentId: formData.equipmentId,
         machineTime: formData.machineTime,
+        machineTimeSeconds: formData.machineTimeSeconds || null,
         hourlyRate: formData.hourlyRate,
         variance: formData.variance || null,
         comment: formData.comment || null,
@@ -197,17 +259,53 @@ export function OperationEquipmentDialog({ equipment, operationId, open, onClose
             )}
           </div>
 
-          <div>
-            <Label htmlFor="machineTime">Машинное время (часы) *</Label>
-            <Input
-              id="machineTime"
-              type="number"
-              step="0.01"
-              value={formData.machineTime}
-              onChange={(e) => handleChange('machineTime', e.target.value)}
-              placeholder="Время работы оборудования"
-              required
-            />
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="machineTime">Машинное время *</Label>
+              {estimatedProductivityPerHour && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={fillByEstimatedProductivity}
+                  className="text-xs h-7"
+                >
+                  Заполнить по расчётной
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="machineTime" className="text-sm text-gray-600">Часы</Label>
+                <Input
+                  id="machineTime"
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={formData.machineTime}
+                  onChange={(e) => handleMachineTimeChange(e.target.value)}
+                  placeholder="0.000"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="machineTimeSeconds" className="text-sm text-gray-600">Секунды</Label>
+                <Input
+                  id="machineTimeSeconds"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.machineTimeSeconds}
+                  onChange={(e) => handleMachineTimeSecondsChange(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            {estimatedProductivityPerHour && (
+              <p className="text-xs text-gray-500">
+                Расчётная производительность: {estimatedProductivityPerHour} циклов/час
+              </p>
+            )}
           </div>
 
           <div>

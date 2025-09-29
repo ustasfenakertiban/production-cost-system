@@ -22,6 +22,7 @@ interface OperationRole {
   id: string;
   roleId: string;
   timeSpent: number;
+  timeSpentSeconds?: number;
   paymentType: string;
   rate: number;
   totalCost: number;
@@ -34,15 +35,17 @@ interface OperationRole {
 interface OperationRoleDialogProps {
   role: OperationRole | null;
   operationId: string;
+  estimatedProductivityPerHour?: number;
   open: boolean;
   onClose: () => void;
 }
 
-export function OperationRoleDialog({ role, operationId, open, onClose }: OperationRoleDialogProps) {
+export function OperationRoleDialog({ role, operationId, estimatedProductivityPerHour, open, onClose }: OperationRoleDialogProps) {
   const [availableRoles, setAvailableRoles] = useState<EmployeeRole[]>([]);
   const [formData, setFormData] = useState({
     roleId: "",
     timeSpent: "",
+    timeSpentSeconds: "",
     paymentType: "",
     rate: "",
     variance: "",
@@ -64,6 +67,7 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
       setFormData({
         roleId: role.roleId,
         timeSpent: role.timeSpent.toString(),
+        timeSpentSeconds: role.timeSpentSeconds?.toString() || "",
         paymentType: role.paymentType,
         rate: role.rate.toString(),
         variance: role.variance?.toString() || "",
@@ -74,6 +78,7 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
       setFormData({
         roleId: "",
         timeSpent: "",
+        timeSpentSeconds: "",
         paymentType: "",
         rate: "",
         variance: "",
@@ -95,6 +100,62 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
     }
   };
 
+  // Функции для преобразования времени
+  const hoursToSeconds = (hours: number): number => {
+    return hours * 3600;
+  };
+
+  const secondsToHours = (seconds: number): number => {
+    return seconds / 3600;
+  };
+
+  // Обработчик изменения поля времени в часах
+  const handleTimeSpentChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, timeSpent: value };
+      const hours = parseFloat(value);
+      if (!isNaN(hours) && hours > 0) {
+        newData.timeSpentSeconds = hoursToSeconds(hours).toString();
+      } else {
+        newData.timeSpentSeconds = "";
+      }
+      return newData;
+    });
+  };
+
+  // Обработчик изменения поля времени в секундах
+  const handleTimeSpentSecondsChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, timeSpentSeconds: value };
+      const seconds = parseFloat(value);
+      if (!isNaN(seconds) && seconds > 0) {
+        newData.timeSpent = secondsToHours(seconds).toFixed(6);
+      } else {
+        newData.timeSpent = "";
+      }
+      return newData;
+    });
+  };
+
+  // Заполнить время по расчётной производительности
+  const fillByEstimatedProductivity = () => {
+    if (estimatedProductivityPerHour && estimatedProductivityPerHour > 0) {
+      const timePerOperationSeconds = 3600 / estimatedProductivityPerHour;
+      const timePerOperationHours = timePerOperationSeconds / 3600;
+      
+      setFormData(prev => ({
+        ...prev,
+        timeSpent: timePerOperationHours.toFixed(6),
+        timeSpentSeconds: timePerOperationSeconds.toFixed(2)
+      }));
+      
+      toast({
+        title: "Время заполнено",
+        description: `Рассчитано исходя из производительности ${estimatedProductivityPerHour} циклов/час`,
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -104,6 +165,7 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
         operationId,
         roleId: formData.roleId,
         timeSpent: formData.timeSpent,
+        timeSpentSeconds: formData.timeSpentSeconds || null,
         paymentType: formData.paymentType,
         rate: formData.rate,
         variance: formData.variance || null,
@@ -201,17 +263,53 @@ export function OperationRoleDialog({ role, operationId, open, onClose }: Operat
             </Select>
           </div>
 
-          <div>
-            <Label htmlFor="timeSpent">Время работы (часы) *</Label>
-            <Input
-              id="timeSpent"
-              type="number"
-              step="0.01"
-              value={formData.timeSpent}
-              onChange={(e) => handleChange('timeSpent', e.target.value)}
-              placeholder="Время работы на операции"
-              required
-            />
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="timeSpent">Время работы *</Label>
+              {estimatedProductivityPerHour && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={fillByEstimatedProductivity}
+                  className="text-xs h-7"
+                >
+                  Заполнить по расчётной
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="timeSpent" className="text-sm text-gray-600">Часы</Label>
+                <Input
+                  id="timeSpent"
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={formData.timeSpent}
+                  onChange={(e) => handleTimeSpentChange(e.target.value)}
+                  placeholder="0.000"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="timeSpentSeconds" className="text-sm text-gray-600">Секунды</Label>
+                <Input
+                  id="timeSpentSeconds"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.timeSpentSeconds}
+                  onChange={(e) => handleTimeSpentSecondsChange(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            {estimatedProductivityPerHour && (
+              <p className="text-xs text-gray-500">
+                Расчётная производительность: {estimatedProductivityPerHour} циклов/час
+              </p>
+            )}
           </div>
 
           <div>

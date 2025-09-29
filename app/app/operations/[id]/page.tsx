@@ -20,6 +20,7 @@ interface Operation {
   orderIndex: number;
   comments?: string;
   enabled: boolean;
+  estimatedProductivityPerHour?: number;
   chain: {
     id: string;
     name: string;
@@ -683,6 +684,7 @@ export default function OperationDetailPage({ params }: { params: { id: string }
         <OperationEquipmentDialog
           equipment={editingEquipment}
           operationId={operation.id}
+          estimatedProductivityPerHour={operation.estimatedProductivityPerHour}
           open={equipmentDialogOpen}
           onClose={() => {
             setEquipmentDialogOpen(false);
@@ -694,6 +696,7 @@ export default function OperationDetailPage({ params }: { params: { id: string }
         <OperationRoleDialog
           role={editingRole}
           operationId={operation.id}
+          estimatedProductivityPerHour={operation.estimatedProductivityPerHour}
           open={roleDialogOpen}
           onClose={() => {
             setRoleDialogOpen(false);

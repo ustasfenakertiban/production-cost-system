@@ -117,19 +117,20 @@ model OperationChain {
 }
 
 model ProductionOperation {
-  id                 String               @id @default(cuid())
-  chainId            String
-  name               String
-  description        String?
-  comment            String?
-  orderIndex         Int
-  enabled            Boolean              @default(true)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  operationEquipment OperationEquipment[]
-  operationMaterials OperationMaterial[]
-  operationRoles     OperationRole[]
-  chain              OperationChain       @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  id                         String               @id @default(cuid())
+  chainId                    String
+  name                       String
+  description                String?
+  comment                    String?
+  orderIndex                 Int
+  enabled                    Boolean              @default(true)
+  estimatedProductivityPerHour Float?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+  operationEquipment         OperationEquipment[]
+  operationMaterials         OperationMaterial[]
+  operationRoles             OperationRole[]
+  chain                      OperationChain       @relation(fields: [chainId], references: [id], onDelete: Cascade)
 
   @@map("production_operations")
 }
@@ -153,38 +154,40 @@ model OperationMaterial {
 }
 
 model OperationEquipment {
-  id          String              @id @default(cuid())
-  operationId String
-  equipmentId String
-  machineTime Float
-  hourlyRate  Float
-  totalCost   Float
-  variance    Float?
-  comment     String?
-  enabled     Boolean             @default(true)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  equipment   Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  operation   ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  id               String              @id @default(cuid())
+  operationId      String
+  equipmentId      String
+  machineTime      Float
+  machineTimeSeconds Float?
+  hourlyRate       Float
+  totalCost        Float
+  variance         Float?
+  comment          String?
+  enabled          Boolean             @default(true)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  equipment        Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  operation        ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
 
   @@map("operation_equipment")
 }
 
 model OperationRole {
-  id          String              @id @default(cuid())
-  operationId String
-  roleId      String
-  timeSpent   Float
-  paymentType PaymentType
-  rate        Float
-  totalCost   Float
-  variance    Float?
-  comment     String?
-  enabled     Boolean             @default(true)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  operation   ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  role        EmployeeRole        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  id             String              @id @default(cuid())
+  operationId    String
+  roleId         String
+  timeSpent      Float
+  timeSpentSeconds Float?
+  paymentType    PaymentType
+  rate           Float
+  totalCost      Float
+  variance       Float?
+  comment        String?
+  enabled        Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  operation      ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  role           EmployeeRole        @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@map("operation_roles")
 }

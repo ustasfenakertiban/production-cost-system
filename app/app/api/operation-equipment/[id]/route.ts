@@ -11,7 +11,7 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { machineTime, hourlyRate, variance, comment, enabled } = data;
+    const { machineTime, machineTimeSeconds, hourlyRate, variance, comment, enabled } = data;
 
     if (!machineTime || !hourlyRate) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
@@ -23,6 +23,7 @@ export async function PUT(
       where: { id: params.id },
       data: {
         machineTime: parseFloat(machineTime),
+        machineTimeSeconds: machineTimeSeconds ? parseFloat(machineTimeSeconds) : null,
         hourlyRate: parseFloat(hourlyRate),
         totalCost,
         variance: variance ? parseFloat(variance) : null,

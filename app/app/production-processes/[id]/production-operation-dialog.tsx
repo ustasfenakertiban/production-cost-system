@@ -17,6 +17,7 @@ interface Operation {
   orderIndex: number;
   comments?: string;
   enabled: boolean;
+  estimatedProductivityPerHour?: number;
 }
 
 interface ProductionOperationDialogProps {
@@ -32,6 +33,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
     description: "",
     comments: "",
     enabled: true,
+    estimatedProductivityPerHour: "",
   });
   
   const [loading, setLoading] = useState(false);
@@ -44,6 +46,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
         description: operation.description || "",
         comments: operation.comments || "",
         enabled: operation.enabled ?? true,
+        estimatedProductivityPerHour: operation.estimatedProductivityPerHour?.toString() || "",
       });
     } else {
       setFormData({
@@ -51,6 +54,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
         description: "",
         comments: "",
         enabled: true,
+        estimatedProductivityPerHour: "",
       });
     }
   }, [operation]);
@@ -66,6 +70,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
         description: formData.description || null,
         comments: formData.comments || null,
         enabled: formData.enabled,
+        estimatedProductivityPerHour: formData.estimatedProductivityPerHour ? parseFloat(formData.estimatedProductivityPerHour) : null,
       };
 
       const url = operation ? `/api/production-operations/${operation.id}` : '/api/production-operations';
@@ -134,6 +139,22 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
               placeholder="Описание операции"
               rows={3}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="estimatedProductivityPerHour">Расчётная производительность в час</Label>
+            <Input
+              id="estimatedProductivityPerHour"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.estimatedProductivityPerHour}
+              onChange={(e) => handleChange('estimatedProductivityPerHour', e.target.value)}
+              placeholder="Количество циклов в час"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Используется для автоматического расчёта времени операции
+            </p>
           </div>
 
           <div>
