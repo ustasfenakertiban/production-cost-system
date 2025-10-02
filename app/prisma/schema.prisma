@@ -10,28 +10,30 @@ datasource db {
 }
 
 model Equipment {
-  id                 String               @id @default(cuid())
+  id                 String                       @id @default(cuid())
   name               String
   estimatedCost      Float
   hourlyDepreciation Float
   maxProductivity    Float?
   productivityUnits  String?
   comment            String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
   operationEquipment OperationEquipment[]
+  templateEquipment  OperationTemplateEquipment[]
 
   @@map("equipment")
 }
 
 model EmployeeRole {
-  id             String          @id @default(cuid())
+  id             String                  @id @default(cuid())
   name           String
   paymentType    PaymentType
   hourlyRate     Float
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
   operationRoles OperationRole[]
+  templateRoles  OperationTemplateRole[]
 
   @@map("employee_roles")
 }
@@ -60,17 +62,18 @@ model MaterialCategory {
 }
 
 model Material {
-  id                 String              @id @default(cuid())
+  id                 String                      @id @default(cuid())
   name               String
   categoryId         String
   unit               String
   cost               Float
-  vatPercentage      Float               @default(0)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  vatPercentage      Float                       @default(0)
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
   comment            String?
-  category           MaterialCategory    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category           MaterialCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   operationMaterials OperationMaterial[]
+  templateMaterials  OperationTemplateMaterial[]
 
   @@map("materials")
 }
@@ -296,4 +299,84 @@ model OrderItem {
   productionProcess    ProductionProcess @relation(fields: [productionProcessId], references: [id], onDelete: Cascade)
 
   @@map("order_items")
+}
+
+model OperationTemplate {
+  id                               String                        @id @default(cuid())
+  name                             String
+  description                      String?
+  comment                          String?
+  enabled                          Boolean                       @default(true)
+  estimatedProductivityPerHour     Float?
+  estimatedProductivityPerHourVariance Float?
+  cycleHours                       Float?
+  minimumBatchSize                 Int?                          @default(1)
+  createdAt                        DateTime                      @default(now())
+  updatedAt                        DateTime                      @updatedAt
+  materials                        OperationTemplateMaterial[]
+  equipment                        OperationTemplateEquipment[]
+  roles                            OperationTemplateRole[]
+
+  @@map("operation_templates")
+}
+
+model OperationTemplateMaterial {
+  id         String            @id @default(cuid())
+  templateId String
+  materialId String
+  quantity   Float
+  unitPrice  Float
+  totalCost  Float
+  variance   Float?
+  comment    String?
+  enabled    Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  template   OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  material   Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("operation_template_materials")
+}
+
+model OperationTemplateEquipment {
+  id                          String            @id @default(cuid())
+  templateId                  String
+  equipmentId                 String
+  machineTime                 Float
+  machineTimeSeconds          Float?
+  piecesPerHour               Float?
+  hourlyRate                  Float
+  totalCost                   Float
+  variance                    Float?
+  comment                     String?
+  enabled                     Boolean           @default(true)
+  requiresContinuousOperation Boolean           @default(true)
+  createdAt                   DateTime          @default(now())
+  updatedAt                   DateTime          @updatedAt
+  template                    OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  equipment                   Equipment         @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@map("operation_template_equipment")
+}
+
+model OperationTemplateRole {
+  id                         String            @id @default(cuid())
+  templateId                 String
+  roleId                     String
+  timeSpent                  Float
+  timeSpentSeconds           Float?
+  piecesPerHour              Float?
+  paymentType                PaymentType
+  rate                       Float
+  totalCost                  Float
+  variance                   Float?
+  comment                    String?
+  enabled                    Boolean           @default(true)
+  requiresContinuousPresence Boolean           @default(true)
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+  template                   OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  role                       EmployeeRole      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@map("operation_template_roles")
 }

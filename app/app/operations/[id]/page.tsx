@@ -7,11 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Edit, Trash2, Package, Wrench, Users } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Package, Wrench, Users, Save, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { OperationMaterialDialog } from "./operation-material-dialog";
 import { OperationEquipmentDialog } from "./operation-equipment-dialog";
 import { OperationRoleDialog } from "./operation-role-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Operation {
   id: string;
@@ -111,11 +122,34 @@ export default function OperationDetailPage({ params }: { params: { id: string }
   const [editingEquipment, setEditingEquipment] = useState<OperationEquipment | null>(null);
   const [editingRole, setEditingRole] = useState<OperationRole | null>(null);
 
+  // Template states
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false);
+  const [applyTemplateDialogOpen, setApplyTemplateDialogOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+
   const { toast } = useToast();
 
   useEffect(() => {
     loadOperationData();
+    loadTemplates();
   }, [params.id]);
+
+  const loadTemplates = async () => {
+    try {
+      const response = await fetch('/api/operation-templates');
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки шаблонов:', error);
+    }
+  };
 
   const loadOperationData = async () => {
     try {
@@ -250,6 +284,98 @@ export default function OperationDetailPage({ params }: { params: { id: string }
     return materialsCost + equipmentCost + rolesCost;
   };
 
+  const handleSaveAsTemplate = async () => {
+    if (!templateName.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Введите название шаблона",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingTemplate(true);
+    try {
+      const response = await fetch(`/api/production-operations/${params.id}/save-as-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: templateName,
+          description: templateDescription,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to save template');
+
+      toast({
+        title: "Успешно",
+        description: "Операция сохранена как шаблон",
+      });
+
+      setSaveTemplateDialogOpen(false);
+      setTemplateName("");
+      setTemplateDescription("");
+      loadTemplates();
+    } catch (error) {
+      toast({
+        title: "Ошибка",
+        description: "Не удалось сохранить шаблон",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleApplyTemplate = async () => {
+    if (!selectedTemplate) {
+      toast({
+        title: "Ошибка",
+        description: "Выберите шаблон",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm('Применение шаблона заменит все текущие данные операции. Продолжить?')) {
+      return;
+    }
+
+    setApplyingTemplate(true);
+    try {
+      const response = await fetch(`/api/production-operations/${params.id}/apply-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          templateId: selectedTemplate,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to apply template');
+
+      toast({
+        title: "Успешно",
+        description: "Шаблон применен к операции",
+      });
+
+      setApplyTemplateDialogOpen(false);
+      setSelectedTemplate("");
+      loadOperationData();
+    } catch (error) {
+      toast({
+        title: "Ошибка",
+        description: "Не удалось применить шаблон",
+        variant: "destructive",
+      });
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -281,6 +407,24 @@ export default function OperationDetailPage({ params }: { params: { id: string }
               К процессу
             </Link>
           </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setSaveTemplateDialogOpen(true)}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Сохранить как шаблон
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setApplyTemplateDialogOpen(true)}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Применить шаблон
+            </Button>
+          </div>
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-gray-900">{operation.name}</h1>
             <div className="flex items-center gap-4 mt-2">
@@ -706,6 +850,128 @@ export default function OperationDetailPage({ params }: { params: { id: string }
             loadOperationData();
           }}
         />
+
+        {/* Save as Template Dialog */}
+        <Dialog open={saveTemplateDialogOpen} onOpenChange={setSaveTemplateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Сохранить операцию как шаблон</DialogTitle>
+              <DialogDescription>
+                Создайте шаблон из текущей операции для быстрого создания похожих операций
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="template-name">Название шаблона *</Label>
+                <Input
+                  id="template-name"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="Например: Стандартная печать"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-description">Описание</Label>
+                <Textarea
+                  id="template-description"
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  placeholder="Краткое описание шаблона"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setSaveTemplateDialogOpen(false)}
+                disabled={savingTemplate}
+              >
+                Отмена
+              </Button>
+              <Button onClick={handleSaveAsTemplate} disabled={savingTemplate}>
+                {savingTemplate ? "Сохранение..." : "Сохранить"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Apply Template Dialog */}
+        <Dialog open={applyTemplateDialogOpen} onOpenChange={setApplyTemplateDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Применить шаблон к операции</DialogTitle>
+              <DialogDescription>
+                Выберите шаблон для применения. Это заменит все текущие данные операции.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {templates.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Нет доступных шаблонов</p>
+                  <p className="text-sm mt-2">Создайте шаблон, сохранив операцию</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {templates.map((template) => (
+                    <div
+                      key={template.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                        selectedTemplate === template.id
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setSelectedTemplate(template.id)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium">{template.name}</h4>
+                          {template.description && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              {template.description}
+                            </p>
+                          )}
+                          <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                            <span>{template.materials?.length || 0} материалов</span>
+                            <span>{template.equipment?.length || 0} оборудования</span>
+                            <span>{template.roles?.length || 0} сотрудников</span>
+                          </div>
+                        </div>
+                        {selectedTemplate === template.id && (
+                          <div className="ml-2">
+                            <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setApplyTemplateDialogOpen(false);
+                  setSelectedTemplate("");
+                }}
+                disabled={applyingTemplate}
+              >
+                Отмена
+              </Button>
+              <Button 
+                onClick={handleApplyTemplate} 
+                disabled={applyingTemplate || !selectedTemplate}
+              >
+                {applyingTemplate ? "Применение..." : "Применить"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

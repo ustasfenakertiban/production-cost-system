@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wrench, Users, Package, BarChart3, PackageOpen, Calendar, ClipboardList } from "lucide-react";
+import { Wrench, Users, Package, BarChart3, PackageOpen, Calendar, ClipboardList, FileText } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -121,8 +121,8 @@ export default function HomePage() {
           </Card>
         </div>
 
-        {/* Третий ряд - 2 карточки */}
-        <div className="grid md:grid-cols-2 gap-6 mb-12 max-w-4xl mx-auto">
+        {/* Третий ряд - 3 карточки */}
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
           <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
             <CardHeader className="text-center">
               <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -162,6 +162,25 @@ export default function HomePage() {
               <Button asChild className="w-full">
                 <Link href="/orders">
                   Управлять заказами
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="w-8 h-8 text-amber-600" />
+              </div>
+              <CardTitle>Шаблоны операций</CardTitle>
+              <CardDescription>
+                Шаблоны для быстрого создания операций
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button asChild className="w-full">
+                <Link href="/operation-templates">
+                  Управлять шаблонами
                 </Link>
               </Button>
             </CardContent>
