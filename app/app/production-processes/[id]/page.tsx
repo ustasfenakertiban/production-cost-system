@@ -6,10 +6,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Settings, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { OperationChainCard } from "./operation-chain-card";
 import { OperationChainDialog } from "./operation-chain-dialog";
+import { CloneChainDialog } from "./clone-chain-dialog";
 import { calculateChainCosts, formatCurrency, formatPercent } from "@/lib/cost-calculations";
 
 interface Product {
@@ -72,6 +73,8 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
   const [loading, setLoading] = useState(true);
   const [chainDialogOpen, setChainDialogOpen] = useState(false);
   const [editingChain, setEditingChain] = useState<any>(null);
+  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
+  const [cloningChain, setCloningChain] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -112,6 +115,20 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
   const handleChainDialogClose = () => {
     setChainDialogOpen(false);
     setEditingChain(null);
+    loadProcess();
+  };
+
+  const handleCloneChain = (chain: any) => {
+    setCloningChain({ id: chain.id, name: chain.name });
+    setCloneDialogOpen(true);
+  };
+
+  const handleCloneDialogClose = () => {
+    setCloneDialogOpen(false);
+    setCloningChain(null);
+  };
+
+  const handleCloneSuccess = () => {
     loadProcess();
   };
 
@@ -317,14 +334,26 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
                           <span className="font-medium">Порядок: {chain.orderIndex}</span>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditChain(chain)}
-                        className={!chain.enabled ? 'opacity-60' : ''}
-                      >
-                        <Settings className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCloneChain(chain)}
+                          className={!chain.enabled ? 'opacity-60' : ''}
+                          title="Клонировать цепочку"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditChain(chain)}
+                          className={!chain.enabled ? 'opacity-60' : ''}
+                          title="Редактировать цепочку"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className={!chain.enabled ? 'opacity-80' : ''}>
@@ -358,6 +387,16 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
           open={chainDialogOpen}
           onClose={handleChainDialogClose}
         />
+
+        {cloningChain && (
+          <CloneChainDialog
+            chainId={cloningChain.id}
+            chainName={cloningChain.name}
+            open={cloneDialogOpen}
+            onClose={handleCloneDialogClose}
+            onSuccess={handleCloneSuccess}
+          />
+        )}
       </div>
     </div>
   );
