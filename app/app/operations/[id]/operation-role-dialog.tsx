@@ -23,6 +23,7 @@ interface OperationRole {
   roleId: string;
   timeSpent: number;
   timeSpentSeconds?: number;
+  piecesPerHour?: number;
   paymentType: string;
   rate: number;
   totalCost: number;
@@ -46,6 +47,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
     roleId: "",
     timeSpent: "",
     timeSpentSeconds: "",
+    piecesPerHour: "",
     paymentType: "",
     rate: "",
     variance: "",
@@ -68,6 +70,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
         roleId: role.roleId,
         timeSpent: role.timeSpent.toString(),
         timeSpentSeconds: role.timeSpentSeconds?.toString() || "",
+        piecesPerHour: role.piecesPerHour?.toString() || "",
         paymentType: role.paymentType,
         rate: role.rate.toString(),
         variance: role.variance?.toString() || "",
@@ -79,6 +82,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
         roleId: "",
         timeSpent: "",
         timeSpentSeconds: "",
+        piecesPerHour: "",
         paymentType: "",
         rate: "",
         variance: "",
@@ -101,23 +105,19 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
   };
 
   // Функции для преобразования времени
-  const hoursToSeconds = (hours: number): number => {
-    return hours * 3600;
-  };
-
-  const secondsToHours = (seconds: number): number => {
-    return seconds / 3600;
-  };
-
   // Обработчик изменения поля времени в часах
   const handleTimeSpentChange = (value: string) => {
     setFormData(prev => {
       const newData = { ...prev, timeSpent: value };
       const hours = parseFloat(value);
       if (!isNaN(hours) && hours > 0) {
-        newData.timeSpentSeconds = hoursToSeconds(hours).toString();
+        // Пересчитываем секунды: секунды = часы * 3600
+        newData.timeSpentSeconds = (hours * 3600).toFixed(2);
+        // Пересчитываем штук в час: штук_в_час = 1 / часы
+        newData.piecesPerHour = (1 / hours).toFixed(2);
       } else {
         newData.timeSpentSeconds = "";
+        newData.piecesPerHour = "";
       }
       return newData;
     });
@@ -129,9 +129,31 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
       const newData = { ...prev, timeSpentSeconds: value };
       const seconds = parseFloat(value);
       if (!isNaN(seconds) && seconds > 0) {
-        newData.timeSpent = secondsToHours(seconds).toFixed(6);
+        // Пересчитываем часы: часы = секунды / 3600
+        newData.timeSpent = (seconds / 3600).toFixed(6);
+        // Пересчитываем штук в час: штук_в_час = 3600 / секунды
+        newData.piecesPerHour = (3600 / seconds).toFixed(2);
       } else {
         newData.timeSpent = "";
+        newData.piecesPerHour = "";
+      }
+      return newData;
+    });
+  };
+
+  // Обработчик изменения поля штук в час
+  const handlePiecesPerHourChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, piecesPerHour: value };
+      const pieces = parseFloat(value);
+      if (!isNaN(pieces) && pieces > 0) {
+        // Пересчитываем часы: часы = 1 / штук_в_час
+        newData.timeSpent = (1 / pieces).toFixed(6);
+        // Пересчитываем секунды: секунды = 3600 / штук_в_час
+        newData.timeSpentSeconds = (3600 / pieces).toFixed(2);
+      } else {
+        newData.timeSpent = "";
+        newData.timeSpentSeconds = "";
       }
       return newData;
     });
@@ -140,13 +162,14 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
   // Заполнить время по расчётной производительности
   const fillByEstimatedProductivity = () => {
     if (estimatedProductivityPerHour && estimatedProductivityPerHour > 0) {
+      const timePerOperationHours = 1 / estimatedProductivityPerHour;
       const timePerOperationSeconds = 3600 / estimatedProductivityPerHour;
-      const timePerOperationHours = timePerOperationSeconds / 3600;
       
       setFormData(prev => ({
         ...prev,
         timeSpent: timePerOperationHours.toFixed(6),
-        timeSpentSeconds: timePerOperationSeconds.toFixed(2)
+        timeSpentSeconds: timePerOperationSeconds.toFixed(2),
+        piecesPerHour: estimatedProductivityPerHour.toFixed(2)
       }));
       
       toast({
@@ -166,6 +189,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
         roleId: formData.roleId,
         timeSpent: formData.timeSpent,
         timeSpentSeconds: formData.timeSpentSeconds || null,
+        piecesPerHour: formData.piecesPerHour || null,
         paymentType: formData.paymentType,
         rate: formData.rate,
         variance: formData.variance || null,
@@ -278,7 +302,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
                 </Button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="timeSpent" className="text-sm text-gray-600">Часы</Label>
                 <Input
@@ -301,6 +325,18 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
                   min="0"
                   value={formData.timeSpentSeconds}
                   onChange={(e) => handleTimeSpentSecondsChange(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label htmlFor="piecesPerHour" className="text-sm text-gray-600">Штук в час</Label>
+                <Input
+                  id="piecesPerHour"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.piecesPerHour}
+                  onChange={(e) => handlePiecesPerHourChange(e.target.value)}
                   placeholder="0.00"
                 />
               </div>

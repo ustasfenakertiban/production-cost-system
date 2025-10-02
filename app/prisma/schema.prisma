@@ -159,6 +159,7 @@ model OperationEquipment {
   equipmentId      String
   machineTime      Float
   machineTimeSeconds Float?
+  piecesPerHour    Float?
   hourlyRate       Float
   totalCost        Float
   variance         Float?
@@ -178,6 +179,7 @@ model OperationRole {
   roleId         String
   timeSpent      Float
   timeSpentSeconds Float?
+  piecesPerHour  Float?
   paymentType    PaymentType
   rate           Float
   totalCost      Float

@@ -24,6 +24,7 @@ interface OperationEquipment {
   equipmentId: string;
   machineTime: number;
   machineTimeSeconds?: number;
+  piecesPerHour?: number;
   hourlyRate: number;
   totalCost: number;
   variance?: number;
@@ -46,6 +47,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
     equipmentId: "",
     machineTime: "",
     machineTimeSeconds: "",
+    piecesPerHour: "",
     hourlyRate: "",
     variance: "",
     comment: "",
@@ -67,6 +69,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
         equipmentId: equipment.equipmentId,
         machineTime: equipment.machineTime.toString(),
         machineTimeSeconds: equipment.machineTimeSeconds?.toString() || "",
+        piecesPerHour: equipment.piecesPerHour?.toString() || "",
         hourlyRate: equipment.hourlyRate.toString(),
         variance: equipment.variance?.toString() || "",
         comment: equipment.comment || "",
@@ -77,6 +80,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
         equipmentId: "",
         machineTime: "",
         machineTimeSeconds: "",
+        piecesPerHour: "",
         hourlyRate: "",
         variance: "",
         comment: "",
@@ -98,23 +102,19 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
   };
 
   // Функции для преобразования времени
-  const hoursToSeconds = (hours: number): number => {
-    return hours * 3600;
-  };
-
-  const secondsToHours = (seconds: number): number => {
-    return seconds / 3600;
-  };
-
   // Обработчик изменения поля времени в часах
   const handleMachineTimeChange = (value: string) => {
     setFormData(prev => {
       const newData = { ...prev, machineTime: value };
       const hours = parseFloat(value);
       if (!isNaN(hours) && hours > 0) {
-        newData.machineTimeSeconds = hoursToSeconds(hours).toString();
+        // Пересчитываем секунды: секунды = часы * 3600
+        newData.machineTimeSeconds = (hours * 3600).toFixed(2);
+        // Пересчитываем штук в час: штук_в_час = 1 / часы
+        newData.piecesPerHour = (1 / hours).toFixed(2);
       } else {
         newData.machineTimeSeconds = "";
+        newData.piecesPerHour = "";
       }
       return newData;
     });
@@ -126,9 +126,31 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
       const newData = { ...prev, machineTimeSeconds: value };
       const seconds = parseFloat(value);
       if (!isNaN(seconds) && seconds > 0) {
-        newData.machineTime = secondsToHours(seconds).toFixed(6);
+        // Пересчитываем часы: часы = секунды / 3600
+        newData.machineTime = (seconds / 3600).toFixed(6);
+        // Пересчитываем штук в час: штук_в_час = 3600 / секунды
+        newData.piecesPerHour = (3600 / seconds).toFixed(2);
       } else {
         newData.machineTime = "";
+        newData.piecesPerHour = "";
+      }
+      return newData;
+    });
+  };
+
+  // Обработчик изменения поля штук в час
+  const handlePiecesPerHourChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, piecesPerHour: value };
+      const pieces = parseFloat(value);
+      if (!isNaN(pieces) && pieces > 0) {
+        // Пересчитываем часы: часы = 1 / штук_в_час
+        newData.machineTime = (1 / pieces).toFixed(6);
+        // Пересчитываем секунды: секунды = 3600 / штук_в_час
+        newData.machineTimeSeconds = (3600 / pieces).toFixed(2);
+      } else {
+        newData.machineTime = "";
+        newData.machineTimeSeconds = "";
       }
       return newData;
     });
@@ -137,13 +159,14 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
   // Заполнить время по расчётной производительности
   const fillByEstimatedProductivity = () => {
     if (estimatedProductivityPerHour && estimatedProductivityPerHour > 0) {
+      const timePerOperationHours = 1 / estimatedProductivityPerHour;
       const timePerOperationSeconds = 3600 / estimatedProductivityPerHour;
-      const timePerOperationHours = timePerOperationSeconds / 3600;
       
       setFormData(prev => ({
         ...prev,
         machineTime: timePerOperationHours.toFixed(6),
-        machineTimeSeconds: timePerOperationSeconds.toFixed(2)
+        machineTimeSeconds: timePerOperationSeconds.toFixed(2),
+        piecesPerHour: estimatedProductivityPerHour.toFixed(2)
       }));
       
       toast({
@@ -163,6 +186,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
         equipmentId: formData.equipmentId,
         machineTime: formData.machineTime,
         machineTimeSeconds: formData.machineTimeSeconds || null,
+        piecesPerHour: formData.piecesPerHour || null,
         hourlyRate: formData.hourlyRate,
         variance: formData.variance || null,
         comment: formData.comment || null,
@@ -274,7 +298,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
                 </Button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <Label htmlFor="machineTime" className="text-sm text-gray-600">Часы</Label>
                 <Input
@@ -297,6 +321,18 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
                   min="0"
                   value={formData.machineTimeSeconds}
                   onChange={(e) => handleMachineTimeSecondsChange(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <Label htmlFor="piecesPerHour" className="text-sm text-gray-600">Штук в час</Label>
+                <Input
+                  id="piecesPerHour"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.piecesPerHour}
+                  onChange={(e) => handlePiecesPerHourChange(e.target.value)}
                   placeholder="0.00"
                 />
               </div>
