@@ -115,6 +115,7 @@ interface ActiveOperation {
   totalQuantity: number;
   completedQuantity: number;
   cycleStartHour: number;
+  operationDuration: number; // Длительность операции в часах
   assignedWorkerIds: number[];
   assignedEquipmentIds: string[];
 }
@@ -160,26 +161,40 @@ export function validateOrder(order: Order): {
 
         const opPath = `${item.product.name} → ${process.name} → ${chain.name} → ${operation.name}`;
 
-        // Проверяем длину рабочего цикла
-        if (!operation.cycleHours || operation.cycleHours <= 0) {
-          missingParams.push(`${opPath}: отсутствует длина рабочего цикла`);
-        }
+        // Для разовых цепочек (ONE_TIME) проверяем наличие оборудования/ролей с временем
+        if (chain.chainType === "ONE_TIME") {
+          const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
+          const enabledRoles = operation.operationRoles.filter(r => r.enabled);
+          
+          const hasEquipmentTime = enabledEquipment.some(eq => eq.machineTime && eq.machineTime > 0);
+          const hasRoleTime = enabledRoles.some(r => r.timeSpent && r.timeSpent > 0);
+          
+          if (!hasEquipmentTime && !hasRoleTime) {
+            missingParams.push(`${opPath}: для разовой операции укажите время работы оборудования или ролей`);
+          }
+        } else {
+          // Для поточных цепочек (PER_UNIT) проверяем производительность и цикл
+          // Проверяем длину рабочего цикла
+          if (!operation.cycleHours || operation.cycleHours <= 0) {
+            missingParams.push(`${opPath}: отсутствует длина рабочего цикла`);
+          }
 
-        // Проверяем, что есть хотя бы один способ рассчитать производительность
-        const hasNominalProductivity = operation.estimatedProductivityPerHour && operation.estimatedProductivityPerHour > 0;
-        
-        const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
-        const enabledRoles = operation.operationRoles.filter(r => r.enabled);
-        
-        const hasEquipmentProductivity = enabledEquipment.some(eq => eq.piecesPerHour && eq.piecesPerHour > 0);
-        const hasRoleProductivity = enabledRoles.some(r => r.piecesPerHour && r.piecesPerHour > 0);
+          // Проверяем, что есть хотя бы один способ рассчитать производительность
+          const hasNominalProductivity = operation.estimatedProductivityPerHour && operation.estimatedProductivityPerHour > 0;
+          
+          const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
+          const enabledRoles = operation.operationRoles.filter(r => r.enabled);
+          
+          const hasEquipmentProductivity = enabledEquipment.some(eq => eq.piecesPerHour && eq.piecesPerHour > 0);
+          const hasRoleProductivity = enabledRoles.some(r => r.piecesPerHour && r.piecesPerHour > 0);
 
-        // Если ни одна производительность не указана, это может быть нормально -
-        // будет считаться только по времени использования оборудования/ролей
-        if (!hasNominalProductivity && !hasEquipmentProductivity && !hasRoleProductivity) {
-          // Проверяем, что хотя бы есть оборудование или роли для расчета по времени
-          if (enabledEquipment.length === 0 && enabledRoles.length === 0) {
-            missingParams.push(`${opPath}: отсутствует способ расчета (укажите производительность или добавьте оборудование/роли)`);
+          // Если ни одна производительность не указана, это может быть нормально -
+          // будет считаться только по времени использования оборудования/ролей
+          if (!hasNominalProductivity && !hasEquipmentProductivity && !hasRoleProductivity) {
+            // Проверяем, что хотя бы есть оборудование или роли для расчета по времени
+            if (enabledEquipment.length === 0 && enabledRoles.length === 0) {
+              missingParams.push(`${opPath}: отсутствует способ расчета (укажите производительность или добавьте оборудование/роли)`);
+            }
           }
         }
       }
@@ -412,7 +427,7 @@ function processActiveOperations(
   const toRemove: number[] = [];
 
   activeOperations.forEach((opState, index) => {
-    const cycleEnd = opState.cycleStartHour + opState.operation.cycleHours;
+    const cycleEnd = opState.cycleStartHour + opState.operationDuration;
 
     // Check if cycle is completing this hour
     if (cycleEnd === currentHour) {
@@ -421,89 +436,97 @@ function processActiveOperations(
       
       log.push(`\n  🔧 Операция: "${operation.name}"`);
       log.push(`     Товар: ${opState.productName}`);
-      log.push(`     Цепочка: ${opState.chainName} (${opState.chainType})`);
+      log.push(`     Цепочка: ${opState.chainName} (${opState.chainType === "ONE_TIME" ? "разовая" : "поточная"})`);
 
-      // Base productivity with variance (если указана)
-      const hasBaseProductivity = operation.estimatedProductivityPerHour && operation.estimatedProductivityPerHour > 0;
-      let baseProductivity = Infinity;
-      
-      if (hasBaseProductivity) {
-        baseProductivity = applyVariance(
-          operation.estimatedProductivityPerHour,
-          operation.estimatedProductivityPerHourVariance,
-          varianceMode
-        );
-        log.push(`     Номинальная производительность: ${baseProductivity.toFixed(2)} шт/час`);
-      } else {
-        log.push(`     Номинальная производительность: не указана (расчет по оборудованию и людям)`);
-      }
-
-      // Equipment productivity
+      let producedThisCycle: number;
       const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
-      let equipmentProductivity = Infinity;
-      if (enabledEquipment.length > 0) {
-        // Берем только оборудование с указанной производительностью
-        const equipmentWithProductivity = enabledEquipment.filter(eq => eq.piecesPerHour && eq.piecesPerHour > 0);
-        if (equipmentWithProductivity.length > 0) {
-          const equipmentRates = equipmentWithProductivity.map(eq => 
-            applyVariance(eq.piecesPerHour, eq.variance, varianceMode)
-          );
-          equipmentProductivity = Math.min(...equipmentRates);
-          log.push(`     Производительность по оборудованию: ${equipmentProductivity.toFixed(2)} шт/час`);
-        } else {
-          log.push(`     Производительность по оборудованию: не указана (расчет по времени)`);
-        }
-      }
-
-      // Role productivity
       const enabledRoles = operation.operationRoles.filter(r => r.enabled);
-      let roleProductivity = Infinity;
-      
-      if (enabledRoles.length > 0) {
-        // Берем только роли с указанной производительностью
-        const rolesWithProductivity = enabledRoles.filter(r => r.piecesPerHour && r.piecesPerHour > 0);
+
+      if (opState.chainType === "ONE_TIME") {
+        // Для разовых операций выполняется весь тираж за один раз
+        log.push(`     Режим: разовая операция (выполняется полностью за ${opState.operationDuration} час(ов))`);
+        producedThisCycle = opState.totalQuantity - opState.completedQuantity;
+      } else {
+        // Для поточных операций считаем производительность
+        // Base productivity with variance (если указана)
+        const hasBaseProductivity = operation.estimatedProductivityPerHour && operation.estimatedProductivityPerHour > 0;
+        let baseProductivity = Infinity;
         
-        if (rolesWithProductivity.length > 0) {
-          const availablePhysicalWorkers = opState.assignedWorkerIds.length;
-          
-          if (availablePhysicalWorkers >= rolesWithProductivity.length) {
-            // Enough workers - each role has one person
-            const roleRates = rolesWithProductivity.map(role =>
-              applyVariance(role.piecesPerHour, role.variance, varianceMode)
-            );
-            roleProductivity = Math.min(...roleRates);
-          } else {
-            // Not enough workers - need to combine roles
-            const totalTimePerPiece = rolesWithProductivity.reduce((sum, role) => {
-              const piecesPerHour = applyVariance(role.piecesPerHour, role.variance, varianceMode);
-              return sum + (1 / piecesPerHour);
-            }, 0);
-            roleProductivity = 1 / totalTimePerPiece;
-          }
-          log.push(`     Производительность по работникам: ${roleProductivity.toFixed(2)} шт/час`);
+        if (hasBaseProductivity) {
+          baseProductivity = applyVariance(
+            operation.estimatedProductivityPerHour,
+            operation.estimatedProductivityPerHourVariance,
+            varianceMode
+          );
+          log.push(`     Номинальная производительность: ${baseProductivity.toFixed(2)} шт/час`);
         } else {
-          log.push(`     Производительность по работникам: не указана (расчет по времени)`);
+          log.push(`     Номинальная производительность: не указана (расчет по оборудованию и людям)`);
         }
-      }
 
-      // Real productivity (минимальное значение из всех доступных)
-      let realProductivity = Math.min(baseProductivity, equipmentProductivity, roleProductivity);
-      
-      // Если ничего не указано (все Infinity), считаем по времени работы
-      // За 1 час цикла производится 1 единица
-      if (realProductivity === Infinity) {
-        realProductivity = 1; // 1 шт/час по умолчанию
-        log.push(`     Производительность по умолчанию: ${realProductivity.toFixed(2)} шт/час (расчет по времени)`);
-      }
-      
-      realProductivity *= breakCoefficient;
-      log.push(`     Реальная производительность (с учетом отдыха): ${realProductivity.toFixed(2)} шт/час`);
+        let equipmentProductivity = Infinity;
+        if (enabledEquipment.length > 0) {
+          // Берем только оборудование с указанной производительностью
+          const equipmentWithProductivity = enabledEquipment.filter(eq => eq.piecesPerHour && eq.piecesPerHour > 0);
+          if (equipmentWithProductivity.length > 0) {
+            const equipmentRates = equipmentWithProductivity.map(eq => 
+              applyVariance(eq.piecesPerHour, eq.variance, varianceMode)
+            );
+            equipmentProductivity = Math.min(...equipmentRates);
+            log.push(`     Производительность по оборудованию: ${equipmentProductivity.toFixed(2)} шт/час`);
+          } else {
+            log.push(`     Производительность по оборудованию: не указана (расчет по времени)`);
+          }
+        }
 
-      // Calculate produced quantity
-      const cycleHours = operation.cycleHours;
-      let producedThisCycle = Math.floor(realProductivity * cycleHours);
-      const remaining = opState.totalQuantity - opState.completedQuantity;
-      producedThisCycle = Math.min(producedThisCycle, remaining);
+        // Role productivity
+        let roleProductivity = Infinity;
+        
+        if (enabledRoles.length > 0) {
+          // Берем только роли с указанной производительностью
+          const rolesWithProductivity = enabledRoles.filter(r => r.piecesPerHour && r.piecesPerHour > 0);
+          
+          if (rolesWithProductivity.length > 0) {
+            const availablePhysicalWorkers = opState.assignedWorkerIds.length;
+            
+            if (availablePhysicalWorkers >= rolesWithProductivity.length) {
+              // Enough workers - each role has one person
+              const roleRates = rolesWithProductivity.map(role =>
+                applyVariance(role.piecesPerHour, role.variance, varianceMode)
+              );
+              roleProductivity = Math.min(...roleRates);
+            } else {
+              // Not enough workers - need to combine roles
+              const totalTimePerPiece = rolesWithProductivity.reduce((sum, role) => {
+                const piecesPerHour = applyVariance(role.piecesPerHour, role.variance, varianceMode);
+                return sum + (1 / piecesPerHour);
+              }, 0);
+              roleProductivity = 1 / totalTimePerPiece;
+            }
+            log.push(`     Производительность по работникам: ${roleProductivity.toFixed(2)} шт/час`);
+          } else {
+            log.push(`     Производительность по работникам: не указана (расчет по времени)`);
+          }
+        }
+
+        // Real productivity (минимальное значение из всех доступных)
+        let realProductivity = Math.min(baseProductivity!, equipmentProductivity, roleProductivity);
+        
+        // Если ничего не указано (все Infinity), считаем по времени работы
+        // За 1 час цикла производится 1 единица
+        if (realProductivity === Infinity) {
+          realProductivity = 1; // 1 шт/час по умолчанию
+          log.push(`     Производительность по умолчанию: ${realProductivity.toFixed(2)} шт/час (расчет по времени)`);
+        }
+        
+        realProductivity *= breakCoefficient;
+        log.push(`     Реальная производительность (с учетом отдыха): ${realProductivity.toFixed(2)} шт/час`);
+
+        // Calculate produced quantity
+        const cycleHours = opState.operationDuration;
+        producedThisCycle = Math.floor(realProductivity * cycleHours);
+        const remaining = opState.totalQuantity - opState.completedQuantity;
+        producedThisCycle = Math.min(producedThisCycle, remaining);
+      }
 
       opState.completedQuantity += producedThisCycle;
       log.push(`     ✔️  Выполнено: ${producedThisCycle} шт. (всего: ${opState.completedQuantity}/${opState.totalQuantity})`);
@@ -531,9 +554,9 @@ function processActiveOperations(
       if (enabledEquipment.length > 0) {
         let equipmentCost = 0;
         enabledEquipment.forEach(eq => {
-          const cost = eq.hourlyRate * cycleHours;
+          const cost = eq.hourlyRate * opState.operationDuration;
           equipmentCost += cost;
-          log.push(`     ⚙️  Оборудование "${eq.equipment.name}": ${cycleHours} час(ов) × ${eq.hourlyRate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
+          log.push(`     ⚙️  Оборудование "${eq.equipment.name}": ${opState.operationDuration} час(ов) × ${eq.hourlyRate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
         });
         totals.totalEquipmentCost(equipmentCost);
         log.push(`     💰 Амортизация оборудования: ${equipmentCost.toFixed(2)} руб.`);
@@ -543,9 +566,9 @@ function processActiveOperations(
       if (enabledRoles.length > 0) {
         let laborCost = 0;
         enabledRoles.forEach(role => {
-          const cost = role.rate * cycleHours;
+          const cost = role.rate * opState.operationDuration;
           laborCost += cost;
-          log.push(`     👤 Роль "${role.role.name}": ${cycleHours} час(ов) × ${role.rate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
+          log.push(`     👤 Роль "${role.role.name}": ${opState.operationDuration} час(ов) × ${role.rate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
         });
         totals.totalLaborCost(laborCost);
         log.push(`     💰 Оплата труда: ${laborCost.toFixed(2)} руб.`);
@@ -671,6 +694,20 @@ function tryStartChainOperation(
       return; // No workers available
     }
 
+    // Вычисляем длительность операции
+    let operationDuration: number;
+    
+    if (chain.chainType === "ONE_TIME") {
+      // Для разовых операций берем максимальное время из оборудования и ролей
+      const equipmentTimes = enabledEquipment.map(eq => eq.machineTime || 0);
+      const roleTimes = enabledRoles.map(r => r.timeSpent || 0);
+      const allTimes = [...equipmentTimes, ...roleTimes].filter(t => t > 0);
+      operationDuration = allTimes.length > 0 ? Math.max(...allTimes) : 1;
+    } else {
+      // Для поточных операций используем cycleHours
+      operationDuration = operation.cycleHours || 1;
+    }
+
     // Allocate resources
     const assignedWorkerIds: number[] = [];
     let nextWorkerId = 0;
@@ -681,7 +718,7 @@ function tryStartChainOperation(
       assignedWorkerIds.push(nextWorkerId);
       resources.busyWorkers.set(nextWorkerId, {
         operationName: operation.name,
-        untilHour: currentHour + operation.cycleHours,
+        untilHour: currentHour + operationDuration,
       });
       nextWorkerId++;
     }
@@ -693,7 +730,7 @@ function tryStartChainOperation(
       resources.busyEquipment.set(eq.id, {
         equipmentName: eq.equipment.name,
         operationName: operation.name,
-        untilHour: currentHour + operation.cycleHours,
+        untilHour: currentHour + operationDuration,
       });
     }
 
@@ -708,6 +745,7 @@ function tryStartChainOperation(
       totalQuantity,
       completedQuantity: 0,
       cycleStartHour: currentHour,
+      operationDuration,
       assignedWorkerIds,
       assignedEquipmentIds,
     };
@@ -716,13 +754,13 @@ function tryStartChainOperation(
 
     log.push(`\n  🚀 НАЧАЛО ОПЕРАЦИИ: "${operation.name}"`);
     log.push(`     Товар: ${item.product.name}`);
-    log.push(`     Цепочка: ${chain.name} (${chain.chainType})`);
+    log.push(`     Цепочка: ${chain.name} (${chain.chainType === "ONE_TIME" ? "разовая" : "поточная"})`);
     log.push(`     Тираж: ${totalQuantity} шт.`);
     log.push(`     Задействовано работников: ${requiredWorkers}${enabledRoles.length > requiredWorkers ? ` (требуется ${enabledRoles.length})` : ""}`);
     if (enabledEquipment.length > 0) {
       log.push(`     Задействовано оборудования: ${enabledEquipment.map(e => e.equipment.name).join(", ")}`);
     }
-    log.push(`     Длительность цикла: ${operation.cycleHours} час(ов)`);
+    log.push(`     Длительность: ${operationDuration} час(ов)`);
 
     return;
   }

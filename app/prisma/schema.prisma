@@ -128,7 +128,7 @@ model ProductionOperation {
   enabled                    Boolean              @default(true)
   estimatedProductivityPerHour Float?
   estimatedProductivityPerHourVariance Float?
-  cycleHours                 Float?               @default(1)
+  cycleHours                 Float?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   operationEquipment         OperationEquipment[]
