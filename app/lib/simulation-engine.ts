@@ -827,16 +827,6 @@ function tryStartChainOperation(
     .filter(op => op.enabled)
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
-  // For ONE_TIME chains: check if there's already an active operation in this chain
-  if (chain.chainType === "ONE_TIME") {
-    const hasActiveOp = activeOperations.some(
-      op => op.chainId === chain.id && op.itemId === item.id
-    );
-    if (hasActiveOp) {
-      return; // Don't start new operations in ONE_TIME chains until current one finishes
-    }
-  }
-
   for (const operation of enabledOps) {
     const opKey = `${item.id}-${operation.id}`;
 
