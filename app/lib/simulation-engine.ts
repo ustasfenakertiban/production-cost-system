@@ -819,9 +819,13 @@ function processActiveOperations(
       // Labor
       if (enabledRoles.length > 0) {
         enabledRoles.forEach(role => {
-          const cost = role.rate * opState.operationDuration;
+          // Если роль требует постоянного присутствия, оплачиваем за всю длительность операции
+          // Если нет - оплачиваем только за время участия (timeSpent)
+          const laborTime = role.requiresContinuousPresence ? opState.operationDuration : role.timeSpent;
+          const cost = role.rate * laborTime;
           cycleLaborCost += cost;
-          log.push(`     👤 Роль "${role.role.name}": ${opState.operationDuration} час(ов) × ${role.rate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
+          const presenceNote = role.requiresContinuousPresence ? " (постоянно)" : " (время участия)";
+          log.push(`     👤 Роль "${role.role.name}": ${laborTime.toFixed(6)} час(ов) × ${role.rate.toFixed(2)} = ${cost.toFixed(2)} руб.${presenceNote}`);
         });
         totals.totalLaborCost(cycleLaborCost);
         log.push(`     💰 Оплата труда: ${cycleLaborCost.toFixed(2)} руб.`);
