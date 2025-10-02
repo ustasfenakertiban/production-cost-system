@@ -100,9 +100,9 @@ interface Order {
 }
 
 interface ResourceState {
-  availableWorkers: number;
-  busyWorkers: Map<number, { operationName: string; untilHour: number }>;
-  busyEquipment: Map<string, { equipmentName: string; operationName: string; untilHour: number }>;
+  physicalWorkers: number; // Максимальное количество физических работников
+  busyWorkers: Map<number, { operationName: string; productName: string; untilHour: number }>;
+  busyEquipment: Map<string, { equipmentName: string; operationName: string; productName: string; untilHour: number }>;
 }
 
 interface ActiveOperation {
@@ -241,7 +241,7 @@ export function simulateOrder(
 
   // Initialize resources
   const resources: ResourceState = {
-    availableWorkers: physicalWorkers,
+    physicalWorkers: physicalWorkers,
     busyWorkers: new Map(),
     busyEquipment: new Map(),
   };
@@ -304,10 +304,51 @@ export function simulateOrder(
       log
     );
 
+    // Show current status
+    const availableWorkerCount = resources.physicalWorkers - resources.busyWorkers.size;
+    const busyWorkerCount = resources.busyWorkers.size;
+    
+    // Show active operations in progress
+    if (activeOperations.length > 0) {
+      log.push(`\n  📊 Выполняется операций: ${activeOperations.length}`);
+      activeOperations.forEach((opState) => {
+        const remainingHours = (opState.cycleStartHour + opState.operationDuration) - absoluteHour;
+        const progress = opState.completedQuantity;
+        const total = opState.totalQuantity;
+        log.push(`     • "${opState.operation.name}" (${opState.productName})`);
+        log.push(`       Выполнено: ${progress}/${total} шт., до завершения цикла: ${remainingHours} час(ов)`);
+        log.push(`       Занято работников: ${opState.assignedWorkerIds.map(id => `#${id}`).join(", ") || "нет"}`);
+        if (opState.assignedEquipmentIds.length > 0) {
+          const equipmentNames = opState.operation.operationEquipment
+            .filter(eq => opState.assignedEquipmentIds.includes(eq.id))
+            .map(eq => eq.equipment.name);
+          log.push(`       Занято оборудования: ${equipmentNames.join(", ")}`);
+        }
+      });
+    }
+    
+    // Show resource status
+    log.push(`\n  👥 Работники: ${busyWorkerCount} занято, ${availableWorkerCount} свободно (всего: ${resources.physicalWorkers})`);
+    
     // Check for idle workers
-    const idleWorkers = resources.availableWorkers;
-    if (idleWorkers > 0 && (activeOperations.length > 0 || !allWorkCompleted(order, completedOperations))) {
-      log.push(`\n  ⏸️  Простой: ${idleWorkers} работник(ов) не задействованы`);
+    if (availableWorkerCount > 0 && !allWorkCompleted(order, completedOperations)) {
+      // Check if there's pending work that can't start
+      const hasPendingWork = order.orderItems.some(item => {
+        return item.productionProcess.operationChains.some(chain => {
+          if (!chain.enabled) return false;
+          return chain.operations.some(op => {
+            if (!op.enabled) return false;
+            const opKey = `${item.id}-${op.id}`;
+            return !completedOperations.has(opKey) && 
+                   !activeOperations.some(active => active.operation.id === op.id && active.itemId === item.id);
+          });
+        });
+      });
+      
+      if (hasPendingWork) {
+        log.push(`  ⏸️  Ожидание: ${availableWorkerCount} работник(ов) свободны, но не могут начать работу`);
+        log.push(`     (возможно, заняты предыдущие операции или оборудование)`);
+      }
     }
 
     // Check if all work is done
@@ -376,37 +417,34 @@ function releaseResources(
   log: string[]
 ): void {
   // Release workers
-  const workersToRelease: number[] = [];
+  const workersToRelease: Array<{ id: number; info: { operationName: string; productName: string; untilHour: number } }> = [];
   resources.busyWorkers.forEach((info, workerId) => {
     if (info.untilHour <= currentHour) {
-      workersToRelease.push(workerId);
+      workersToRelease.push({ id: workerId, info });
     }
-  });
-
-  workersToRelease.forEach(workerId => {
-    resources.busyWorkers.delete(workerId);
-    resources.availableWorkers++;
   });
 
   if (workersToRelease.length > 0) {
-    log.push(`  ✅ Освободились работники: ${workersToRelease.length} чел.`);
+    workersToRelease.forEach(({ id, info }) => {
+      log.push(`  ✅ Освободился работник #${id}: "${info.operationName}" (${info.productName})`);
+      resources.busyWorkers.delete(id);
+    });
   }
 
   // Release equipment
-  const equipmentToRelease: string[] = [];
+  const equipmentToRelease: Array<{ id: string; info: { equipmentName: string; operationName: string; productName: string; untilHour: number } }> = [];
   resources.busyEquipment.forEach((info, equipmentId) => {
     if (info.untilHour <= currentHour) {
-      equipmentToRelease.push(equipmentId);
+      equipmentToRelease.push({ id: equipmentId, info });
     }
   });
 
-  equipmentToRelease.forEach(equipmentId => {
-    const info = resources.busyEquipment.get(equipmentId);
-    if (info) {
-      log.push(`  ✅ Освободилось оборудование: ${info.equipmentName}`);
-      resources.busyEquipment.delete(equipmentId);
-    }
-  });
+  if (equipmentToRelease.length > 0) {
+    equipmentToRelease.forEach(({ id, info }) => {
+      log.push(`  ✅ Освободилось оборудование "${info.equipmentName}": "${info.operationName}" (${info.productName})`);
+      resources.busyEquipment.delete(id);
+    });
+  }
 }
 
 function processActiveOperations(
@@ -583,7 +621,6 @@ function processActiveOperations(
         // Release resources
         opState.assignedWorkerIds.forEach(workerId => {
           resources.busyWorkers.delete(workerId);
-          resources.availableWorkers++;
         });
         opState.assignedEquipmentIds.forEach(equipmentId => {
           resources.busyEquipment.delete(equipmentId);
@@ -689,7 +726,8 @@ function tryStartChainOperation(
     }
 
     // Check workers
-    const requiredWorkers = Math.min(enabledRoles.length, resources.availableWorkers);
+    const availableWorkerCount = resources.physicalWorkers - resources.busyWorkers.size;
+    const requiredWorkers = Math.min(enabledRoles.length, availableWorkerCount);
     if (requiredWorkers === 0 && enabledRoles.length > 0) {
       return; // No workers available
     }
@@ -718,11 +756,11 @@ function tryStartChainOperation(
       assignedWorkerIds.push(nextWorkerId);
       resources.busyWorkers.set(nextWorkerId, {
         operationName: operation.name,
+        productName: item.product.name,
         untilHour: currentHour + operationDuration,
       });
       nextWorkerId++;
     }
-    resources.availableWorkers -= requiredWorkers;
 
     const assignedEquipmentIds: string[] = [];
     for (const eq of enabledEquipment) {
@@ -730,6 +768,7 @@ function tryStartChainOperation(
       resources.busyEquipment.set(eq.id, {
         equipmentName: eq.equipment.name,
         operationName: operation.name,
+        productName: item.product.name,
         untilHour: currentHour + operationDuration,
       });
     }
