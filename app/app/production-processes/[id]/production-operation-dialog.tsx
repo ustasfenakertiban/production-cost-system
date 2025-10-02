@@ -20,6 +20,7 @@ interface Operation {
   estimatedProductivityPerHour?: number;
   estimatedProductivityPerHourVariance?: number;
   cycleHours?: number;
+  minimumBatchSize?: number;
 }
 
 interface ProductionOperationDialogProps {
@@ -40,6 +41,7 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
     estimatedProductivityPerHour: "",
     estimatedProductivityPerHourVariance: "",
     cycleHours: "1",
+    minimumBatchSize: "1",
   });
   
   const [loading, setLoading] = useState(false);
@@ -55,6 +57,7 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
         estimatedProductivityPerHour: operation.estimatedProductivityPerHour?.toString() || "",
         estimatedProductivityPerHourVariance: operation.estimatedProductivityPerHourVariance?.toString() || "",
         cycleHours: operation.cycleHours?.toString() || "1",
+        minimumBatchSize: operation.minimumBatchSize?.toString() || "1",
       });
     } else {
       setFormData({
@@ -65,6 +68,7 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
         estimatedProductivityPerHour: "",
         estimatedProductivityPerHourVariance: "",
         cycleHours: "1",
+        minimumBatchSize: "1",
       });
     }
   }, [operation]);
@@ -83,6 +87,7 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
         estimatedProductivityPerHour: formData.estimatedProductivityPerHour ? parseFloat(formData.estimatedProductivityPerHour) : null,
         estimatedProductivityPerHourVariance: formData.estimatedProductivityPerHourVariance ? parseFloat(formData.estimatedProductivityPerHourVariance) : null,
         cycleHours: formData.cycleHours ? parseFloat(formData.cycleHours) : 1,
+        minimumBatchSize: formData.minimumBatchSize ? parseInt(formData.minimumBatchSize) : 1,
       };
 
       const url = operation ? `/api/production-operations/${operation.id}` : '/api/production-operations';
@@ -201,6 +206,22 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
               <p className="text-xs text-gray-500 -mt-2">
                 Используется для автоматического расчёта времени операции
               </p>
+
+              <div>
+                <Label htmlFor="minimumBatchSize">Минимальная партия (штук)</Label>
+                <Input
+                  id="minimumBatchSize"
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={formData.minimumBatchSize}
+                  onChange={(e) => handleChange('minimumBatchSize', e.target.value)}
+                  placeholder="1"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Минимальное количество деталей для начала операции (для оптимизации производства)
+                </p>
+              </div>
             </>
           )}
 

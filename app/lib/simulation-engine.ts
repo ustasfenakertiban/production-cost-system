@@ -81,6 +81,7 @@ interface Operation {
   estimatedProductivityPerHour: number;
   estimatedProductivityPerHourVariance: number;
   cycleHours: number;
+  minimumBatchSize: number | null;
   operationMaterials: Material[];
   operationEquipment: Equipment[];
   operationRoles: Role[];
@@ -819,13 +820,26 @@ function processActiveOperations(
       // Labor
       if (enabledRoles.length > 0) {
         enabledRoles.forEach(role => {
-          // Если роль требует постоянного присутствия, оплачиваем за всю длительность операции
-          // Если нет - оплачиваем только за время участия (timeSpent)
-          const laborTime = role.requiresContinuousPresence ? opState.operationDuration : role.timeSpent;
-          const cost = role.rate * laborTime;
+          let cost = 0;
+          let costNote = "";
+          
+          if (role.requiresContinuousPresence) {
+            // Роль требует постоянного присутствия - оплачиваем за всю длительность
+            cost = role.rate * opState.operationDuration;
+            costNote = ` (постоянно: ${opState.operationDuration.toFixed(4)} час × ${role.rate} руб/час)`;
+          } else if (role.piecesPerHour && role.piecesPerHour > 0) {
+            // Роль оплачивается по количеству деталей
+            const costPerPiece = role.rate / role.piecesPerHour;
+            cost = costPerPiece * producedThisCycle;
+            costNote = ` (${producedThisCycle} шт × ${costPerPiece.toFixed(6)} руб/шт, производительность: ${role.piecesPerHour} шт/час)`;
+          } else {
+            // Роль оплачивается только за время настройки
+            cost = role.rate * role.timeSpent;
+            costNote = ` (настройка: ${role.timeSpent.toFixed(6)} час × ${role.rate} руб/час)`;
+          }
+          
           cycleLaborCost += cost;
-          const presenceNote = role.requiresContinuousPresence ? " (постоянно)" : " (время участия)";
-          log.push(`     👤 Роль "${role.role.name}": ${laborTime.toFixed(6)} час(ов) × ${role.rate.toFixed(2)} = ${cost.toFixed(2)} руб.${presenceNote}`);
+          log.push(`     👤 Роль "${role.role.name}": ${cost.toFixed(2)} руб${costNote}`);
         });
         totals.totalLaborCost(cycleLaborCost);
         log.push(`     💰 Оплата труда: ${cycleLaborCost.toFixed(2)} руб.`);
@@ -1087,6 +1101,46 @@ function tryStartChainOperation(
           });
         }
         return;
+      }
+    }
+
+    // Check minimum batch size for PER_UNIT operations
+    if (chain.chainType === "PER_UNIT" && operation.minimumBatchSize && operation.minimumBatchSize > 1) {
+      // For first operation in chain, check if we have enough total quantity
+      const isFirstOp = !enabledOps.some(op => op.orderIndex < operation.orderIndex);
+      
+      if (!isFirstOp) {
+        // For non-first operations, check available parts from previous operation
+        const prevOps = enabledOps.filter(op => op.orderIndex < operation.orderIndex);
+        if (prevOps.length > 0) {
+          const prevOp = prevOps[prevOps.length - 1];
+          const prevActiveOp = activeOperations.find(
+            active => active.operation.id === prevOp.id && active.itemId === item.id
+          );
+          
+          let availableFromPrevious = 0;
+          if (prevActiveOp) {
+            availableFromPrevious = prevActiveOp.transferredQuantity;
+          } else if (completedOperations.has(`${item.id}-${prevOp.id}`)) {
+            availableFromPrevious = totalQuantity; // Previous operation completed
+          }
+          
+          if (availableFromPrevious < operation.minimumBatchSize) {
+            log.push(`\n  ⏸️  Операция "${operation.name}" ожидает минимальную партию:`);
+            log.push(`     📦 Требуется минимум: ${operation.minimumBatchSize} шт.`);
+            log.push(`     ⏳ Доступно от "${prevOp.name}": ${availableFromPrevious} шт.`);
+            log.push(`     ⏰ Ожидание еще ${operation.minimumBatchSize - availableFromPrevious} шт...`);
+            return; // Wait for minimum batch
+          } else {
+            log.push(`\n  ✅ Накоплена минимальная партия для "${operation.name}": ${availableFromPrevious} шт. (минимум: ${operation.minimumBatchSize})`);
+          }
+        }
+      } else {
+        // First operation - check total quantity
+        if (totalQuantity < operation.minimumBatchSize) {
+          log.push(`\n  ⏸️  Операция "${operation.name}" (первая в цепочке) требует минимум ${operation.minimumBatchSize} шт., но заказано только ${totalQuantity} шт.`);
+          return;
+        }
       }
     }
 
