@@ -563,6 +563,35 @@ function processActiveOperations(
   activeOperations.forEach((opState, index) => {
     const cycleEnd = opState.cycleStartHour + opState.operationDuration;
 
+    // ВАЖНО: Для непрерывных ресурсов обновляем untilHour на каждом часу
+    // чтобы они не освобождались функцией releaseResources
+    if (cycleEnd > currentHour) {
+      // Операция еще выполняется - обновляем занятость непрерывных ресурсов
+      opState.assignedWorkerIds.forEach(workerId => {
+        if (opState.continuousWorkerIds.has(workerId)) {
+          const workerInfo = resources.busyWorkers.get(workerId);
+          if (workerInfo) {
+            // Продлеваем занятость минимум до конца цикла
+            if (workerInfo.untilHour < cycleEnd) {
+              workerInfo.untilHour = cycleEnd;
+            }
+          }
+        }
+      });
+      
+      opState.assignedEquipmentIds.forEach(equipmentId => {
+        if (opState.continuousEquipmentIds.has(equipmentId)) {
+          const equipInfo = resources.busyEquipment.get(equipmentId);
+          if (equipInfo) {
+            // Продлеваем занятость минимум до конца цикла
+            if (equipInfo.untilHour < cycleEnd) {
+              equipInfo.untilHour = cycleEnd;
+            }
+          }
+        }
+      });
+    }
+
     // Check if cycle is completing this hour
     if (cycleEnd === currentHour) {
       // Calculate productivity
