@@ -85,6 +85,7 @@ interface OperationRole {
   variance?: number;
   comments?: string;
   enabled: boolean;
+  requiresContinuousPresence: boolean;
   role: {
     id: string;
     name: string;
