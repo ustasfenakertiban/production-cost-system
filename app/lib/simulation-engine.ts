@@ -165,8 +165,7 @@ export function validateOrder(order: Order): {
           missingParams.push(`${opPath}: отсутствует длина рабочего цикла`);
         }
 
-        // Если номинальная производительность не указана (0), 
-        // то должны быть заполнены производительности оборудования или ролей
+        // Проверяем, что есть хотя бы один способ рассчитать производительность
         const hasNominalProductivity = operation.estimatedProductivityPerHour && operation.estimatedProductivityPerHour > 0;
         
         const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
@@ -175,22 +174,12 @@ export function validateOrder(order: Order): {
         const hasEquipmentProductivity = enabledEquipment.some(eq => eq.piecesPerHour && eq.piecesPerHour > 0);
         const hasRoleProductivity = enabledRoles.some(r => r.piecesPerHour && r.piecesPerHour > 0);
 
-        // Проверяем, что есть хотя бы один способ рассчитать производительность
+        // Если ни одна производительность не указана, это может быть нормально -
+        // будет считаться только по времени использования оборудования/ролей
         if (!hasNominalProductivity && !hasEquipmentProductivity && !hasRoleProductivity) {
-          missingParams.push(`${opPath}: отсутствует способ расчета производительности (укажите номинальную производительность, производительность оборудования или производительность ролей)`);
-        }
-
-        // Проверяем производительность для включенного оборудования
-        for (const eq of enabledEquipment) {
-          if (!eq.piecesPerHour || eq.piecesPerHour <= 0) {
-            missingParams.push(`${opPath} → Оборудование "${eq.equipment.name}": отсутствует производительность (шт/час)`);
-          }
-        }
-
-        // Проверяем производительность для включенных ролей
-        for (const role of enabledRoles) {
-          if (!role.piecesPerHour || role.piecesPerHour <= 0) {
-            missingParams.push(`${opPath} → Роль "${role.role.name}": отсутствует производительность (шт/час)`);
+          // Проверяем, что хотя бы есть оборудование или роли для расчета по времени
+          if (enabledEquipment.length === 0 && enabledRoles.length === 0) {
+            missingParams.push(`${opPath}: отсутствует способ расчета (укажите производительность или добавьте оборудование/роли)`);
           }
         }
       }
@@ -453,11 +442,17 @@ function processActiveOperations(
       const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
       let equipmentProductivity = Infinity;
       if (enabledEquipment.length > 0) {
-        const equipmentRates = enabledEquipment.map(eq => 
-          applyVariance(eq.piecesPerHour || 0, eq.variance, varianceMode)
-        );
-        equipmentProductivity = Math.min(...equipmentRates);
-        log.push(`     Производительность по оборудованию: ${equipmentProductivity.toFixed(2)} шт/час`);
+        // Берем только оборудование с указанной производительностью
+        const equipmentWithProductivity = enabledEquipment.filter(eq => eq.piecesPerHour && eq.piecesPerHour > 0);
+        if (equipmentWithProductivity.length > 0) {
+          const equipmentRates = equipmentWithProductivity.map(eq => 
+            applyVariance(eq.piecesPerHour, eq.variance, varianceMode)
+          );
+          equipmentProductivity = Math.min(...equipmentRates);
+          log.push(`     Производительность по оборудованию: ${equipmentProductivity.toFixed(2)} шт/час`);
+        } else {
+          log.push(`     Производительность по оборудованию: не указана (расчет по времени)`);
+        }
       }
 
       // Role productivity
@@ -465,31 +460,40 @@ function processActiveOperations(
       let roleProductivity = Infinity;
       
       if (enabledRoles.length > 0) {
-        const availablePhysicalWorkers = opState.assignedWorkerIds.length;
+        // Берем только роли с указанной производительностью
+        const rolesWithProductivity = enabledRoles.filter(r => r.piecesPerHour && r.piecesPerHour > 0);
         
-        if (availablePhysicalWorkers >= enabledRoles.length) {
-          // Enough workers - each role has one person
-          const roleRates = enabledRoles.map(role =>
-            applyVariance(role.piecesPerHour || 0, role.variance, varianceMode)
-          );
-          roleProductivity = Math.min(...roleRates);
+        if (rolesWithProductivity.length > 0) {
+          const availablePhysicalWorkers = opState.assignedWorkerIds.length;
+          
+          if (availablePhysicalWorkers >= rolesWithProductivity.length) {
+            // Enough workers - each role has one person
+            const roleRates = rolesWithProductivity.map(role =>
+              applyVariance(role.piecesPerHour, role.variance, varianceMode)
+            );
+            roleProductivity = Math.min(...roleRates);
+          } else {
+            // Not enough workers - need to combine roles
+            const totalTimePerPiece = rolesWithProductivity.reduce((sum, role) => {
+              const piecesPerHour = applyVariance(role.piecesPerHour, role.variance, varianceMode);
+              return sum + (1 / piecesPerHour);
+            }, 0);
+            roleProductivity = 1 / totalTimePerPiece;
+          }
+          log.push(`     Производительность по работникам: ${roleProductivity.toFixed(2)} шт/час`);
         } else {
-          // Not enough workers - need to combine roles
-          const totalTimePerPiece = enabledRoles.reduce((sum, role) => {
-            const piecesPerHour = applyVariance(role.piecesPerHour || 0, role.variance, varianceMode);
-            return sum + (1 / piecesPerHour);
-          }, 0);
-          roleProductivity = 1 / totalTimePerPiece;
+          log.push(`     Производительность по работникам: не указана (расчет по времени)`);
         }
-        log.push(`     Производительность по работникам: ${roleProductivity.toFixed(2)} шт/час`);
       }
 
       // Real productivity (минимальное значение из всех доступных)
       let realProductivity = Math.min(baseProductivity, equipmentProductivity, roleProductivity);
       
-      // Если ничего не указано (все Infinity), это ошибка валидации, но на всякий случай
+      // Если ничего не указано (все Infinity), считаем по времени работы
+      // За 1 час цикла производится 1 единица
       if (realProductivity === Infinity) {
-        realProductivity = 0;
+        realProductivity = 1; // 1 шт/час по умолчанию
+        log.push(`     Производительность по умолчанию: ${realProductivity.toFixed(2)} шт/час (расчет по времени)`);
       }
       
       realProductivity *= breakCoefficient;
