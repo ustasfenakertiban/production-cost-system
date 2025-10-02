@@ -25,11 +25,13 @@ interface Operation {
 interface ProductionOperationDialogProps {
   operation: Operation | null;
   chainId: string;
+  chainType: string;
   open: boolean;
   onClose: () => void;
 }
 
-export function ProductionOperationDialog({ operation, chainId, open, onClose }: ProductionOperationDialogProps) {
+export function ProductionOperationDialog({ operation, chainId, chainType, open, onClose }: ProductionOperationDialogProps) {
+  const isOneTime = chainType === 'ONE_TIME';
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -151,52 +153,56 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
             />
           </div>
 
-          <div>
-            <Label htmlFor="cycleHours">Размер рабочего цикла (часов) *</Label>
-            <Input
-              id="cycleHours"
-              type="number"
-              step="0.1"
-              min="0.1"
-              value={formData.cycleHours}
-              onChange={(e) => handleChange('cycleHours', e.target.value)}
-              placeholder="1"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Определяет длительность одного рабочего цикла операции (например: 1, 4, 8, 10 часов)
-            </p>
-          </div>
+          {!isOneTime && (
+            <>
+              <div>
+                <Label htmlFor="cycleHours">Размер рабочего цикла (часов) *</Label>
+                <Input
+                  id="cycleHours"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={formData.cycleHours}
+                  onChange={(e) => handleChange('cycleHours', e.target.value)}
+                  placeholder="1"
+                  required={!isOneTime}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Определяет длительность одного рабочего цикла операции (например: 1, 4, 8, 10 часов)
+                </p>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="estimatedProductivityPerHour">Расчётная производительность в час</Label>
-              <Input
-                id="estimatedProductivityPerHour"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.estimatedProductivityPerHour}
-                onChange={(e) => handleChange('estimatedProductivityPerHour', e.target.value)}
-                placeholder="Количество циклов в час"
-              />
-            </div>
-            <div>
-              <Label htmlFor="estimatedProductivityPerHourVariance">Разброс</Label>
-              <Input
-                id="estimatedProductivityPerHourVariance"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.estimatedProductivityPerHourVariance}
-                onChange={(e) => handleChange('estimatedProductivityPerHourVariance', e.target.value)}
-                placeholder="±"
-              />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 -mt-2">
-            Используется для автоматического расчёта времени операции
-          </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="estimatedProductivityPerHour">Расчётная производительность в час</Label>
+                  <Input
+                    id="estimatedProductivityPerHour"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.estimatedProductivityPerHour}
+                    onChange={(e) => handleChange('estimatedProductivityPerHour', e.target.value)}
+                    placeholder="Количество циклов в час"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="estimatedProductivityPerHourVariance">Разброс</Label>
+                  <Input
+                    id="estimatedProductivityPerHourVariance"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.estimatedProductivityPerHourVariance}
+                    onChange={(e) => handleChange('estimatedProductivityPerHourVariance', e.target.value)}
+                    placeholder="±"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 -mt-2">
+                Используется для автоматического расчёта времени операции
+              </p>
+            </>
+          )}
 
           <div>
             <Label htmlFor="comments">Комментарии</Label>

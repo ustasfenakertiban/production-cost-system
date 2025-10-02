@@ -305,6 +305,7 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
       <ProductionOperationDialog
         operation={editingOperation}
         chainId={chain.id}
+        chainType={chain.chainType}
         open={operationDialogOpen}
         onClose={handleOperationDialogClose}
       />
