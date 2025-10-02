@@ -846,12 +846,18 @@ function tryStartChainOperation(
     const opKey = `${item.id}-${operation.id}`;
 
     // Skip if completed
-    if (completedOperations.has(opKey)) continue;
+    if (completedOperations.has(opKey)) {
+      log.push(`\n  ✅ Операция "${operation.name}" (${item.product.name}) уже завершена, пропускаем...`);
+      continue;
+    }
 
     // Skip if already active
     if (activeOperations.some(op => op.operation.id === operation.id && op.itemId === item.id)) {
+      log.push(`\n  ⏩ Операция "${operation.name}" (${item.product.name}) уже выполняется, пропускаем...`);
       return;
     }
+    
+    log.push(`\n  🔍 Проверка возможности запуска операции: "${operation.name}" (${item.product.name})`);
 
     // Check previous operations differently for ONE_TIME vs PER_UNIT
     if (chain.chainType === "ONE_TIME") {
@@ -862,7 +868,7 @@ function tryStartChainOperation(
 
       if (!prevOpsCompleted) return;
     } else {
-      // For PER_UNIT: previous operations must have transferred items (transferredQuantity > 0 or completed)
+      // For PER_UNIT: previous operations must have started AND either completed OR have transferred items
       const prevOpsReady = enabledOps
         .filter(op => op.orderIndex < operation.orderIndex)
         .every(op => {
@@ -873,14 +879,18 @@ function tryStartChainOperation(
           const activeOp = activeOperations.find(
             active => active.operation.id === op.id && active.itemId === item.id
           );
-          return activeOp && activeOp.transferredQuantity > 0;
+          
+          // Операция готова, если она активна И уже передала хотя бы одну деталь
+          const isReady = activeOp && activeOp.transferredQuantity > 0;
+          
+          return isReady;
         });
 
       if (!prevOpsReady) {
         // Debug logging: why can't we start this operation?
         const prevOps = enabledOps.filter(op => op.orderIndex < operation.orderIndex);
         if (prevOps.length > 0) {
-          log.push(`\n  ⏸️  Операция "${operation.name}" не может начаться - ожидание предыдущих операций:`);
+          log.push(`\n  ⏸️  Операция "${operation.name}" (${item.product.name}) не может начаться - ожидание предыдущих операций:`);
           prevOps.forEach(prevOp => {
             const prevActiveOp = activeOperations.find(
               active => active.operation.id === prevOp.id && active.itemId === item.id
@@ -889,7 +899,7 @@ function tryStartChainOperation(
             if (prevCompleted) {
               log.push(`     ✅ "${prevOp.name}" - завершена`);
             } else if (prevActiveOp) {
-              log.push(`     🔄 "${prevOp.name}" - в работе (передано деталей: ${prevActiveOp.transferredQuantity}/${prevActiveOp.totalQuantity})`);
+              log.push(`     🔄 "${prevOp.name}" - в работе (передано деталей: ${prevActiveOp.transferredQuantity}/${prevActiveOp.totalQuantity}, завершено: ${prevActiveOp.completedQuantity})`);
             } else {
               log.push(`     ⏳ "${prevOp.name}" - еще не начата`);
             }
