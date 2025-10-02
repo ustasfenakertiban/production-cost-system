@@ -14,6 +14,21 @@ export interface SimulationParams {
   varianceMode: VarianceMode;
 }
 
+export interface OperationCostBreakdown {
+  operationId: string;
+  operationName: string;
+  chainName: string;
+  productName: string;
+  materialCost: number;
+  equipmentCost: number;
+  laborCost: number;
+  totalCost: number;
+  materialPercentage: number;
+  equipmentPercentage: number;
+  laborPercentage: number;
+  percentageOfTotal: number;
+}
+
 interface Material {
   id: string;
   name: string;
@@ -216,10 +231,21 @@ export function validateOrder(order: Order): {
   };
 }
 
+export interface SimulationResult {
+  log: string;
+  operationBreakdown: OperationCostBreakdown[];
+  totalCosts: {
+    materials: number;
+    equipment: number;
+    labor: number;
+    total: number;
+  };
+}
+
 export function simulateOrder(
   order: Order,
   params: SimulationParams
-): string {
+): SimulationResult {
   const log: string[] = [];
   const { hoursPerDay, physicalWorkers, breakMinutesPerHour, varianceMode } = params;
 
@@ -233,7 +259,16 @@ export function simulateOrder(
     validation.missingParams.forEach((param, idx) => {
       log.push(`  ${idx + 1}. ${param}`);
     });
-    return log.join("\n");
+    return {
+      log: log.join("\n"),
+      operationBreakdown: [],
+      totalCosts: {
+        materials: 0,
+        equipment: 0,
+        labor: 0,
+        total: 0,
+      },
+    };
   }
 
   log.push("╔═══════════════════════════════════════════════════════════════╗");
@@ -264,6 +299,17 @@ export function simulateOrder(
   let totalMaterialVAT = 0;
   let totalEquipmentCost = 0;
   let totalLaborCost = 0;
+
+  // Operation cost tracking
+  const operationCosts = new Map<string, {
+    operationId: string;
+    operationName: string;
+    chainName: string;
+    productName: string;
+    materialCost: number;
+    equipmentCost: number;
+    laborCost: number;
+  }>();
 
   let currentDay = 1;
   let currentHour = 1;
@@ -307,7 +353,8 @@ export function simulateOrder(
         totalMaterialVAT: (v: number) => totalMaterialVAT += v,
         totalEquipmentCost: (v: number) => totalEquipmentCost += v,
         totalLaborCost: (v: number) => totalLaborCost += v,
-      }
+      },
+      operationCosts
     );
 
     // Release resources AFTER processing (so untilHour is updated)
@@ -490,7 +537,39 @@ export function simulateOrder(
     log.push(`   • ${item.product.name}: ${item.quantity} шт.`);
   }
 
-  return log.join("\n");
+  // Build operation breakdown
+  const operationBreakdown: OperationCostBreakdown[] = [];
+  operationCosts.forEach((opCost) => {
+    const opTotalCost = opCost.materialCost + opCost.equipmentCost + opCost.laborCost;
+    operationBreakdown.push({
+      operationId: opCost.operationId,
+      operationName: opCost.operationName,
+      chainName: opCost.chainName,
+      productName: opCost.productName,
+      materialCost: opCost.materialCost,
+      equipmentCost: opCost.equipmentCost,
+      laborCost: opCost.laborCost,
+      totalCost: opTotalCost,
+      materialPercentage: opTotalCost > 0 ? (opCost.materialCost / opTotalCost) * 100 : 0,
+      equipmentPercentage: opTotalCost > 0 ? (opCost.equipmentCost / opTotalCost) * 100 : 0,
+      laborPercentage: opTotalCost > 0 ? (opCost.laborCost / opTotalCost) * 100 : 0,
+      percentageOfTotal: totalCost > 0 ? (opTotalCost / totalCost) * 100 : 0,
+    });
+  });
+
+  // Sort by total cost descending
+  operationBreakdown.sort((a, b) => b.totalCost - a.totalCost);
+
+  return {
+    log: log.join("\n"),
+    operationBreakdown,
+    totalCosts: {
+      materials: totalMaterialCost,
+      equipment: totalEquipmentCost,
+      labor: totalLaborCost,
+      total: totalCost,
+    },
+  };
 }
 
 function getVarianceModeLabel(mode: VarianceMode): string {
@@ -558,7 +637,16 @@ function processActiveOperations(
     totalMaterialVAT: (v: number) => void;
     totalEquipmentCost: (v: number) => void;
     totalLaborCost: (v: number) => void;
-  }
+  },
+  operationCosts: Map<string, {
+    operationId: string;
+    operationName: string;
+    chainName: string;
+    productName: string;
+    materialCost: number;
+    equipmentCost: number;
+    laborCost: number;
+  }>
 ): void {
   const toRemove: number[] = [];
 
@@ -696,47 +784,66 @@ function processActiveOperations(
       }
 
       // Calculate costs
+      let cycleMaterialCost = 0;
+      let cycleMaterialVAT = 0;
+      let cycleEquipmentCost = 0;
+      let cycleLaborCost = 0;
+
       // Materials
       const enabledMaterials = operation.operationMaterials.filter(m => m.enabled);
       if (enabledMaterials.length > 0) {
-        let materialCost = 0;
-        let materialVAT = 0;
         enabledMaterials.forEach(mat => {
           const quantityUsed = mat.quantity * producedThisCycle;
           const cost = mat.unitPrice * quantityUsed;
           const vatAmount = cost * (mat.material.vatPercentage / 100);
-          materialCost += cost;
-          materialVAT += vatAmount;
+          cycleMaterialCost += cost;
+          cycleMaterialVAT += vatAmount;
           log.push(`     💎 Материал "${mat.material?.name || 'неизвестно'}": ${quantityUsed.toFixed(2)} ед. × ${mat.unitPrice.toFixed(2)} = ${cost.toFixed(2)} руб.`);
         });
-        totals.totalMaterialCost(materialCost);
-        totals.totalMaterialVAT(materialVAT);
-        log.push(`     💰 Стоимость материалов: ${materialCost.toFixed(2)} руб. (НДС: ${materialVAT.toFixed(2)} руб.)`);
+        totals.totalMaterialCost(cycleMaterialCost);
+        totals.totalMaterialVAT(cycleMaterialVAT);
+        log.push(`     💰 Стоимость материалов: ${cycleMaterialCost.toFixed(2)} руб. (НДС: ${cycleMaterialVAT.toFixed(2)} руб.)`);
       }
 
       // Equipment
       if (enabledEquipment.length > 0) {
-        let equipmentCost = 0;
         enabledEquipment.forEach(eq => {
           const cost = eq.hourlyRate * opState.operationDuration;
-          equipmentCost += cost;
+          cycleEquipmentCost += cost;
           log.push(`     ⚙️  Оборудование "${eq.equipment.name}": ${opState.operationDuration} час(ов) × ${eq.hourlyRate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
         });
-        totals.totalEquipmentCost(equipmentCost);
-        log.push(`     💰 Амортизация оборудования: ${equipmentCost.toFixed(2)} руб.`);
+        totals.totalEquipmentCost(cycleEquipmentCost);
+        log.push(`     💰 Амортизация оборудования: ${cycleEquipmentCost.toFixed(2)} руб.`);
       }
 
       // Labor
       if (enabledRoles.length > 0) {
-        let laborCost = 0;
         enabledRoles.forEach(role => {
           const cost = role.rate * opState.operationDuration;
-          laborCost += cost;
+          cycleLaborCost += cost;
           log.push(`     👤 Роль "${role.role.name}": ${opState.operationDuration} час(ов) × ${role.rate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
         });
-        totals.totalLaborCost(laborCost);
-        log.push(`     💰 Оплата труда: ${laborCost.toFixed(2)} руб.`);
+        totals.totalLaborCost(cycleLaborCost);
+        log.push(`     💰 Оплата труда: ${cycleLaborCost.toFixed(2)} руб.`);
       }
+
+      // Track operation costs
+      const opKey = `${opState.itemId}-${operation.id}`;
+      if (!operationCosts.has(opKey)) {
+        operationCosts.set(opKey, {
+          operationId: operation.id,
+          operationName: operation.name,
+          chainName: opState.chainName,
+          productName: opState.productName,
+          materialCost: 0,
+          equipmentCost: 0,
+          laborCost: 0,
+        });
+      }
+      const opCostData = operationCosts.get(opKey)!;
+      opCostData.materialCost += cycleMaterialCost;
+      opCostData.equipmentCost += cycleEquipmentCost;
+      opCostData.laborCost += cycleLaborCost;
 
       // Check if operation is complete
       let isOperationComplete = false;

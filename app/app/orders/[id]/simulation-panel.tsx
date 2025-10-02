@@ -24,6 +24,7 @@ import { Play, Download, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import TreeLogViewer from "@/components/tree-log-viewer";
 import TableLogViewer from "@/components/table-log-viewer";
+import CostBreakdownChart, { OperationCostBreakdown } from "@/components/cost-breakdown-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SimulationPanelProps {
@@ -52,12 +53,21 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     varianceMode: "NONE",
   });
   const [simulationLog, setSimulationLog] = useState<string>("");
+  const [operationBreakdown, setOperationBreakdown] = useState<OperationCostBreakdown[]>([]);
+  const [totalCosts, setTotalCosts] = useState<{
+    materials: number;
+    equipment: number;
+    labor: number;
+    total: number;
+  }>({ materials: 0, equipment: 0, labor: 0, total: 0 });
   const [isSimulating, setIsSimulating] = useState(false);
   const { toast } = useToast();
 
   const handleSimulate = async () => {
     setIsSimulating(true);
     setSimulationLog("");
+    setOperationBreakdown([]);
+    setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
 
     try {
       const response = await fetch(`/api/orders/${orderId}/simulate`, {
@@ -83,6 +93,9 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       }
 
       setSimulationLog(data.log);
+      setOperationBreakdown(data.operationBreakdown || []);
+      setTotalCosts(data.totalCosts || { materials: 0, equipment: 0, labor: 0, total: 0 });
+      
       toast({
         title: "Симуляция завершена",
         description: "Результаты отображены ниже",
@@ -232,12 +245,25 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="tree" className="w-full">
-              <TabsList className="grid w-full max-w-2xl grid-cols-3">
+            <Tabs defaultValue="costs" className="w-full">
+              <TabsList className="grid w-full max-w-3xl grid-cols-4">
+                <TabsTrigger value="costs">Структура затрат</TabsTrigger>
                 <TabsTrigger value="tree">Древовидный вид</TabsTrigger>
                 <TabsTrigger value="table">Таблица</TabsTrigger>
                 <TabsTrigger value="text">Текстовый лог</TabsTrigger>
               </TabsList>
+              <TabsContent value="costs" className="mt-4">
+                {operationBreakdown.length > 0 ? (
+                  <CostBreakdownChart 
+                    operations={operationBreakdown}
+                    totalCosts={totalCosts}
+                  />
+                ) : (
+                  <div className="text-center text-muted-foreground py-12">
+                    Запустите симуляцию, чтобы увидеть структуру затрат
+                  </div>
+                )}
+              </TabsContent>
               <TabsContent value="tree" className="mt-4 border rounded-lg p-4 max-h-[600px] overflow-auto">
                 <TreeLogViewer log={simulationLog} />
               </TabsContent>

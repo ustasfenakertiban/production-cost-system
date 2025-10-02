@@ -60,22 +60,22 @@ export async function POST(
     }
 
     // Run simulation
-    const log = simulateOrder(order as any, simulationParams);
+    const result = simulateOrder(order as any, simulationParams);
 
     // Check if log contains error about missing params
-    if (log.includes("ОШИБКА: Не все параметры заполнены")) {
+    if (result.log.includes("ОШИБКА: Не все параметры заполнены")) {
       return NextResponse.json(
         {
           error: "Missing parameters",
           missingParams: true,
           message: "Не все параметры заполнены",
-          details: log,
+          details: result.log,
         },
         { status: 400 }
       );
     }
 
-    return NextResponse.json({ log });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Simulation error:", error);
     return NextResponse.json(
