@@ -17,6 +17,7 @@ interface Operation {
   orderIndex: number;
   comments?: string;
   enabled: boolean;
+  cycleHours?: number;
   operationMaterials?: Array<{
     id: string;
     quantity: number;
@@ -188,6 +189,13 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                         operation.enabled ? 'text-gray-500' : 'text-gray-400'
                       }`}>
                         {operation.description}
+                      </div>
+                    )}
+                    {operation.cycleHours && (
+                      <div className={`text-xs ${
+                        operation.enabled ? 'text-blue-600' : 'text-blue-400'
+                      }`}>
+                        Рабочий цикл: {operation.cycleHours} ч
                       </div>
                     )}
                     

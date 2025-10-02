@@ -19,6 +19,7 @@ interface Operation {
   enabled: boolean;
   estimatedProductivityPerHour?: number;
   estimatedProductivityPerHourVariance?: number;
+  cycleHours?: number;
 }
 
 interface ProductionOperationDialogProps {
@@ -36,6 +37,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
     enabled: true,
     estimatedProductivityPerHour: "",
     estimatedProductivityPerHourVariance: "",
+    cycleHours: "1",
   });
   
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
         enabled: operation.enabled ?? true,
         estimatedProductivityPerHour: operation.estimatedProductivityPerHour?.toString() || "",
         estimatedProductivityPerHourVariance: operation.estimatedProductivityPerHourVariance?.toString() || "",
+        cycleHours: operation.cycleHours?.toString() || "1",
       });
     } else {
       setFormData({
@@ -59,6 +62,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
         enabled: true,
         estimatedProductivityPerHour: "",
         estimatedProductivityPerHourVariance: "",
+        cycleHours: "1",
       });
     }
   }, [operation]);
@@ -76,6 +80,7 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
         enabled: formData.enabled,
         estimatedProductivityPerHour: formData.estimatedProductivityPerHour ? parseFloat(formData.estimatedProductivityPerHour) : null,
         estimatedProductivityPerHourVariance: formData.estimatedProductivityPerHourVariance ? parseFloat(formData.estimatedProductivityPerHourVariance) : null,
+        cycleHours: formData.cycleHours ? parseFloat(formData.cycleHours) : 1,
       };
 
       const url = operation ? `/api/production-operations/${operation.id}` : '/api/production-operations';
@@ -144,6 +149,23 @@ export function ProductionOperationDialog({ operation, chainId, open, onClose }:
               placeholder="Описание операции"
               rows={3}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="cycleHours">Размер рабочего цикла (часов) *</Label>
+            <Input
+              id="cycleHours"
+              type="number"
+              step="0.1"
+              min="0.1"
+              value={formData.cycleHours}
+              onChange={(e) => handleChange('cycleHours', e.target.value)}
+              placeholder="1"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Определяет длительность одного рабочего цикла операции (например: 1, 4, 8, 10 часов)
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
