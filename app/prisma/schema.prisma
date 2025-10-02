@@ -44,6 +44,7 @@ model Product {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   productionProcesses ProductionProcess[]
+  orderItems          OrderItem[]
 
   @@map("products")
 }
@@ -94,6 +95,7 @@ model ProductionProcess {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   operationChains OperationChain[]
+  orderItems      OrderItem[]
   product         Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("production_processes")
@@ -264,4 +266,30 @@ enum ExpensePeriod {
 enum ChainType {
   ONE_TIME
   PER_UNIT
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  name       String
+  orderDate  DateTime
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  orderItems OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id                   String            @id @default(cuid())
+  orderId              String
+  productId            String
+  quantity             Int
+  productionProcessId  String
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  order                Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product              Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productionProcess    ProductionProcess @relation(fields: [productionProcessId], references: [id], onDelete: Cascade)
+
+  @@map("order_items")
 }
