@@ -125,6 +125,8 @@ interface ActiveOperation {
   continuousWorkerIds: Set<number>; // Работники, которые должны оставаться занятыми до конца
   continuousEquipmentIds: Set<string>; // Оборудование, которое должно оставаться занятым до конца
   initialDuration: number; // Первоначальная расчетная длительность (без variance)
+  isFirstInChain: boolean; // Первая операция в цепочке (не зависит от предыдущих)
+  previousOperationId?: string; // ID предыдущей операции в цепочке (для PER_UNIT)
 }
 
 export function applyVariance(
@@ -656,8 +658,27 @@ function processActiveOperations(
         // Calculate produced quantity
         const cycleHours = opState.operationDuration;
         producedThisCycle = Math.floor(realProductivity * cycleHours);
-        const remaining = opState.totalQuantity - opState.completedQuantity;
-        producedThisCycle = Math.min(producedThisCycle, remaining);
+        
+        // For dependent operations in PER_UNIT chains, limit by available parts from previous operation
+        if (opState.chainType === "PER_UNIT" && !opState.isFirstInChain && opState.previousOperationId) {
+          const prevOp = activeOperations.find(op => 
+            op.operation.id === opState.previousOperationId && op.itemId === opState.itemId
+          );
+          
+          if (prevOp) {
+            // Can only process parts that have been transferred from previous operation
+            const maxAvailable = prevOp.transferredQuantity - opState.completedQuantity;
+            log.push(`     Доступно деталей от предыдущей операции: ${maxAvailable} шт. (передано: ${prevOp.transferredQuantity}, уже обработано: ${opState.completedQuantity})`);
+            producedThisCycle = Math.min(producedThisCycle, maxAvailable);
+          } else {
+            // Previous operation completed - check in completed operations
+            const maxAvailable = opState.totalQuantity - opState.completedQuantity;
+            producedThisCycle = Math.min(producedThisCycle, maxAvailable);
+          }
+        } else {
+          const remaining = opState.totalQuantity - opState.completedQuantity;
+          producedThisCycle = Math.min(producedThisCycle, remaining);
+        }
       }
 
       opState.completedQuantity += producedThisCycle;
@@ -716,8 +737,37 @@ function processActiveOperations(
       }
 
       // Check if operation is complete
-      if (opState.completedQuantity >= opState.totalQuantity) {
-        log.push(`     ✅ Операция "${operation.name}" завершена полностью!`);
+      let isOperationComplete = false;
+      
+      if (opState.chainType === "PER_UNIT" && !opState.isFirstInChain && opState.previousOperationId) {
+        // For dependent operations: complete only when previous operation is done AND all its parts are processed
+        const prevOpKey = `${opState.itemId}-${opState.previousOperationId}`;
+        const prevOpCompleted = completedOperations.has(prevOpKey);
+        
+        if (prevOpCompleted) {
+          // Previous operation is complete - check if we processed all parts
+          if (opState.completedQuantity >= opState.totalQuantity) {
+            isOperationComplete = true;
+            log.push(`     ✅ Операция "${operation.name}" завершена полностью! (обработаны все детали от предыдущей операции)`);
+          }
+        } else {
+          // Previous operation still running - can't complete yet
+          const prevOp = activeOperations.find(op => 
+            op.operation.id === opState.previousOperationId && op.itemId === opState.itemId
+          );
+          if (prevOp) {
+            log.push(`     ⏳ Операция "${operation.name}" ожидает завершения предыдущей операции "${prevOp.operation.name}" (обработано: ${opState.completedQuantity}/${prevOp.transferredQuantity})`);
+          }
+        }
+      } else {
+        // For first operations or ONE_TIME operations: standard check
+        if (opState.completedQuantity >= opState.totalQuantity) {
+          isOperationComplete = true;
+          log.push(`     ✅ Операция "${operation.name}" завершена полностью!`);
+        }
+      }
+      
+      if (isOperationComplete) {
         completedOperations.add(`${opState.itemId}-${operation.id}`);
         toRemove.push(index);
 
@@ -1010,6 +1060,18 @@ function tryStartChainOperation(
       });
     }
 
+    // Determine if this is the first operation in chain
+    const isFirstInChain = !enabledOps.some(op => op.orderIndex < operation.orderIndex);
+    
+    // Find previous operation ID for PER_UNIT chains
+    let previousOperationId: string | undefined;
+    if (chain.chainType === "PER_UNIT" && !isFirstInChain) {
+      const prevOps = enabledOps.filter(op => op.orderIndex < operation.orderIndex);
+      if (prevOps.length > 0) {
+        previousOperationId = prevOps[prevOps.length - 1].id;
+      }
+    }
+
     // Create active operation
     const activeOp: ActiveOperation = {
       itemId: item.id,
@@ -1029,6 +1091,8 @@ function tryStartChainOperation(
       continuousWorkerIds,
       continuousEquipmentIds,
       initialDuration: operationDuration,
+      isFirstInChain,
+      previousOperationId,
     };
 
     activeOperations.push(activeOp);
