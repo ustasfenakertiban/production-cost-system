@@ -37,6 +37,7 @@ interface Equipment {
   totalCost: number;
   variance: number;
   enabled: boolean;
+  requiresContinuousOperation: boolean;
   equipment: {
     name: string;
   };
@@ -51,6 +52,7 @@ interface Role {
   totalCost: number;
   variance: number;
   enabled: boolean;
+  requiresContinuousPresence: boolean;
   role: {
     name: string;
   };
@@ -118,6 +120,9 @@ interface ActiveOperation {
   operationDuration: number; // Длительность операции в часах
   assignedWorkerIds: number[];
   assignedEquipmentIds: string[];
+  continuousWorkerIds: Set<number>; // Работники, которые должны оставаться занятыми до конца
+  continuousEquipmentIds: Set<string>; // Оборудование, которое должно оставаться занятым до конца
+  initialDuration: number; // Первоначальная расчетная длительность (без variance)
 }
 
 export function applyVariance(
@@ -689,7 +694,7 @@ function processActiveOperations(
         completedOperations.add(`${opState.itemId}-${operation.id}`);
         toRemove.push(index);
 
-        // Release resources
+        // Release all resources
         opState.assignedWorkerIds.forEach(workerId => {
           resources.busyWorkers.delete(workerId);
         });
@@ -698,8 +703,63 @@ function processActiveOperations(
         });
       } else {
         // Continue for another cycle
-        opState.cycleStartHour = currentHour;
         log.push(`     🔄 Продолжение операции в следующем цикле...`);
+        
+        // Recalculate operationDuration for next cycle (с учетом variance)
+        let nextCycleDuration: number;
+        if (opState.chainType === "ONE_TIME") {
+          // For ONE_TIME, recalculate with variance
+          const equipmentTimes = enabledEquipment.map(eq => {
+            const baseTime = eq.machineTime || 0;
+            return applyVariance(baseTime, eq.variance, varianceMode);
+          });
+          const roleTimes = enabledRoles.map(r => {
+            const baseTime = r.timeSpent || 0;
+            return applyVariance(baseTime, r.variance, varianceMode);
+          });
+          const allTimes = [...equipmentTimes, ...roleTimes].filter(t => t > 0);
+          nextCycleDuration = allTimes.length > 0 ? Math.max(...allTimes) : opState.initialDuration;
+        } else {
+          // For PER_UNIT, use cycleHours with variance
+          const baseCycleHours = operation.cycleHours || opState.initialDuration;
+          nextCycleDuration = baseCycleHours; // Обычно cycleHours постоянны
+        }
+        
+        opState.operationDuration = nextCycleDuration;
+        opState.cycleStartHour = currentHour;
+        
+        // Update resource allocation times and release non-continuous resources
+        // Update workers
+        opState.assignedWorkerIds.forEach((workerId, idx) => {
+          const workerInfo = resources.busyWorkers.get(workerId);
+          if (workerInfo) {
+            if (opState.continuousWorkerIds.has(workerId)) {
+              // Continuous worker - update untilHour
+              workerInfo.untilHour = currentHour + nextCycleDuration;
+              log.push(`     🔄 Работник #${workerId} продолжает работу (непрерывно требуется)`);
+            } else {
+              // Non-continuous worker - release after first cycle
+              resources.busyWorkers.delete(workerId);
+              log.push(`     ✅ Работник #${workerId} освобожден (начальная настройка завершена)`);
+            }
+          }
+        });
+        
+        // Update equipment
+        opState.assignedEquipmentIds.forEach(equipmentId => {
+          const equipInfo = resources.busyEquipment.get(equipmentId);
+          if (equipInfo) {
+            if (opState.continuousEquipmentIds.has(equipmentId)) {
+              // Continuous equipment - update untilHour
+              equipInfo.untilHour = currentHour + nextCycleDuration;
+              log.push(`     🔄 Оборудование "${equipInfo.equipmentName}" продолжает работу (непрерывно требуется)`);
+            } else {
+              // Non-continuous equipment - release after first cycle
+              resources.busyEquipment.delete(equipmentId);
+              log.push(`     ✅ Оборудование "${equipInfo.equipmentName}" освобождено (начальная настройка завершена)`);
+            }
+          }
+        });
       }
     }
   });
@@ -848,12 +908,22 @@ function tryStartChainOperation(
 
     // Allocate resources
     const assignedWorkerIds: number[] = [];
+    const continuousWorkerIds = new Set<number>();
     let nextWorkerId = 0;
+    
+    // Allocate workers based on roles
     for (let i = 0; i < requiredWorkers; i++) {
       while (resources.busyWorkers.has(nextWorkerId)) {
         nextWorkerId++;
       }
       assignedWorkerIds.push(nextWorkerId);
+      
+      // Check if this role requires continuous presence
+      const role = enabledRoles[i];
+      if (role && role.requiresContinuousPresence) {
+        continuousWorkerIds.add(nextWorkerId);
+      }
+      
       resources.busyWorkers.set(nextWorkerId, {
         operationName: operation.name,
         productName: item.product.name,
@@ -863,8 +933,16 @@ function tryStartChainOperation(
     }
 
     const assignedEquipmentIds: string[] = [];
+    const continuousEquipmentIds = new Set<string>();
+    
     for (const eq of enabledEquipment) {
       assignedEquipmentIds.push(eq.id);
+      
+      // Check if this equipment requires continuous operation
+      if (eq.requiresContinuousOperation) {
+        continuousEquipmentIds.add(eq.id);
+      }
+      
       resources.busyEquipment.set(eq.id, {
         equipmentName: eq.equipment.name,
         operationName: operation.name,
@@ -887,6 +965,9 @@ function tryStartChainOperation(
       operationDuration,
       assignedWorkerIds,
       assignedEquipmentIds,
+      continuousWorkerIds,
+      continuousEquipmentIds,
+      initialDuration: operationDuration,
     };
 
     activeOperations.push(activeOp);
@@ -900,8 +981,9 @@ function tryStartChainOperation(
     if (enabledRoles.length > 0) {
       if (requiredWorkers === enabledRoles.length) {
         log.push(`     Задействовано работников: ${requiredWorkers} (назначено ролей: ${enabledRoles.length})`);
-        enabledRoles.forEach(role => {
-          log.push(`        • ${role.role.name}`);
+        enabledRoles.forEach((role, idx) => {
+          const continuous = role.requiresContinuousPresence ? " (постоянно)" : " (начальная настройка)";
+          log.push(`        • ${role.role.name}${continuous}`);
         });
       } else {
         log.push(`     Задействовано работников: ${requiredWorkers} из ${enabledRoles.length} требуемых`);
@@ -912,7 +994,11 @@ function tryStartChainOperation(
     }
     
     if (enabledEquipment.length > 0) {
-      log.push(`     Задействовано оборудования: ${enabledEquipment.map(e => e.equipment.name).join(", ")}`);
+      log.push(`     Задействовано оборудования:`);
+      enabledEquipment.forEach(eq => {
+        const continuous = eq.requiresContinuousOperation ? " (непрерывно)" : " (начальная настройка)";
+        log.push(`        • ${eq.equipment.name}${continuous}`);
+      });
     }
     log.push(`     Длительность: ${operationDuration} час(ов)`);
 

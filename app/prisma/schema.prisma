@@ -169,6 +169,7 @@ model OperationEquipment {
   variance         Float?
   comment          String?
   enabled          Boolean             @default(true)
+  requiresContinuousOperation Boolean  @default(true)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   equipment        Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
@@ -190,6 +191,7 @@ model OperationRole {
   variance       Float?
   comment        String?
   enabled        Boolean             @default(true)
+  requiresContinuousPresence Boolean @default(true)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   operation      ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)

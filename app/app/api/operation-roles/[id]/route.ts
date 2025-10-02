@@ -11,7 +11,7 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { timeSpent, timeSpentSeconds, piecesPerHour, paymentType, rate, variance, comment, enabled } = data;
+    const { timeSpent, timeSpentSeconds, piecesPerHour, paymentType, rate, variance, comment, enabled, requiresContinuousPresence } = data;
 
     if (!timeSpent || !paymentType || !rate) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
@@ -31,6 +31,7 @@ export async function PUT(
         variance: variance ? parseFloat(variance) : null,
         comment: comment,
         enabled: enabled !== undefined ? enabled : true,
+        requiresContinuousPresence: requiresContinuousPresence !== undefined ? requiresContinuousPresence : true,
       },
       include: {
         role: true,

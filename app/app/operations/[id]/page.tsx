@@ -65,6 +65,7 @@ interface OperationEquipment {
   variance?: number;
   comments?: string;
   enabled: boolean;
+  requiresContinuousOperation: boolean;
   equipment: {
     id: string;
     name: string;

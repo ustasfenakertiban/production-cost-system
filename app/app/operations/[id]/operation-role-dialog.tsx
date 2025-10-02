@@ -30,6 +30,7 @@ interface OperationRole {
   variance?: number;
   comment?: string;
   enabled: boolean;
+  requiresContinuousPresence: boolean;
   role: EmployeeRole;
 }
 
@@ -53,6 +54,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
     variance: "",
     comment: "",
     enabled: true,
+    requiresContinuousPresence: true,
   });
   
   const [loading, setLoading] = useState(false);
@@ -76,6 +78,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
         variance: role.variance?.toString() || "",
         comment: role.comment || "",
         enabled: role.enabled ?? true,
+        requiresContinuousPresence: role.requiresContinuousPresence ?? true,
       });
     } else {
       setFormData({
@@ -88,6 +91,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
         variance: "",
         comment: "",
         enabled: true,
+        requiresContinuousPresence: true,
       });
     }
   }, [role]);
@@ -195,6 +199,7 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
         variance: formData.variance || null,
         comment: formData.comment || null,
         enabled: formData.enabled,
+        requiresContinuousPresence: formData.requiresContinuousPresence,
       };
 
       const url = role ? `/api/operation-roles/${role.id}` : '/api/operation-roles';
@@ -397,17 +402,33 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="enabled"
-              checked={formData.enabled}
-              onCheckedChange={(checked) => handleChange('enabled', checked)}
-            />
-            <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Включить в расчеты
-            </Label>
-            <p className="text-sm text-gray-500">
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enabled"
+                checked={formData.enabled}
+                onCheckedChange={(checked) => handleChange('enabled', checked)}
+              />
+              <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Включить в расчеты
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500 ml-6">
               (отключенные роли не учитываются при расчете стоимости)
+            </p>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="requiresContinuousPresence"
+                checked={formData.requiresContinuousPresence}
+                onCheckedChange={(checked) => handleChange('requiresContinuousPresence', checked)}
+              />
+              <Label htmlFor="requiresContinuousPresence" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Требуется постоянное присутствие
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500 ml-6">
+              (если отключено, работник освобождается после начальной настройки, иначе занят до конца операции)
             </p>
           </div>
 

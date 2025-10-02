@@ -30,6 +30,7 @@ interface OperationEquipment {
   variance?: number;
   comment?: string;
   enabled: boolean;
+  requiresContinuousOperation: boolean;
   equipment: Equipment;
 }
 
@@ -52,6 +53,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
     variance: "",
     comment: "",
     enabled: true,
+    requiresContinuousOperation: true,
   });
   
   const [loading, setLoading] = useState(false);
@@ -74,6 +76,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
         variance: equipment.variance?.toString() || "",
         comment: equipment.comment || "",
         enabled: equipment.enabled ?? true,
+        requiresContinuousOperation: equipment.requiresContinuousOperation ?? true,
       });
     } else {
       setFormData({
@@ -85,6 +88,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
         variance: "",
         comment: "",
         enabled: true,
+        requiresContinuousOperation: true,
       });
     }
   }, [equipment]);
@@ -191,6 +195,7 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
         variance: formData.variance || null,
         comment: formData.comment || null,
         enabled: formData.enabled,
+        requiresContinuousOperation: formData.requiresContinuousOperation,
       };
 
       const url = equipment ? `/api/operation-equipment/${equipment.id}` : '/api/operation-equipment';
@@ -380,17 +385,33 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="enabled"
-              checked={formData.enabled}
-              onCheckedChange={(checked) => handleChange('enabled', checked)}
-            />
-            <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Включить в расчеты
-            </Label>
-            <p className="text-sm text-gray-500">
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enabled"
+                checked={formData.enabled}
+                onCheckedChange={(checked) => handleChange('enabled', checked)}
+              />
+              <Label htmlFor="enabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Включить в расчеты
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500 ml-6">
               (отключенное оборудование не учитывается при расчете стоимости)
+            </p>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="requiresContinuousOperation"
+                checked={formData.requiresContinuousOperation}
+                onCheckedChange={(checked) => handleChange('requiresContinuousOperation', checked)}
+              />
+              <Label htmlFor="requiresContinuousOperation" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Требуется непрерывная работа
+              </Label>
+            </div>
+            <p className="text-xs text-gray-500 ml-6">
+              (если отключено, оборудование освобождается после начальной настройки, иначе занято до конца операции)
             </p>
           </div>
 
