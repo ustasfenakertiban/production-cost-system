@@ -279,10 +279,7 @@ export function simulateOrder(
     log.push(`\n⏰ Час ${currentHour} (абсолютный час: ${absoluteHour})`);
     log.push(`${"─".repeat(50)}`);
 
-    // Release resources
-    releaseResources(resources, absoluteHour, log);
-
-    // Process active operations
+    // Process active operations FIRST (this updates untilHour for continuous resources)
     processActiveOperations(
       activeOperations,
       completedOperations,
@@ -298,6 +295,9 @@ export function simulateOrder(
         totalLaborCost: (v: number) => totalLaborCost += v,
       }
     );
+
+    // Release resources AFTER processing (so untilHour is updated)
+    releaseResources(resources, absoluteHour, log);
 
     // Try to start new operations
     tryStartNewOperations(
@@ -383,8 +383,8 @@ export function simulateOrder(
                   if (!activePrev) {
                     reason = `ожидание начала операции "${prevOp.name}"`;
                     break;
-                  } else if (chain.chainType === "PER_UNIT" && activePrev.completedQuantity === 0) {
-                    reason = `ожидание первых деталей от "${prevOp.name}" (произведено: 0)`;
+                  } else if (chain.chainType === "PER_UNIT" && activePrev.transferredQuantity === 0) {
+                    reason = `ожидание первых деталей от "${prevOp.name}" (передано: ${activePrev.transferredQuantity})`;
                     break;
                   } else if (chain.chainType === "ONE_TIME") {
                     reason = `ожидание завершения "${prevOp.name}"`;
@@ -862,18 +862,18 @@ function tryStartChainOperation(
 
       if (!prevOpsCompleted) return;
     } else {
-      // For PER_UNIT: previous operations must have started producing (completedQuantity > 0 or completed)
+      // For PER_UNIT: previous operations must have transferred items (transferredQuantity > 0 or completed)
       const prevOpsReady = enabledOps
         .filter(op => op.orderIndex < operation.orderIndex)
         .every(op => {
           // Check if completed
           if (completedOperations.has(`${item.id}-${op.id}`)) return true;
           
-          // Check if active and has produced at least one item
+          // Check if active and has transferred at least one item
           const activeOp = activeOperations.find(
             active => active.operation.id === op.id && active.itemId === item.id
           );
-          return activeOp && activeOp.completedQuantity > 0;
+          return activeOp && activeOp.transferredQuantity > 0;
         });
 
       if (!prevOpsReady) {
@@ -889,7 +889,7 @@ function tryStartChainOperation(
             if (prevCompleted) {
               log.push(`     ✅ "${prevOp.name}" - завершена`);
             } else if (prevActiveOp) {
-              log.push(`     🔄 "${prevOp.name}" - в работе (произведено: ${prevActiveOp.completedQuantity}/${prevActiveOp.totalQuantity})`);
+              log.push(`     🔄 "${prevOp.name}" - в работе (передано деталей: ${prevActiveOp.transferredQuantity}/${prevActiveOp.totalQuantity})`);
             } else {
               log.push(`     ⏳ "${prevOp.name}" - еще не начата`);
             }
@@ -906,6 +906,9 @@ function tryStartChainOperation(
     // Check equipment
     for (const eq of enabledEquipment) {
       if (resources.busyEquipment.has(eq.id)) {
+        const busyInfo = resources.busyEquipment.get(eq.id);
+        log.push(`\n  ⏸️  Операция "${operation.name}" не может начаться:`);
+        log.push(`     ⚠️  Оборудование "${eq.equipment.name}" занято операцией "${busyInfo?.operationName}" (${busyInfo?.productName})`);
         return; // Equipment busy
       }
     }
@@ -914,6 +917,15 @@ function tryStartChainOperation(
     const availableWorkerCount = resources.physicalWorkers - resources.busyWorkers.size;
     const requiredWorkers = Math.min(enabledRoles.length, availableWorkerCount);
     if (requiredWorkers === 0 && enabledRoles.length > 0) {
+      log.push(`\n  ⏸️  Операция "${operation.name}" не может начаться:`);
+      log.push(`     ⚠️  Не хватает работников (требуется: ${enabledRoles.length}, свободно: ${availableWorkerCount})`);
+      // Show who is busy
+      if (resources.busyWorkers.size > 0) {
+        log.push(`     📋 Занятые работники:`);
+        resources.busyWorkers.forEach((info, workerId) => {
+          log.push(`        • Работник #${workerId}: "${info.operationName}" (${info.productName})`);
+        });
+      }
       return; // No workers available
     }
 
