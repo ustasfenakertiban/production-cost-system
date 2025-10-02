@@ -342,7 +342,9 @@ export function simulateOrder(
         log.push(`       Деталей на складе (готово, но не передано): ${onStock} шт.`);
         log.push(`       Деталей всего передано на следующий этап: ${opState.transferredQuantity} шт.`);
         log.push(`       До завершения цикла: ${remainingHours} час(ов)`);
-        log.push(`       Занято работников: ${opState.assignedWorkerIds.map(id => `#${id}`).join(", ") || "нет"}`);
+        // Показываем только тех работников, которые реально заняты в данный момент
+        const actuallyBusyWorkers = opState.assignedWorkerIds.filter(id => resources.busyWorkers.has(id));
+        log.push(`       Занято работников: ${actuallyBusyWorkers.map(id => `#${id}`).join(", ") || "нет"}`);
         if (opState.assignedEquipmentIds.length > 0) {
           const equipmentNames = opState.operation.operationEquipment
             .filter(eq => opState.assignedEquipmentIds.includes(eq.id))
@@ -807,6 +809,7 @@ function processActiveOperations(
         
         // Update resource allocation times for continuous resources
         // Update workers (только для тех, кто требует постоянного присутствия)
+        const workersToRemove: number[] = [];
         opState.assignedWorkerIds.forEach((workerId, idx) => {
           if (opState.continuousWorkerIds.has(workerId)) {
             const workerInfo = resources.busyWorkers.get(workerId);
@@ -815,9 +818,17 @@ function processActiveOperations(
               workerInfo.untilHour = currentHour + nextCycleDuration;
               log.push(`     🔄 Работник #${workerId} продолжает работу (непрерывно требуется до часа ${workerInfo.untilHour})`);
             }
+          } else {
+            // Non-continuous worker - проверяем, освобожден ли он
+            if (!resources.busyWorkers.has(workerId)) {
+              workersToRemove.push(workerId);
+              log.push(`     ✅ Работник #${workerId} завершил свою часть работы и удален из операции`);
+            }
           }
-          // Работники без постоянного присутствия освобождаются автоматически через releaseResources
         });
+        
+        // Удаляем освобожденных работников из assignedWorkerIds
+        opState.assignedWorkerIds = opState.assignedWorkerIds.filter(id => !workersToRemove.includes(id));
         
         // Update equipment
         opState.assignedEquipmentIds.forEach(equipmentId => {
