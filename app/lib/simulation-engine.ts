@@ -563,43 +563,6 @@ function processActiveOperations(
   activeOperations.forEach((opState, index) => {
     const cycleEnd = opState.cycleStartHour + opState.operationDuration;
 
-    // ВАЖНО: Обновляем untilHour на каждом часу, чтобы ресурсы не освобождались преждевременно
-    if (cycleEnd > currentHour) {
-      // Операция еще выполняется - обновляем занятость ресурсов
-      
-      // Для работников: в PER_UNIT операциях все работники заняты до конца цикла,
-      // в ONE_TIME - только те, у которых requiresContinuousPresence = true
-      opState.assignedWorkerIds.forEach(workerId => {
-        const shouldKeepBusy = opState.chainType === "PER_UNIT" || opState.continuousWorkerIds.has(workerId);
-        
-        if (shouldKeepBusy) {
-          const workerInfo = resources.busyWorkers.get(workerId);
-          if (workerInfo) {
-            // Продлеваем занятость минимум до конца цикла
-            if (workerInfo.untilHour < cycleEnd) {
-              workerInfo.untilHour = cycleEnd;
-            }
-          }
-        }
-      });
-      
-      // Для оборудования: в PER_UNIT операциях все оборудование занято до конца цикла,
-      // в ONE_TIME - только то, у которого requiresContinuousOperation = true
-      opState.assignedEquipmentIds.forEach(equipmentId => {
-        const shouldKeepBusy = opState.chainType === "PER_UNIT" || opState.continuousEquipmentIds.has(equipmentId);
-        
-        if (shouldKeepBusy) {
-          const equipInfo = resources.busyEquipment.get(equipmentId);
-          if (equipInfo) {
-            // Продлеваем занятость минимум до конца цикла
-            if (equipInfo.untilHour < cycleEnd) {
-              equipInfo.untilHour = cycleEnd;
-            }
-          }
-        }
-      });
-    }
-
     // Check if cycle is completing this hour
     if (cycleEnd === currentHour) {
       // Calculate productivity
@@ -842,21 +805,18 @@ function processActiveOperations(
         opState.operationDuration = nextCycleDuration;
         opState.cycleStartHour = currentHour;
         
-        // Update resource allocation times and release non-continuous resources
-        // Update workers
+        // Update resource allocation times for continuous resources
+        // Update workers (только для тех, кто требует постоянного присутствия)
         opState.assignedWorkerIds.forEach((workerId, idx) => {
-          const workerInfo = resources.busyWorkers.get(workerId);
-          if (workerInfo) {
-            if (opState.continuousWorkerIds.has(workerId)) {
-              // Continuous worker - update untilHour
+          if (opState.continuousWorkerIds.has(workerId)) {
+            const workerInfo = resources.busyWorkers.get(workerId);
+            if (workerInfo) {
+              // Continuous worker - update untilHour для следующего цикла
               workerInfo.untilHour = currentHour + nextCycleDuration;
-              log.push(`     🔄 Работник #${workerId} продолжает работу (непрерывно требуется)`);
-            } else {
-              // Non-continuous worker - release after first cycle
-              resources.busyWorkers.delete(workerId);
-              log.push(`     ✅ Работник #${workerId} освобожден (начальная настройка завершена)`);
+              log.push(`     🔄 Работник #${workerId} продолжает работу (непрерывно требуется до часа ${workerInfo.untilHour})`);
             }
           }
+          // Работники без постоянного присутствия освобождаются автоматически через releaseResources
         });
         
         // Update equipment
@@ -1073,15 +1033,23 @@ function tryStartChainOperation(
       
       // Check if this role requires continuous presence
       const role = enabledRoles[i];
+      let workerUntilHour: number;
+      
       if (role && role.requiresContinuousPresence) {
         continuousWorkerIds.add(nextWorkerId);
-        log.push(`        🔗 Работник #${nextWorkerId} требует постоянного присутствия`);
+        workerUntilHour = currentHour + operationDuration;
+        log.push(`        🔗 Работник #${nextWorkerId} требует постоянного присутствия (до часа ${workerUntilHour})`);
+      } else {
+        // Работник занят только на время своего участия (timeSpent)
+        const timeSpent = role?.timeSpent || operationDuration;
+        workerUntilHour = currentHour + timeSpent;
+        log.push(`        ⏱️ Работник #${nextWorkerId} занят на ${timeSpent} час(ов) (до часа ${workerUntilHour}), затем свободен`);
       }
       
       resources.busyWorkers.set(nextWorkerId, {
         operationName: operation.name,
         productName: item.product.name,
-        untilHour: currentHour + operationDuration,
+        untilHour: workerUntilHour,
       });
       nextWorkerId++;
     }
