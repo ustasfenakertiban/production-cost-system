@@ -1,0 +1,31 @@
+{
+  "metadata": {
+    "timestamp": "2025-10-02T22:34:55.080Z",
+    "reason": "initial_empty",
+    "version": "1.0"
+  },
+  "users": [
+    {
+      "id": "cmg9zcmo50000pj6enlcg5fbk",
+      "name": "Test User",
+      "email": "testusertct5ohfa@example.com",
+      "emailVerified": null,
+      "image": null,
+      "password": "$2a$10$LSM4oCwOD8sXL6Q72jx3E.XU9TLElGGcQDbwZBc3JXB/KfVt.WGj.",
+      "createdAt": "2025-10-02T22:21:38.886Z",
+      "updatedAt": "2025-10-02T22:21:38.886Z"
+    }
+  ],
+  "materialCategories": [],
+  "materials": [],
+  "equipment": [],
+  "employeeRoles": [],
+  "recurringExpenses": [],
+  "products": [],
+  "productionProcesses": [],
+  "operationChains": [],
+  "productionOperations": [],
+  "operationTemplates": [],
+  "orders": [],
+  "orderItems": []
+}
