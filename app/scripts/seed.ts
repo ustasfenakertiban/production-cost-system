@@ -5,25 +5,39 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Создать тестового пользователя
-  const hashedPassword = await bcrypt.hash('johndoe123', 10);
-  
-  await prisma.user.upsert({
-    where: { email: 'john@doe.com' },
-    update: {},
-    create: {
-      email: 'john@doe.com',
-      name: 'Тестовый пользователь',
-      password: hashedPassword,
-    },
+  const testEmail = 'test@example.com';
+  const testPassword = 'password123';
+
+  // Проверяем, существует ли уже пользователь
+  const existingUser = await prisma.user.findUnique({
+    where: { email: testEmail }
   });
 
-  console.log('Тестовый пользователь создан');
+  if (existingUser) {
+    console.log('Тестовый пользователь уже существует');
+    return;
+  }
+
+  // Создаём хеш пароля
+  const hashedPassword = await bcrypt.hash(testPassword, 10);
+
+  // Создаём пользователя
+  const user = await prisma.user.create({
+    data: {
+      email: testEmail,
+      password: hashedPassword,
+      name: 'Test User',
+    }
+  });
+
+  console.log('Создан тестовый пользователь:', user.email);
+  console.log('Email: test@example.com');
+  console.log('Password: password123');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Ошибка при выполнении seed:', e);
     process.exit(1);
   })
   .finally(async () => {
