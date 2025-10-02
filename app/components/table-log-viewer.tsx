@@ -81,11 +81,13 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         continue;
       }
 
-      // Начало блока операции
+      // Начало блока операции (два варианта)
       const operationStartMatch = line.match(/🚀\s*НАЧАЛО ОПЕРАЦИИ:\s*"([^"]+)"/i);
-      if (operationStartMatch) {
+      const operationContinueMatch = line.match(/🔧\s*Операция:\s*"([^"]+)"/i);
+      
+      if (operationStartMatch || operationContinueMatch) {
         inOperationBlock = true;
-        currentOperation = operationStartMatch[1];
+        currentOperation = operationStartMatch ? operationStartMatch[1] : operationContinueMatch![1];
         operationBlockDetails = [line.trim()];
         currentProduct = null;
         currentChain = null;
