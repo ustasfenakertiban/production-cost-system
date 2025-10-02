@@ -25,6 +25,8 @@ import { useToast } from "@/hooks/use-toast";
 import TreeLogViewer from "@/components/tree-log-viewer";
 import TableLogViewer from "@/components/table-log-viewer";
 import CostBreakdownChart, { OperationCostBreakdown } from "@/components/cost-breakdown-chart";
+import OperationsTotalCostChart from "@/components/operations-total-cost-chart";
+import OperationsLaborCostChart from "@/components/operations-labor-cost-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SimulationPanelProps {
@@ -246,8 +248,10 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="costs" className="w-full">
-              <TabsList className="grid w-full max-w-3xl grid-cols-4">
+              <TabsList className="grid w-full max-w-5xl grid-cols-6">
                 <TabsTrigger value="costs">Структура затрат</TabsTrigger>
+                <TabsTrigger value="operations-total">Затраты по операциям</TabsTrigger>
+                <TabsTrigger value="operations-labor">Зарплаты по операциям</TabsTrigger>
                 <TabsTrigger value="tree">Древовидный вид</TabsTrigger>
                 <TabsTrigger value="table">Таблица</TabsTrigger>
                 <TabsTrigger value="text">Текстовый лог</TabsTrigger>
@@ -261,6 +265,30 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                 ) : (
                   <div className="text-center text-muted-foreground py-12">
                     Запустите симуляцию, чтобы увидеть структуру затрат
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="operations-total" className="mt-4">
+                {operationBreakdown.length > 0 ? (
+                  <OperationsTotalCostChart 
+                    operations={operationBreakdown}
+                    totalCosts={totalCosts}
+                  />
+                ) : (
+                  <div className="text-center text-muted-foreground py-12">
+                    Запустите симуляцию, чтобы увидеть затраты по операциям
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="operations-labor" className="mt-4">
+                {operationBreakdown.length > 0 ? (
+                  <OperationsLaborCostChart 
+                    operations={operationBreakdown}
+                    totalCosts={totalCosts}
+                  />
+                ) : (
+                  <div className="text-center text-muted-foreground py-12">
+                    Запустите симуляцию, чтобы увидеть зарплаты по операциям
                   </div>
                 )}
               </TabsContent>
