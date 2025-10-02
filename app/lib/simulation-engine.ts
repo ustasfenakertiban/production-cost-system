@@ -121,10 +121,11 @@ interface ActiveOperation {
 
 export function applyVariance(
   baseValue: number,
-  variance: number | null,
+  variance: number | null | undefined,
   mode: VarianceMode
 ): number {
-  if (!variance || variance === 0 || mode === "NONE") return baseValue;
+  // Если разброс не указан (null, undefined или 0), считаем его равным 0
+  if (variance == null || variance === 0 || mode === "NONE") return baseValue;
 
   const varianceDecimal = variance / 100;
 
@@ -159,35 +160,37 @@ export function validateOrder(order: Order): {
 
         const opPath = `${item.product.name} → ${process.name} → ${chain.name} → ${operation.name}`;
 
-        if (!operation.estimatedProductivityPerHour || operation.estimatedProductivityPerHour <= 0) {
-          missingParams.push(`${opPath}: отсутствует номинальная производительность`);
-        }
-
-        if (operation.estimatedProductivityPerHourVariance === null || operation.estimatedProductivityPerHourVariance === undefined) {
-          missingParams.push(`${opPath}: отсутствует разброс производительности`);
-        }
-
+        // Проверяем длину рабочего цикла
         if (!operation.cycleHours || operation.cycleHours <= 0) {
           missingParams.push(`${opPath}: отсутствует длина рабочего цикла`);
         }
 
+        // Если номинальная производительность не указана (0), 
+        // то должны быть заполнены производительности оборудования или ролей
+        const hasNominalProductivity = operation.estimatedProductivityPerHour && operation.estimatedProductivityPerHour > 0;
+        
         const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
+        const enabledRoles = operation.operationRoles.filter(r => r.enabled);
+        
+        const hasEquipmentProductivity = enabledEquipment.some(eq => eq.piecesPerHour && eq.piecesPerHour > 0);
+        const hasRoleProductivity = enabledRoles.some(r => r.piecesPerHour && r.piecesPerHour > 0);
+
+        // Проверяем, что есть хотя бы один способ рассчитать производительность
+        if (!hasNominalProductivity && !hasEquipmentProductivity && !hasRoleProductivity) {
+          missingParams.push(`${opPath}: отсутствует способ расчета производительности (укажите номинальную производительность, производительность оборудования или производительность ролей)`);
+        }
+
+        // Проверяем производительность для включенного оборудования
         for (const eq of enabledEquipment) {
           if (!eq.piecesPerHour || eq.piecesPerHour <= 0) {
             missingParams.push(`${opPath} → Оборудование "${eq.equipment.name}": отсутствует производительность (шт/час)`);
           }
-          if (eq.variance === null || eq.variance === undefined) {
-            missingParams.push(`${opPath} → Оборудование "${eq.equipment.name}": отсутствует разброс`);
-          }
         }
 
-        const enabledRoles = operation.operationRoles.filter(r => r.enabled);
+        // Проверяем производительность для включенных ролей
         for (const role of enabledRoles) {
           if (!role.piecesPerHour || role.piecesPerHour <= 0) {
             missingParams.push(`${opPath} → Роль "${role.role.name}": отсутствует производительность (шт/час)`);
-          }
-          if (role.variance === null || role.variance === undefined) {
-            missingParams.push(`${opPath} → Роль "${role.role.name}": отсутствует разброс`);
           }
         }
       }
@@ -431,13 +434,20 @@ function processActiveOperations(
       log.push(`     Товар: ${opState.productName}`);
       log.push(`     Цепочка: ${opState.chainName} (${opState.chainType})`);
 
-      // Base productivity with variance
-      let baseProductivity = applyVariance(
-        operation.estimatedProductivityPerHour || 0,
-        operation.estimatedProductivityPerHourVariance,
-        varianceMode
-      );
-      log.push(`     Расчетная производительность: ${baseProductivity.toFixed(2)} шт/час`);
+      // Base productivity with variance (если указана)
+      const hasBaseProductivity = operation.estimatedProductivityPerHour && operation.estimatedProductivityPerHour > 0;
+      let baseProductivity = Infinity;
+      
+      if (hasBaseProductivity) {
+        baseProductivity = applyVariance(
+          operation.estimatedProductivityPerHour,
+          operation.estimatedProductivityPerHourVariance,
+          varianceMode
+        );
+        log.push(`     Номинальная производительность: ${baseProductivity.toFixed(2)} шт/час`);
+      } else {
+        log.push(`     Номинальная производительность: не указана (расчет по оборудованию и людям)`);
+      }
 
       // Equipment productivity
       const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
@@ -474,8 +484,14 @@ function processActiveOperations(
         log.push(`     Производительность по работникам: ${roleProductivity.toFixed(2)} шт/час`);
       }
 
-      // Real productivity
+      // Real productivity (минимальное значение из всех доступных)
       let realProductivity = Math.min(baseProductivity, equipmentProductivity, roleProductivity);
+      
+      // Если ничего не указано (все Infinity), это ошибка валидации, но на всякий случай
+      if (realProductivity === Infinity) {
+        realProductivity = 0;
+      }
+      
       realProductivity *= breakCoefficient;
       log.push(`     Реальная производительность (с учетом отдыха): ${realProductivity.toFixed(2)} шт/час`);
 
