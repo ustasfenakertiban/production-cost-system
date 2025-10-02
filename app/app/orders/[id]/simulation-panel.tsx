@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Play, Download, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import TreeLogViewer from "@/components/tree-log-viewer";
+import TableLogViewer from "@/components/table-log-viewer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SimulationPanelProps {
@@ -232,12 +233,16 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="tree" className="w-full">
-              <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsList className="grid w-full max-w-2xl grid-cols-3">
                 <TabsTrigger value="tree">Древовидный вид</TabsTrigger>
+                <TabsTrigger value="table">Таблица</TabsTrigger>
                 <TabsTrigger value="text">Текстовый лог</TabsTrigger>
               </TabsList>
               <TabsContent value="tree" className="mt-4 border rounded-lg p-4 max-h-[600px] overflow-auto">
                 <TreeLogViewer log={simulationLog} />
+              </TabsContent>
+              <TabsContent value="table" className="mt-4">
+                <TableLogViewer log={simulationLog} />
               </TabsContent>
               <TabsContent value="text" className="mt-4">
                 <Textarea
