@@ -125,6 +125,7 @@ model ProductionOperation {
   orderIndex                 Int
   enabled                    Boolean              @default(true)
   estimatedProductivityPerHour Float?
+  estimatedProductivityPerHourVariance Float?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   operationEquipment         OperationEquipment[]

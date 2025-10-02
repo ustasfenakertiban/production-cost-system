@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { chainId, name, description, comment, enabled, estimatedProductivityPerHour } = data;
+    const { chainId, name, description, comment, enabled, estimatedProductivityPerHour, estimatedProductivityPerHourVariance } = data;
 
     if (!chainId || !name) {
       return NextResponse.json(
@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
         orderIndex: nextOrderIndex,
         enabled: enabled !== undefined ? enabled : true,
         estimatedProductivityPerHour: estimatedProductivityPerHour || null,
+        estimatedProductivityPerHourVariance: estimatedProductivityPerHourVariance || null,
       },
       include: {
         chain: {
