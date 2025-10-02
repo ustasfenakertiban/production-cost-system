@@ -330,24 +330,95 @@ export function simulateOrder(
     // Show resource status
     log.push(`\n  👥 Работники: ${busyWorkerCount} занято, ${availableWorkerCount} свободно (всего: ${resources.physicalWorkers})`);
     
-    // Check for idle workers
+    // Check for idle workers and show diagnostics
     if (availableWorkerCount > 0 && !allWorkCompleted(order, completedOperations)) {
-      // Check if there's pending work that can't start
-      const hasPendingWork = order.orderItems.some(item => {
-        return item.productionProcess.operationChains.some(chain => {
-          if (!chain.enabled) return false;
-          return chain.operations.some(op => {
-            if (!op.enabled) return false;
-            const opKey = `${item.id}-${op.id}`;
-            return !completedOperations.has(opKey) && 
-                   !activeOperations.some(active => active.operation.id === op.id && active.itemId === item.id);
+      // Detailed diagnostics for waiting operations
+      const waitingOps: Array<{ item: string; chain: string; operation: string; reason: string }> = [];
+      
+      order.orderItems.forEach(item => {
+        item.productionProcess.operationChains.forEach(chain => {
+          if (!chain.enabled) return;
+          
+          const enabledOps = chain.operations
+            .filter(op => op.enabled)
+            .sort((a, b) => a.orderIndex - b.orderIndex);
+          
+          enabledOps.forEach(operation => {
+            const opKey = `${item.id}-${operation.id}`;
+            if (completedOperations.has(opKey)) return;
+            if (activeOperations.some(active => active.operation.id === operation.id && active.itemId === item.id)) return;
+            
+            let reason = '';
+            
+            // Check if it's ONE_TIME chain with active operation
+            if (chain.chainType === "ONE_TIME") {
+              const hasActiveInChain = activeOperations.some(
+                op => op.chainId === chain.id && op.itemId === item.id
+              );
+              if (hasActiveInChain) {
+                reason = 'ожидание завершения предыдущей операции в разовой цепочке';
+              }
+            }
+            
+            // Check previous operations
+            if (!reason) {
+              const prevOps = enabledOps.filter(op => op.orderIndex < operation.orderIndex);
+              for (const prevOp of prevOps) {
+                const prevKey = `${item.id}-${prevOp.id}`;
+                if (!completedOperations.has(prevKey)) {
+                  const activePrev = activeOperations.find(
+                    active => active.operation.id === prevOp.id && active.itemId === item.id
+                  );
+                  if (!activePrev) {
+                    reason = `ожидание начала операции "${prevOp.name}"`;
+                    break;
+                  } else if (chain.chainType === "PER_UNIT" && activePrev.completedQuantity === 0) {
+                    reason = `ожидание первых деталей от "${prevOp.name}" (произведено: 0)`;
+                    break;
+                  } else if (chain.chainType === "ONE_TIME") {
+                    reason = `ожидание завершения "${prevOp.name}"`;
+                    break;
+                  }
+                }
+              }
+            }
+            
+            // Check equipment
+            if (!reason) {
+              const enabledEquipment = operation.operationEquipment.filter(e => e.enabled);
+              const busyEquip = enabledEquipment.find(eq => resources.busyEquipment.has(eq.id));
+              if (busyEquip) {
+                const busyInfo = resources.busyEquipment.get(busyEquip.id);
+                reason = `ожидание оборудования "${busyEquip.equipment.name}" (занято: ${busyInfo?.operationName})`;
+              }
+            }
+            
+            // Check workers
+            if (!reason) {
+              const enabledRoles = operation.operationRoles.filter(r => r.enabled);
+              if (enabledRoles.length > availableWorkerCount) {
+                reason = `не хватает работников (требуется: ${enabledRoles.length}, свободно: ${availableWorkerCount})`;
+              }
+            }
+            
+            if (reason) {
+              waitingOps.push({
+                item: item.product.name,
+                chain: chain.name,
+                operation: operation.name,
+                reason
+              });
+            }
           });
         });
       });
       
-      if (hasPendingWork) {
-        log.push(`  ⏸️  Ожидание: ${availableWorkerCount} работник(ов) свободны, но не могут начать работу`);
-        log.push(`     (возможно, заняты предыдущие операции или оборудование)`);
+      if (waitingOps.length > 0) {
+        log.push(`\n  ⏸️  Ожидающие операции:`);
+        waitingOps.forEach(op => {
+          log.push(`     • "${op.operation}" (${op.item}, ${op.chain})`);
+          log.push(`       Причина: ${op.reason}`);
+        });
       }
     }
 
@@ -696,6 +767,16 @@ function tryStartChainOperation(
     .filter(op => op.enabled)
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
+  // For ONE_TIME chains: check if there's already an active operation in this chain
+  if (chain.chainType === "ONE_TIME") {
+    const hasActiveOp = activeOperations.some(
+      op => op.chainId === chain.id && op.itemId === item.id
+    );
+    if (hasActiveOp) {
+      return; // Don't start new operations in ONE_TIME chains until current one finishes
+    }
+  }
+
   for (const operation of enabledOps) {
     const opKey = `${item.id}-${operation.id}`;
 
@@ -707,12 +788,31 @@ function tryStartChainOperation(
       return;
     }
 
-    // Check previous operations
-    const prevOpsCompleted = enabledOps
-      .filter(op => op.orderIndex < operation.orderIndex)
-      .every(op => completedOperations.has(`${item.id}-${op.id}`));
+    // Check previous operations differently for ONE_TIME vs PER_UNIT
+    if (chain.chainType === "ONE_TIME") {
+      // For ONE_TIME: all previous operations must be completed
+      const prevOpsCompleted = enabledOps
+        .filter(op => op.orderIndex < operation.orderIndex)
+        .every(op => completedOperations.has(`${item.id}-${op.id}`));
 
-    if (!prevOpsCompleted) return;
+      if (!prevOpsCompleted) return;
+    } else {
+      // For PER_UNIT: previous operations must have started producing (completedQuantity > 0 or completed)
+      const prevOpsReady = enabledOps
+        .filter(op => op.orderIndex < operation.orderIndex)
+        .every(op => {
+          // Check if completed
+          if (completedOperations.has(`${item.id}-${op.id}`)) return true;
+          
+          // Check if active and has produced at least one item
+          const activeOp = activeOperations.find(
+            active => active.operation.id === op.id && active.itemId === item.id
+          );
+          return activeOp && activeOp.completedQuantity > 0;
+        });
+
+      if (!prevOpsReady) return;
+    }
 
     // Check resource availability
     const enabledRoles = operation.operationRoles.filter(r => r.enabled);
@@ -795,7 +895,22 @@ function tryStartChainOperation(
     log.push(`     Товар: ${item.product.name}`);
     log.push(`     Цепочка: ${chain.name} (${chain.chainType === "ONE_TIME" ? "разовая" : "поточная"})`);
     log.push(`     Тираж: ${totalQuantity} шт.`);
-    log.push(`     Задействовано работников: ${requiredWorkers}${enabledRoles.length > requiredWorkers ? ` (требуется ${enabledRoles.length})` : ""}`);
+    
+    // Show worker allocation details
+    if (enabledRoles.length > 0) {
+      if (requiredWorkers === enabledRoles.length) {
+        log.push(`     Задействовано работников: ${requiredWorkers} (назначено ролей: ${enabledRoles.length})`);
+        enabledRoles.forEach(role => {
+          log.push(`        • ${role.role.name}`);
+        });
+      } else {
+        log.push(`     Задействовано работников: ${requiredWorkers} из ${enabledRoles.length} требуемых`);
+        log.push(`        (недостаточно свободных работников)`);
+      }
+    } else {
+      log.push(`     Задействовано работников: 0 (роли не требуются)`);
+    }
+    
     if (enabledEquipment.length > 0) {
       log.push(`     Задействовано оборудования: ${enabledEquipment.map(e => e.equipment.name).join(", ")}`);
     }
