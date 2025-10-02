@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Eye, Pencil, Trash2 } from "lucide-react";
+import { Plus, Eye, Pencil, Trash2, Home } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { OrderDialog } from "./order-dialog";
@@ -112,6 +112,14 @@ export default function OrdersPage() {
 
   return (
     <div className="container mx-auto py-8">
+      <div className="mb-4">
+        <Link href="/">
+          <Button variant="outline">
+            <Home className="w-4 h-4 mr-2" />
+            На главную
+          </Button>
+        </Link>
+      </div>
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
