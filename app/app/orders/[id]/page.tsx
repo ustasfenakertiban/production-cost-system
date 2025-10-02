@@ -22,6 +22,7 @@ import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { OrderItemDialog } from "./order-item-dialog";
+import SimulationPanel from "./simulation-panel";
 
 interface OrderItem {
   id: string;
@@ -220,6 +221,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         open={dialogOpen}
         onClose={handleDialogClose}
       />
+
+      <div className="mt-8">
+        <SimulationPanel orderId={params.id} />
+      </div>
     </div>
   );
 }
