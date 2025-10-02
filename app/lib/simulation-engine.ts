@@ -563,12 +563,16 @@ function processActiveOperations(
   activeOperations.forEach((opState, index) => {
     const cycleEnd = opState.cycleStartHour + opState.operationDuration;
 
-    // ВАЖНО: Для непрерывных ресурсов обновляем untilHour на каждом часу
-    // чтобы они не освобождались функцией releaseResources
+    // ВАЖНО: Обновляем untilHour на каждом часу, чтобы ресурсы не освобождались преждевременно
     if (cycleEnd > currentHour) {
-      // Операция еще выполняется - обновляем занятость непрерывных ресурсов
+      // Операция еще выполняется - обновляем занятость ресурсов
+      
+      // Для работников: в PER_UNIT операциях все работники заняты до конца цикла,
+      // в ONE_TIME - только те, у которых requiresContinuousPresence = true
       opState.assignedWorkerIds.forEach(workerId => {
-        if (opState.continuousWorkerIds.has(workerId)) {
+        const shouldKeepBusy = opState.chainType === "PER_UNIT" || opState.continuousWorkerIds.has(workerId);
+        
+        if (shouldKeepBusy) {
           const workerInfo = resources.busyWorkers.get(workerId);
           if (workerInfo) {
             // Продлеваем занятость минимум до конца цикла
@@ -579,8 +583,12 @@ function processActiveOperations(
         }
       });
       
+      // Для оборудования: в PER_UNIT операциях все оборудование занято до конца цикла,
+      // в ONE_TIME - только то, у которого requiresContinuousOperation = true
       opState.assignedEquipmentIds.forEach(equipmentId => {
-        if (opState.continuousEquipmentIds.has(equipmentId)) {
+        const shouldKeepBusy = opState.chainType === "PER_UNIT" || opState.continuousEquipmentIds.has(equipmentId);
+        
+        if (shouldKeepBusy) {
           const equipInfo = resources.busyEquipment.get(equipmentId);
           if (equipInfo) {
             // Продлеваем занятость минимум до конца цикла
