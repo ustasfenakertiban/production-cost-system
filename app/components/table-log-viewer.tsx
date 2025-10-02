@@ -58,10 +58,12 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     const operationsMap = new Map<string, OperationProduction>();
     let maxAbsoluteHour = 0;
     let currentAbsoluteHour = 0;
+    let inOperationBlock = false;
     let currentOperation: string | null = null;
     let currentProduct: string | null = null;
     let currentChain: string | null = null;
     let currentHourDetails: string[] = [];
+    let operationBlockDetails: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -72,58 +74,69 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         currentAbsoluteHour = parseInt(hourMatch[1]);
         maxAbsoluteHour = Math.max(maxAbsoluteHour, currentAbsoluteHour);
         currentHourDetails = [];
+        inOperationBlock = false;
+        currentOperation = null;
+        currentProduct = null;
+        currentChain = null;
         continue;
       }
 
-      // Определяем операцию
-      const operationMatch = line.match(/🔧\s*Операция:\s*"([^"]+)"/i);
-      if (operationMatch) {
-        currentOperation = operationMatch[1];
-        currentHourDetails.push(line.trim());
+      // Начало блока операции
+      const operationStartMatch = line.match(/🚀\s*НАЧАЛО ОПЕРАЦИИ:\s*"([^"]+)"/i);
+      if (operationStartMatch) {
+        inOperationBlock = true;
+        currentOperation = operationStartMatch[1];
+        operationBlockDetails = [line.trim()];
+        currentProduct = null;
+        currentChain = null;
         continue;
       }
 
-      // Определяем товар
-      const productMatch = line.match(/Товар:\s*(.+)/i);
-      if (productMatch && !productMatch[1].includes("─")) {
-        currentProduct = productMatch[1].trim();
-        currentHourDetails.push(line.trim());
-        continue;
-      }
+      // Внутри блока операции собираем информацию
+      if (inOperationBlock) {
+        operationBlockDetails.push(line.trim());
 
-      // Определяем цепочку
-      const chainMatch = line.match(/Цепочка:\s*(.+?)\s*\(/i);
-      if (chainMatch) {
-        currentChain = chainMatch[1].trim();
-        currentHourDetails.push(line.trim());
-        continue;
-      }
-
-      // Собираем детали для этого часа
-      if (line.trim() && !line.includes("═══") && !line.includes("║")) {
-        currentHourDetails.push(line.trim());
-      }
-
-      // Определяем произведенное количество
-      const producedMatch = line.match(/✔️\s*Выполнено:\s*(\d+)\s*шт\./i);
-      if (producedMatch && currentOperation && currentProduct && currentChain) {
-        const quantity = parseInt(producedMatch[1]);
-        const key = `${currentProduct}|${currentChain}|${currentOperation}`;
-        
-        if (!operationsMap.has(key)) {
-          operationsMap.set(key, {
-            operationName: currentOperation,
-            productName: currentProduct,
-            chainName: currentChain,
-            hourlyProduction: new Map(),
-            dailyProduction: new Map(),
-            hourlyDetails: new Map(),
-          });
+        // Определяем товар внутри блока операции
+        const productMatch = line.match(/Товар:\s*(.+)/i);
+        if (productMatch && !productMatch[1].includes("─")) {
+          currentProduct = productMatch[1].trim();
         }
 
-        const opData = operationsMap.get(key)!;
-        opData.hourlyProduction.set(currentAbsoluteHour, quantity);
-        opData.hourlyDetails.set(currentAbsoluteHour, [...currentHourDetails]);
+        // Определяем цепочку внутри блока операции
+        const chainMatch = line.match(/Цепочка:\s*(.+?)\s*\(/i);
+        if (chainMatch) {
+          currentChain = chainMatch[1].trim();
+        }
+
+        // Определяем произведенное количество
+        const producedMatch = line.match(/✔️\s*Выполнено:\s*(\d+)\s*шт\./i);
+        if (producedMatch && currentOperation && currentProduct && currentChain) {
+          const quantity = parseInt(producedMatch[1]);
+          const key = `${currentProduct}|${currentChain}|${currentOperation}`;
+          
+          if (!operationsMap.has(key)) {
+            operationsMap.set(key, {
+              operationName: currentOperation,
+              productName: currentProduct,
+              chainName: currentChain,
+              hourlyProduction: new Map(),
+              dailyProduction: new Map(),
+              hourlyDetails: new Map(),
+            });
+          }
+
+          const opData = operationsMap.get(key)!;
+          const existingQuantity = opData.hourlyProduction.get(currentAbsoluteHour) || 0;
+          opData.hourlyProduction.set(currentAbsoluteHour, existingQuantity + quantity);
+          
+          // Сохраняем детали операции для этого часа
+          const existingDetails = opData.hourlyDetails.get(currentAbsoluteHour) || [];
+          opData.hourlyDetails.set(currentAbsoluteHour, [...existingDetails, ...operationBlockDetails]);
+          
+          // Завершаем блок операции после обнаружения "Выполнено"
+          inOperationBlock = false;
+          operationBlockDetails = [];
+        }
       }
     }
 

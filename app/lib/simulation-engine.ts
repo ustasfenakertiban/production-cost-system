@@ -117,6 +117,7 @@ interface ActiveOperation {
   totalQuantity: number;
   completedQuantity: number; // Всего произведено деталей
   transferredQuantity: number; // Передано на следующий этап (доступно для следующей операции)
+  pendingTransferQuantity: number; // Ожидает передачи в начале следующего часа
   cycleStartHour: number;
   operationDuration: number; // Длительность операции в часах
   assignedWorkerIds: number[];
@@ -275,6 +276,17 @@ export function simulateOrder(
       log.push(`  📅 ДЕНЬ ${currentDay}`);
       log.push(`${"━".repeat(65)}\n`);
     }
+
+    // Transfer pending quantities from previous hour (for PER_UNIT operations)
+    activeOperations.forEach(op => {
+      if (op.pendingTransferQuantity > op.transferredQuantity) {
+        const transferAmount = op.pendingTransferQuantity - op.transferredQuantity;
+        op.transferredQuantity = op.pendingTransferQuantity;
+        if (transferAmount > 0) {
+          log.push(`\n📦 Передача от "${op.operation.name}" (${op.productName}): ${transferAmount} шт. доступно для следующей операции`);
+        }
+      }
+    });
 
     log.push(`\n⏰ Час ${currentHour} (абсолютный час: ${absoluteHour})`);
     log.push(`${"─".repeat(50)}`);
@@ -650,11 +662,11 @@ function processActiveOperations(
 
       opState.completedQuantity += producedThisCycle;
       
-      // For PER_UNIT operations, transfer parts immediately to next stage
+      // For PER_UNIT operations, mark parts for transfer at the start of next hour
       if (opState.chainType === "PER_UNIT") {
-        opState.transferredQuantity = opState.completedQuantity;
+        opState.pendingTransferQuantity = opState.completedQuantity;
         log.push(`     ✔️  Выполнено: ${producedThisCycle} шт. (всего: ${opState.completedQuantity}/${opState.totalQuantity})`);
-        log.push(`     📦 Передано на следующий этап: ${opState.transferredQuantity} шт.`);
+        log.push(`     ⏳ Ожидает передачи в начале следующего часа: ${producedThisCycle} шт.`);
       } else {
         // For ONE_TIME operations, parts are transferred only when fully completed
         log.push(`     ✔️  Выполнено: ${producedThisCycle} шт. (всего: ${opState.completedQuantity}/${opState.totalQuantity})`);
@@ -1009,6 +1021,7 @@ function tryStartChainOperation(
       totalQuantity,
       completedQuantity: 0,
       transferredQuantity: 0,
+      pendingTransferQuantity: 0,
       cycleStartHour: currentHour,
       operationDuration,
       assignedWorkerIds,
