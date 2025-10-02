@@ -115,7 +115,8 @@ interface ActiveOperation {
   chainType: "ONE_TIME" | "PER_UNIT";
   operation: Operation;
   totalQuantity: number;
-  completedQuantity: number;
+  completedQuantity: number; // Всего произведено деталей
+  transferredQuantity: number; // Передано на следующий этап (доступно для следующей операции)
   cycleStartHour: number;
   operationDuration: number; // Длительность операции в часах
   assignedWorkerIds: number[];
@@ -318,10 +319,15 @@ export function simulateOrder(
       log.push(`\n  📊 Выполняется операций: ${activeOperations.length}`);
       activeOperations.forEach((opState) => {
         const remainingHours = (opState.cycleStartHour + opState.operationDuration) - absoluteHour;
-        const progress = opState.completedQuantity;
-        const total = opState.totalQuantity;
+        const inProgress = opState.completedQuantity - opState.transferredQuantity; // Деталей в работе (произведено, но еще не передано)
+        const onStock = 0; // В поточном производстве детали передаются сразу
+        
         log.push(`     • "${opState.operation.name}" (${opState.productName})`);
-        log.push(`       Выполнено: ${progress}/${total} шт., до завершения цикла: ${remainingHours} час(ов)`);
+        log.push(`       Деталей в работе: ${inProgress} шт.`);
+        log.push(`       Деталей от тиража сделано: ${opState.completedQuantity}/${opState.totalQuantity} шт.`);
+        log.push(`       Деталей на складе (готово, но не передано): ${onStock} шт.`);
+        log.push(`       Деталей всего передано на следующий этап: ${opState.transferredQuantity} шт.`);
+        log.push(`       До завершения цикла: ${remainingHours} час(ов)`);
         log.push(`       Занято работников: ${opState.assignedWorkerIds.map(id => `#${id}`).join(", ") || "нет"}`);
         if (opState.assignedEquipmentIds.length > 0) {
           const equipmentNames = opState.operation.operationEquipment
@@ -643,7 +649,16 @@ function processActiveOperations(
       }
 
       opState.completedQuantity += producedThisCycle;
-      log.push(`     ✔️  Выполнено: ${producedThisCycle} шт. (всего: ${opState.completedQuantity}/${opState.totalQuantity})`);
+      
+      // For PER_UNIT operations, transfer parts immediately to next stage
+      if (opState.chainType === "PER_UNIT") {
+        opState.transferredQuantity = opState.completedQuantity;
+        log.push(`     ✔️  Выполнено: ${producedThisCycle} шт. (всего: ${opState.completedQuantity}/${opState.totalQuantity})`);
+        log.push(`     📦 Передано на следующий этап: ${opState.transferredQuantity} шт.`);
+      } else {
+        // For ONE_TIME operations, parts are transferred only when fully completed
+        log.push(`     ✔️  Выполнено: ${producedThisCycle} шт. (всего: ${opState.completedQuantity}/${opState.totalQuantity})`);
+      }
 
       // Calculate costs
       // Materials
@@ -861,7 +876,27 @@ function tryStartChainOperation(
           return activeOp && activeOp.completedQuantity > 0;
         });
 
-      if (!prevOpsReady) return;
+      if (!prevOpsReady) {
+        // Debug logging: why can't we start this operation?
+        const prevOps = enabledOps.filter(op => op.orderIndex < operation.orderIndex);
+        if (prevOps.length > 0) {
+          log.push(`\n  ⏸️  Операция "${operation.name}" не может начаться - ожидание предыдущих операций:`);
+          prevOps.forEach(prevOp => {
+            const prevActiveOp = activeOperations.find(
+              active => active.operation.id === prevOp.id && active.itemId === item.id
+            );
+            const prevCompleted = completedOperations.has(`${item.id}-${prevOp.id}`);
+            if (prevCompleted) {
+              log.push(`     ✅ "${prevOp.name}" - завершена`);
+            } else if (prevActiveOp) {
+              log.push(`     🔄 "${prevOp.name}" - в работе (произведено: ${prevActiveOp.completedQuantity}/${prevActiveOp.totalQuantity})`);
+            } else {
+              log.push(`     ⏳ "${prevOp.name}" - еще не начата`);
+            }
+          });
+        }
+        return;
+      }
     }
 
     // Check resource availability
@@ -951,6 +986,7 @@ function tryStartChainOperation(
       operation: operation,
       totalQuantity,
       completedQuantity: 0,
+      transferredQuantity: 0,
       cycleStartHour: currentHour,
       operationDuration,
       assignedWorkerIds,
@@ -966,6 +1002,20 @@ function tryStartChainOperation(
     log.push(`     Товар: ${item.product.name}`);
     log.push(`     Цепочка: ${chain.name} (${chain.chainType === "ONE_TIME" ? "разовая" : "поточная"})`);
     log.push(`     Тираж: ${totalQuantity} шт.`);
+    
+    // For PER_UNIT chains, show available parts from previous operation
+    if (chain.chainType === "PER_UNIT") {
+      const prevOps = enabledOps.filter(op => op.orderIndex < operation.orderIndex);
+      if (prevOps.length > 0) {
+        const prevOp = prevOps[prevOps.length - 1]; // Last previous operation
+        const prevActiveOp = activeOperations.find(
+          active => active.operation.id === prevOp.id && active.itemId === item.id
+        );
+        if (prevActiveOp) {
+          log.push(`     Доступно деталей от предыдущей операции: ${prevActiveOp.transferredQuantity} шт.`);
+        }
+      }
+    }
     
     // Show worker allocation details
     if (enabledRoles.length > 0) {
