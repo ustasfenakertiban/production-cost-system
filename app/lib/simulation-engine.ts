@@ -1020,17 +1020,25 @@ function tryStartChainOperation(
     const continuousWorkerIds = new Set<number>();
     let nextWorkerId = 0;
     
+    log.push(`\n  👷 Назначение работников для операции "${operation.name}":`);
+    log.push(`     Требуется ролей: ${enabledRoles.length}`);
+    log.push(`     Будет назначено работников: ${requiredWorkers}`);
+    log.push(`     Занято работников до назначения: ${resources.busyWorkers.size}`);
+    
     // Allocate workers based on roles
     for (let i = 0; i < requiredWorkers; i++) {
       while (resources.busyWorkers.has(nextWorkerId)) {
+        log.push(`     🔒 Работник #${nextWorkerId} уже занят, ищем следующего...`);
         nextWorkerId++;
       }
       assignedWorkerIds.push(nextWorkerId);
+      log.push(`     ✅ Назначен работник #${nextWorkerId} на роль "${enabledRoles[i]?.role.name || 'неизвестная роль'}"`);
       
       // Check if this role requires continuous presence
       const role = enabledRoles[i];
       if (role && role.requiresContinuousPresence) {
         continuousWorkerIds.add(nextWorkerId);
+        log.push(`        🔗 Работник #${nextWorkerId} требует постоянного присутствия`);
       }
       
       resources.busyWorkers.set(nextWorkerId, {
@@ -1040,6 +1048,8 @@ function tryStartChainOperation(
       });
       nextWorkerId++;
     }
+    
+    log.push(`     Занято работников после назначения: ${resources.busyWorkers.size}`);
 
     const assignedEquipmentIds: string[] = [];
     const continuousEquipmentIds = new Set<string>();
