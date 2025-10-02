@@ -854,7 +854,7 @@ function tryStartChainOperation(
     // Skip if already active
     if (activeOperations.some(op => op.operation.id === operation.id && op.itemId === item.id)) {
       log.push(`\n  ⏩ Операция "${operation.name}" (${item.product.name}) уже выполняется, пропускаем...`);
-      return;
+      continue; // Пропускаем эту операцию, но продолжаем проверять следующие
     }
     
     log.push(`\n  🔍 Проверка возможности запуска операции: "${operation.name}" (${item.product.name})`);
