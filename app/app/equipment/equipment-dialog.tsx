@@ -109,6 +109,24 @@ export function EquipmentDialog({ equipment, open, onClose }: EquipmentDialogPro
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const calculateYearlyDepreciation = () => {
+    const cost = parseFloat(formData.estimatedCost);
+    if (!isNaN(cost) && cost > 0) {
+      const hourlyDepreciation = (cost / 2920).toFixed(2);
+      setFormData(prev => ({ ...prev, hourlyDepreciation }));
+      toast({
+        title: "Расчёт выполнен",
+        description: `Амортизация: ${hourlyDepreciation} ₽/час (на 1 год)`,
+      });
+    } else {
+      toast({
+        title: "Ошибка",
+        description: "Сначала введите стоимость оборудования",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -144,7 +162,18 @@ export function EquipmentDialog({ equipment, open, onClose }: EquipmentDialogPro
               />
             </div>
             <div>
-              <Label htmlFor="hourlyDepreciation">Амортизация/час (₽) *</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="hourlyDepreciation">Амортизация/час (₽) *</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={calculateYearlyDepreciation}
+                  className="h-6 text-xs"
+                >
+                  на 1 год
+                </Button>
+              </div>
               <Input
                 id="hourlyDepreciation"
                 type="number"
