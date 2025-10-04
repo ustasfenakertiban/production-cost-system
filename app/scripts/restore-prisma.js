@@ -64,7 +64,6 @@ async function restoreBackup(backupPath) {
       await tx.operationMaterial.deleteMany();
       await tx.operationEquipment.deleteMany();
       await tx.operationRole.deleteMany();
-      await tx.operation.deleteMany();
       await tx.operationChain.deleteMany();
       
       await tx.employeeRole.deleteMany();
