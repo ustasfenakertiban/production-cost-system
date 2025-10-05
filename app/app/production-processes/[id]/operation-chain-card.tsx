@@ -2,12 +2,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronUp, ChevronDown, Edit, Trash2, Settings } from "lucide-react";
+import { Plus, ChevronUp, ChevronDown, Trash2, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ProductionOperationDialog } from "./production-operation-dialog";
+import { ComprehensiveOperationDialog } from "./comprehensive-operation-dialog";
 import { calculateOperationCosts, formatCurrency, formatPercent } from "@/lib/cost-calculations";
 
 interface Operation {
@@ -64,17 +64,17 @@ interface OperationChainCardProps {
 
 export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps) {
   const [operationDialogOpen, setOperationDialogOpen] = useState(false);
-  const [editingOperation, setEditingOperation] = useState<Operation | null>(null);
+  const [comprehensiveDialogOpen, setComprehensiveDialogOpen] = useState(false);
+  const [editingOperationId, setEditingOperationId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleAddOperation = () => {
-    setEditingOperation(null);
     setOperationDialogOpen(true);
   };
 
-  const handleEditOperation = (operation: Operation) => {
-    setEditingOperation(operation);
-    setOperationDialogOpen(true);
+  const handleEditOperation = (operationId: string) => {
+    setEditingOperationId(operationId);
+    setComprehensiveDialogOpen(true);
   };
 
   const handleDeleteOperation = async (operationId: string) => {
@@ -134,7 +134,12 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
 
   const handleOperationDialogClose = () => {
     setOperationDialogOpen(false);
-    setEditingOperation(null);
+    onUpdate();
+  };
+
+  const handleComprehensiveDialogClose = () => {
+    setComprehensiveDialogOpen(false);
+    setEditingOperationId(null);
     onUpdate();
   };
 
@@ -242,13 +247,11 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                   <Button
                     variant="ghost"
                     size="sm"
-                    asChild
-                    title="Управление материалами, оборудованием и персоналом"
+                    onClick={() => handleEditOperation(operation.id)}
+                    title="Редактировать операцию"
                     className={!operation.enabled ? 'opacity-70' : ''}
                   >
-                    <Link href={`/operations/${operation.id}`}>
-                      <Settings className="w-4 h-4" />
-                    </Link>
+                    <Settings className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -269,15 +272,6 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                     className={!operation.enabled ? 'opacity-70' : ''}
                   >
                     <ChevronDown className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditOperation(operation)}
-                    title="Редактировать операцию"
-                    className={!operation.enabled ? 'opacity-70' : ''}
-                  >
-                    <Edit className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -303,12 +297,20 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
       </div>
 
       <ProductionOperationDialog
-        operation={editingOperation}
+        operation={null}
         chainId={chain.id}
         chainType={chain.chainType}
         open={operationDialogOpen}
         onClose={handleOperationDialogClose}
       />
+
+      {editingOperationId && (
+        <ComprehensiveOperationDialog
+          operationId={editingOperationId}
+          open={comprehensiveDialogOpen}
+          onClose={handleComprehensiveDialogClose}
+        />
+      )}
     </>
   );
 }
