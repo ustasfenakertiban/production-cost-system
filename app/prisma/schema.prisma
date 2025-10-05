@@ -134,6 +134,9 @@ model ProductionOperation {
   cycleHours                 Float?
   operationDuration          Float?
   minimumBatchSize           Int?                 @default(1)
+  cycleName                  String?
+  cyclesPerHour              Float?
+  itemsPerCycle              Float?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   operationEquipment         OperationEquipment[]

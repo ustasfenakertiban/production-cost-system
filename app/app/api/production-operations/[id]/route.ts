@@ -62,7 +62,7 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { name, description, comment, enabled, estimatedProductivityPerHour, estimatedProductivityPerHourVariance, cycleHours, operationDuration } = data;
+    const { name, description, comment, enabled, estimatedProductivityPerHour, estimatedProductivityPerHourVariance, cycleHours, operationDuration, cycleName, cyclesPerHour, itemsPerCycle } = data;
 
     const operation = await prisma.productionOperation.update({
       where: { id: params.id },
@@ -75,6 +75,9 @@ export async function PUT(
         estimatedProductivityPerHourVariance: estimatedProductivityPerHourVariance || null,
         cycleHours: cycleHours !== undefined ? cycleHours : null,
         operationDuration: operationDuration || null,
+        cycleName: cycleName || null,
+        cyclesPerHour: cyclesPerHour || null,
+        itemsPerCycle: itemsPerCycle || null,
       },
       include: {
         chain: {

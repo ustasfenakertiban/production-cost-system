@@ -21,6 +21,9 @@ interface Operation {
   estimatedProductivityPerHourVariance?: number;
   cycleHours?: number;
   minimumBatchSize?: number;
+  cycleName?: string;
+  cyclesPerHour?: number;
+  itemsPerCycle?: number;
 }
 
 interface ProductionOperationDialogProps {
@@ -42,6 +45,9 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
     estimatedProductivityPerHourVariance: "",
     cycleHours: "1",
     minimumBatchSize: "1",
+    cycleName: "",
+    cyclesPerHour: "",
+    itemsPerCycle: "",
   });
   
   const [loading, setLoading] = useState(false);
@@ -58,6 +64,9 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
         estimatedProductivityPerHourVariance: operation.estimatedProductivityPerHourVariance?.toString() || "",
         cycleHours: operation.cycleHours?.toString() || "1",
         minimumBatchSize: operation.minimumBatchSize?.toString() || "1",
+        cycleName: operation.cycleName || "",
+        cyclesPerHour: operation.cyclesPerHour?.toString() || "",
+        itemsPerCycle: operation.itemsPerCycle?.toString() || "",
       });
     } else {
       setFormData({
@@ -69,6 +78,9 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
         estimatedProductivityPerHourVariance: "",
         cycleHours: "1",
         minimumBatchSize: "1",
+        cycleName: "",
+        cyclesPerHour: "",
+        itemsPerCycle: "",
       });
     }
   }, [operation]);
@@ -88,6 +100,9 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
         estimatedProductivityPerHourVariance: formData.estimatedProductivityPerHourVariance ? parseFloat(formData.estimatedProductivityPerHourVariance) : null,
         cycleHours: formData.cycleHours ? parseFloat(formData.cycleHours) : 1,
         minimumBatchSize: formData.minimumBatchSize ? parseInt(formData.minimumBatchSize) : 1,
+        cycleName: formData.cycleName || null,
+        cyclesPerHour: formData.cyclesPerHour ? parseFloat(formData.cyclesPerHour) : null,
+        itemsPerCycle: formData.itemsPerCycle ? parseFloat(formData.itemsPerCycle) : null,
       };
 
       const url = operation ? `/api/production-operations/${operation.id}` : '/api/production-operations';
@@ -124,6 +139,62 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Обработчик изменения циклов в час
+  const handleCyclesPerHourChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, cyclesPerHour: value };
+      const cycles = parseFloat(value);
+      const items = parseFloat(prev.itemsPerCycle);
+      
+      if (!isNaN(cycles) && cycles > 0 && !isNaN(items) && items > 0) {
+        // Пересчитываем изделий в час: изделий_в_час = циклов_в_час × изделий_в_цикле
+        newData.estimatedProductivityPerHour = (cycles * items).toFixed(2);
+      } else if (!value || value === "") {
+        // Если поле очищено, очищаем и итоговое значение
+        newData.estimatedProductivityPerHour = "";
+      }
+      
+      return newData;
+    });
+  };
+
+  // Обработчик изменения изделий в цикле
+  const handleItemsPerCycleChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, itemsPerCycle: value };
+      const cycles = parseFloat(prev.cyclesPerHour);
+      const items = parseFloat(value);
+      
+      if (!isNaN(cycles) && cycles > 0 && !isNaN(items) && items > 0) {
+        // Пересчитываем изделий в час: изделий_в_час = циклов_в_час × изделий_в_цикле
+        newData.estimatedProductivityPerHour = (cycles * items).toFixed(2);
+      } else if (!value || value === "") {
+        // Если поле очищено, очищаем и итоговое значение
+        newData.estimatedProductivityPerHour = "";
+      }
+      
+      return newData;
+    });
+  };
+
+  // Обработчик прямого изменения изделий в час
+  const handleProductivityPerHourChange = (value: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, estimatedProductivityPerHour: value };
+      
+      // Если есть изделий в цикле, можем пересчитать циклов в час
+      const productivity = parseFloat(value);
+      const items = parseFloat(prev.itemsPerCycle);
+      
+      if (!isNaN(productivity) && productivity > 0 && !isNaN(items) && items > 0) {
+        // Пересчитываем циклов в час: циклов_в_час = изделий_в_час / изделий_в_цикле
+        newData.cyclesPerHour = (productivity / items).toFixed(2);
+      }
+      
+      return newData;
+    });
   };
 
   return (
@@ -177,17 +248,61 @@ export function ProductionOperationDialog({ operation, chainId, chainType, open,
                 </p>
               </div>
 
+              <div>
+                <Label htmlFor="cycleName">Название цикла</Label>
+                <Input
+                  id="cycleName"
+                  value={formData.cycleName}
+                  onChange={(e) => handleChange('cycleName', e.target.value)}
+                  placeholder="Например: тарелка, замес, запекание"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Для наглядности и удобства (не влияет на расчёты)
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="estimatedProductivityPerHour">Расчётная производительность в час</Label>
+                  <Label htmlFor="cyclesPerHour">Циклов в час</Label>
+                  <Input
+                    id="cyclesPerHour"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.cyclesPerHour}
+                    onChange={(e) => handleCyclesPerHourChange(e.target.value)}
+                    placeholder="Количество циклов"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="itemsPerCycle">Изделий в цикле</Label>
+                  <Input
+                    id="itemsPerCycle"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.itemsPerCycle}
+                    onChange={(e) => handleItemsPerCycleChange(e.target.value)}
+                    placeholder="Количество изделий"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 -mt-2">
+                При изменении автоматически пересчитывается производительность в час
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="estimatedProductivityPerHour">Производительность (изделий в час) *</Label>
                   <Input
                     id="estimatedProductivityPerHour"
                     type="number"
                     step="0.01"
                     min="0"
                     value={formData.estimatedProductivityPerHour}
-                    onChange={(e) => handleChange('estimatedProductivityPerHour', e.target.value)}
-                    placeholder="Количество циклов в час"
+                    onChange={(e) => handleProductivityPerHourChange(e.target.value)}
+                    placeholder="Количество изделий"
+                    className="font-semibold"
                   />
                 </div>
                 <div>
