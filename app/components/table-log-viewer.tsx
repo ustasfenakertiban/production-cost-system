@@ -42,7 +42,9 @@ interface OperationProduction {
   hourlyProduction: Map<number, number>; // absoluteHour -> quantity produced
   dailyProduction: Map<number, number>; // day -> total quantity produced
   hourlyDetails: Map<number, string[]>; // absoluteHour -> log details
+  dailyDetails: Map<number, string[]>; // day -> log details
   operationSpans: Array<{ startHour: number; endHour: number; quantity: number }>; // periods when operation was active
+  operationDaySpans: Array<{ startDay: number; endDay: number; quantity: number }>; // periods when operation was active (by days)
 }
 
 interface TableLogViewerProps {
@@ -157,7 +159,9 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
               hourlyProduction: new Map(),
               dailyProduction: new Map(),
               hourlyDetails: new Map(),
+              dailyDetails: new Map(),
               operationSpans: [],
+              operationDaySpans: [],
             });
           }
 
@@ -192,12 +196,51 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
       hoursPerDay = parseInt(hoursPerDayMatch[1]);
     }
 
-    // Вычисляем дневную продукцию
+    // Вычисляем дневную продукцию и дневные периоды операций
     operationsMap.forEach((opData) => {
+      // Дневная продукция
       opData.hourlyProduction.forEach((quantity, absHour) => {
         const dayNum = Math.ceil(absHour / hoursPerDay);
         const current = opData.dailyProduction.get(dayNum) || 0;
         opData.dailyProduction.set(dayNum, current + quantity);
+      });
+      
+      // Преобразуем часовые периоды в дневные
+      opData.operationSpans.forEach((span) => {
+        const startDay = Math.ceil(span.startHour / hoursPerDay);
+        const endDay = Math.ceil(span.endHour / hoursPerDay);
+        
+        // Проверяем, не добавили ли мы уже этот период
+        const existingSpan = opData.operationDaySpans.find(
+          ds => ds.startDay === startDay && ds.endDay === endDay
+        );
+        
+        if (existingSpan) {
+          existingSpan.quantity += span.quantity;
+        } else {
+          opData.operationDaySpans.push({
+            startDay,
+            endDay,
+            quantity: span.quantity,
+          });
+        }
+        
+        // Собираем детали для каждого дня
+        for (let day = startDay; day <= endDay; day++) {
+          const existingDayDetails = opData.dailyDetails.get(day) || [];
+          const hoursInDay = span.startHour <= (day * hoursPerDay) && span.endHour >= ((day - 1) * hoursPerDay + 1);
+          
+          if (hoursInDay) {
+            for (let h = span.startHour; h <= span.endHour; h++) {
+              const hourDay = Math.ceil(h / hoursPerDay);
+              if (hourDay === day) {
+                const hourDetails = opData.hourlyDetails.get(h) || [];
+                existingDayDetails.push(...hourDetails);
+              }
+            }
+            opData.dailyDetails.set(day, existingDayDetails);
+          }
+        }
       });
     });
 
@@ -236,6 +279,23 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     setSelectedCell({
       absoluteHour: absHour,
       hourInDay,
+      dayNum,
+      quantity,
+      details,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDayCellClick = (
+    operation: OperationProduction,
+    dayNum: number,
+    quantity: number
+  ) => {
+    const details = operation.dailyDetails.get(dayNum) || [];
+    const firstHourOfDay = (dayNum - 1) * tableData.hoursPerDay + 1;
+    setSelectedCell({
+      absoluteHour: firstHourOfDay,
+      hourInDay: 1,
       dayNum,
       quantity,
       details,
@@ -373,15 +433,34 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
                     ) : (
                       tableData.daysOnly.map((dayNum) => {
                         const quantity = op.dailyProduction.get(dayNum);
+                        
+                        // Проверяем, находится ли текущий день в периоде выполнения операции
+                        const isInOperationDaySpan = op.operationDaySpans.some(
+                          span => dayNum >= span.startDay && dayNum <= span.endDay
+                        );
+                        
+                        // Проверяем, является ли это день завершения операции
+                        const isCompletionDay = quantity && quantity > 0;
+                        
+                        // Находим первый час этого дня для клика
+                        const firstHourOfDay = (dayNum - 1) * tableData.hoursPerDay + 1;
+                        const hourInDay = 1;
+                        
                         return (
                           <TableCell
                             key={`${key}-day-${dayNum}`}
                             className={cn(
-                              "text-center text-sm border-l",
-                              quantity && quantity > 0 ? "bg-blue-50 dark:bg-blue-950/20 font-medium" : "text-muted-foreground/30"
+                              "text-center text-sm border-l transition-all",
+                              isInOperationDaySpan && "cursor-pointer hover:ring-2 hover:ring-primary",
+                              isCompletionDay 
+                                ? "bg-green-100 dark:bg-green-900/40 font-bold text-green-900 dark:text-green-100" 
+                                : isInOperationDaySpan 
+                                ? "bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300" 
+                                : "text-muted-foreground/30"
                             )}
+                            onClick={() => isInOperationDaySpan && handleDayCellClick(op, dayNum, quantity || 0)}
                           >
-                            {quantity && quantity > 0 ? quantity : "—"}
+                            {isCompletionDay ? quantity : isInOperationDaySpan ? "●" : "—"}
                           </TableCell>
                         );
                       })
