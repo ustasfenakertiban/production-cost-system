@@ -87,7 +87,11 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
       const response = await fetch('/api/materials');
       if (response.ok) {
         const data = await response.json();
-        setAvailableMaterials(data);
+        // Сортируем по алфавиту
+        const sortedData = data.sort((a: Material, b: Material) => 
+          a.name.localeCompare(b.name, 'ru')
+        );
+        setAvailableMaterials(sortedData);
       }
     } catch (error) {
       console.error('Ошибка загрузки материалов:', error);

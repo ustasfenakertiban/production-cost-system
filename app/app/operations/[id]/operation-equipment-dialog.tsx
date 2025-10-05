@@ -98,7 +98,11 @@ export function OperationEquipmentDialog({ equipment, operationId, estimatedProd
       const response = await fetch('/api/equipment');
       if (response.ok) {
         const data = await response.json();
-        setAvailableEquipment(data);
+        // Сортируем по алфавиту
+        const sortedData = data.sort((a: Equipment, b: Equipment) => 
+          a.name.localeCompare(b.name, 'ru')
+        );
+        setAvailableEquipment(sortedData);
       }
     } catch (error) {
       console.error('Ошибка загрузки оборудования:', error);

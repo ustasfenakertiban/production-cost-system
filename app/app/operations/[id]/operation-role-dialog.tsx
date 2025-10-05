@@ -101,7 +101,11 @@ export function OperationRoleDialog({ role, operationId, estimatedProductivityPe
       const response = await fetch('/api/roles');
       if (response.ok) {
         const data = await response.json();
-        setAvailableRoles(data);
+        // Сортируем по алфавиту
+        const sortedData = data.sort((a: EmployeeRole, b: EmployeeRole) => 
+          a.name.localeCompare(b.name, 'ru')
+        );
+        setAvailableRoles(sortedData);
       }
     } catch (error) {
       console.error('Ошибка загрузки ролей:', error);
