@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wrench, Users, Package, BarChart3, PackageOpen, Calendar, ClipboardList, FileText } from "lucide-react";
+import { Wrench, Users, Package, BarChart3, PackageOpen, Calendar, ClipboardList, FileText, Database } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -121,8 +121,8 @@ export default function HomePage() {
           </Card>
         </div>
 
-        {/* Третий ряд - 3 карточки */}
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
+        {/* Третий ряд - 4 карточки */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
             <CardHeader className="text-center">
               <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -181,6 +181,25 @@ export default function HomePage() {
               <Button asChild className="w-full">
                 <Link href="/operation-templates">
                   Управлять шаблонами
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Database className="w-8 h-8 text-emerald-600" />
+              </div>
+              <CardTitle>Резервное копирование</CardTitle>
+              <CardDescription>
+                Создание и восстановление резервных копий базы данных
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button asChild className="w-full">
+                <Link href="/backup">
+                  Управлять бэкапами
                 </Link>
               </Button>
             </CardContent>
