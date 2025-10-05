@@ -265,6 +265,38 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Специальный обработчик для cycleHours - автоматически пересчитывает cyclesPerHour
+  const handleCycleHoursChange = (value: string) => {
+    setFormData(prev => {
+      const cycleHoursNum = parseFloat(value);
+      const newData: typeof prev = { ...prev, cycleHours: value };
+      
+      // Если введено корректное значение, пересчитываем циклов в час
+      if (!isNaN(cycleHoursNum) && cycleHoursNum > 0) {
+        const cyclesPerHourNum = 1 / cycleHoursNum;
+        newData.cyclesPerHour = cyclesPerHourNum.toFixed(2);
+      }
+      
+      return newData;
+    });
+  };
+
+  // Специальный обработчик для cyclesPerHour - автоматически пересчитывает cycleHours
+  const handleCyclesPerHourChange = (value: string) => {
+    setFormData(prev => {
+      const cyclesPerHourNum = parseFloat(value);
+      const newData: typeof prev = { ...prev, cyclesPerHour: value };
+      
+      // Если введено корректное значение, пересчитываем длительность цикла
+      if (!isNaN(cyclesPerHourNum) && cyclesPerHourNum > 0) {
+        const cycleHoursNum = 1 / cyclesPerHourNum;
+        newData.cycleHours = cycleHoursNum.toFixed(2);
+      }
+      
+      return newData;
+    });
+  };
+
   const handleDeleteMaterial = async (materialId: string) => {
     if (!confirm('Вы уверены, что хотите удалить этот материал?')) return;
 
@@ -431,14 +463,14 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
                       <Input
                         id="cycleHours"
                         type="number"
-                        step="0.1"
-                        min="0.1"
+                        step="0.01"
+                        min="0.01"
                         value={formData.cycleHours}
-                        onChange={(e) => handleChange('cycleHours', e.target.value)}
+                        onChange={(e) => handleCycleHoursChange(e.target.value)}
                         placeholder="1"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Определяет длительность одного рабочего цикла операции (например: 1, 4, 8, 10 часов)
+                        Определяет длительность одного рабочего цикла (например: 1, 0.5, 0.25 часа). Автоматически пересчитывает "Циклов в час"
                       </p>
                     </div>
 
@@ -492,12 +524,15 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
                         <Input
                           id="cyclesPerHour"
                           type="number"
-                          step="0.1"
-                          min="0"
+                          step="0.01"
+                          min="0.01"
                           value={formData.cyclesPerHour}
-                          onChange={(e) => handleChange('cyclesPerHour', e.target.value)}
+                          onChange={(e) => handleCyclesPerHourChange(e.target.value)}
                           placeholder="Количество циклов"
                         />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Автоматически пересчитывает "Размер цикла"
+                        </p>
                       </div>
                       <div>
                         <Label htmlFor="itemsPerCycle">Изделий за цикл</Label>
