@@ -1,14 +1,12 @@
 
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-key-for-development',
   providers: [
     CredentialsProvider({
@@ -50,6 +48,10 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // Обновлять сессию каждые 24 часа
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   cookies: {
     sessionToken: {
@@ -66,15 +68,18 @@ export const authOptions: NextAuthOptions = {
     signIn: "/auth/signin",
   },
   callbacks: {
-    jwt: ({ token, user }) => {
+    async jwt({ token, user, trigger }) {
+      // При первом входе сохраняем данные пользователя
       if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
       }
+      // При обновлении сессии сохраняем существующие данные
       return token;
     },
-    session: ({ session, token }) => {
+    async session({ session, token }) {
+      // Всегда передаём данные из токена в сессию
       if (token && session.user) {
         (session.user as any).id = token.id as string;
         session.user.email = token.email as string;
@@ -83,5 +88,5 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  debug: false, // Отключаем debug warnings
+  debug: false, // Debug отключен (включите при необходимости отладки)
 };
