@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, ChevronUp, ChevronDown, Trash2, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ProductionOperationDialog } from "./production-operation-dialog";
+// ProductionOperationDialog больше не используется, теперь для создания и редактирования используется ComprehensiveOperationDialog
 import { ComprehensiveOperationDialog } from "./comprehensive-operation-dialog";
 import { calculateOperationCosts, formatCurrency, formatPercent } from "@/lib/cost-calculations";
 
@@ -64,17 +64,17 @@ interface OperationChainCardProps {
 
 export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps) {
   const [operationDialogOpen, setOperationDialogOpen] = useState(false);
-  const [comprehensiveDialogOpen, setComprehensiveDialogOpen] = useState(false);
   const [editingOperationId, setEditingOperationId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleAddOperation = () => {
+    setEditingOperationId(null);  // null означает создание новой операции
     setOperationDialogOpen(true);
   };
 
   const handleEditOperation = (operationId: string) => {
     setEditingOperationId(operationId);
-    setComprehensiveDialogOpen(true);
+    setOperationDialogOpen(true);
   };
 
   const handleDeleteOperation = async (operationId: string) => {
@@ -134,11 +134,6 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
 
   const handleOperationDialogClose = () => {
     setOperationDialogOpen(false);
-    onUpdate();
-  };
-
-  const handleComprehensiveDialogClose = () => {
-    setComprehensiveDialogOpen(false);
     setEditingOperationId(null);
     onUpdate();
   };
@@ -296,21 +291,13 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
         )}
       </div>
 
-      <ProductionOperationDialog
-        operation={null}
+      <ComprehensiveOperationDialog
+        operationId={editingOperationId}
         chainId={chain.id}
         chainType={chain.chainType}
         open={operationDialogOpen}
         onClose={handleOperationDialogClose}
       />
-
-      {editingOperationId && (
-        <ComprehensiveOperationDialog
-          operationId={editingOperationId}
-          open={comprehensiveDialogOpen}
-          onClose={handleComprehensiveDialogClose}
-        />
-      )}
     </>
   );
 }

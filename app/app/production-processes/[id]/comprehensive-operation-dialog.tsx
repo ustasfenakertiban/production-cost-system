@@ -101,12 +101,16 @@ interface OperationRole {
 }
 
 interface ComprehensiveOperationDialogProps {
-  operationId: string;
+  operationId?: string | null;  // Опциональный - если null, создаем новую операцию
+  chainId?: string;              // Требуется для создания новой операции
+  chainType?: string;            // Требуется для создания новой операции
   open: boolean;
   onClose: () => void;
 }
 
-export function ComprehensiveOperationDialog({ operationId, open, onClose }: ComprehensiveOperationDialogProps) {
+export function ComprehensiveOperationDialog({ operationId, chainId, chainType, open, onClose }: ComprehensiveOperationDialogProps) {
+  const isCreating = !operationId;  // Если нет operationId, значит создаем новую операцию
+  const isOneTime = chainType === 'ONETIME';
   const [operation, setOperation] = useState<Operation | null>(null);
   const [materials, setMaterials] = useState<OperationMaterial[]>([]);
   const [equipment, setEquipment] = useState<OperationEquipment[]>([]);
@@ -217,7 +221,7 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
     setSaving(true);
     try {
       const data = {
-        chainId: operation?.chainId,
+        chainId: isCreating ? chainId : operation?.chainId,
         name: formData.name,
         description: formData.description || null,
         comments: formData.comments || null,
@@ -232,8 +236,14 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
         itemsPerCycle: formData.itemsPerCycle ? parseFloat(formData.itemsPerCycle) : null,
       };
 
-      const response = await fetch(`/api/production-operations/${operationId}`, {
-        method: 'PUT',
+      const url = isCreating 
+        ? '/api/production-operations' 
+        : `/api/production-operations/${operationId}`;
+      
+      const method = isCreating ? 'POST' : 'PUT';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -243,7 +253,7 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
       if (response.ok) {
         toast({
           title: "Успешно",
-          description: "Операция обновлена",
+          description: isCreating ? "Операция создана" : "Операция обновлена",
         });
         onClose();
       } else {
@@ -388,8 +398,6 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
     return materialsCost + equipmentCost + rolesCost;
   };
 
-  const isOneTime = operation?.chain?.chainType === 'ONE_TIME';
-
   if (loading) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
@@ -407,7 +415,7 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
       <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Редактирование операции</DialogTitle>
+            <DialogTitle>{isCreating ? "Создание операции" : "Редактирование операции"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -593,8 +601,11 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
               </CardContent>
             </Card>
 
-            {/* Итоговая стоимость */}
-            <Card className="border-l-4 border-l-green-500">
+            {/* Итоговая стоимость и компоненты операции (только при редактировании) */}
+            {!isCreating && (
+              <>
+                {/* Итоговая стоимость */}
+                <Card className="border-l-4 border-l-green-500">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Package className="w-5 h-5" />
@@ -912,6 +923,8 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
                 </Card>
               </TabsContent>
             </Tabs>
+              </>
+            )}
 
             {/* Кнопки действий */}
             <div className="flex gap-2 justify-end pt-4 border-t">
@@ -919,15 +932,17 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
                 Отмена
               </Button>
               <Button onClick={handleSaveOperation} disabled={saving || !formData.name}>
-                {saving ? 'Сохранение...' : 'Сохранить изменения'}
+                {saving ? 'Сохранение...' : (isCreating ? 'Создать операцию' : 'Сохранить изменения')}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Вложенные диалоги для добавления/редактирования материалов, оборудования и ролей */}
-      <OperationMaterialDialog
+      {/* Вложенные диалоги для добавления/редактирования материалов, оборудования и ролей (только при редактировании) */}
+      {!isCreating && operationId && (
+        <>
+          <OperationMaterialDialog
         material={editingMaterial}
         operationId={operationId}
         open={materialDialogOpen}
@@ -961,6 +976,8 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
           loadOperationData();
         }}
       />
+        </>
+      )}
     </>
   );
 }
