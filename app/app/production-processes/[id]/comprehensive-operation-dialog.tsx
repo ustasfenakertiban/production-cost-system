@@ -27,6 +27,7 @@ interface Operation {
   estimatedProductivityPerHour?: number;
   estimatedProductivityPerHourVariance?: number;
   cycleHours?: number;
+  operationDuration?: number;
   minimumBatchSize?: number;
   chainId: string;
   chain: {
@@ -119,6 +120,7 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
     estimatedProductivityPerHour: "",
     estimatedProductivityPerHourVariance: "",
     cycleHours: "1",
+    operationDuration: "",
     minimumBatchSize: "1",
   });
 
@@ -156,6 +158,7 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
           estimatedProductivityPerHour: operationData.estimatedProductivityPerHour?.toString() || "",
           estimatedProductivityPerHourVariance: operationData.estimatedProductivityPerHourVariance?.toString() || "",
           cycleHours: operationData.cycleHours?.toString() || "1",
+          operationDuration: operationData.operationDuration?.toString() || "",
           minimumBatchSize: operationData.minimumBatchSize?.toString() || "1",
         });
       }
@@ -213,6 +216,7 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
         estimatedProductivityPerHour: formData.estimatedProductivityPerHour ? parseFloat(formData.estimatedProductivityPerHour) : null,
         estimatedProductivityPerHourVariance: formData.estimatedProductivityPerHourVariance ? parseFloat(formData.estimatedProductivityPerHourVariance) : null,
         cycleHours: formData.cycleHours ? parseFloat(formData.cycleHours) : 1,
+        operationDuration: formData.operationDuration ? parseFloat(formData.operationDuration) : null,
         minimumBatchSize: formData.minimumBatchSize ? parseInt(formData.minimumBatchSize) : 1,
       };
 
@@ -389,6 +393,24 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
                     rows={2}
                   />
                 </div>
+
+                {isOneTime && (
+                  <div>
+                    <Label htmlFor="operationDuration">Время выполнения операции (часов)</Label>
+                    <Input
+                      id="operationDuration"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={formData.operationDuration}
+                      onChange={(e) => handleChange('operationDuration', e.target.value)}
+                      placeholder="Автоматически по времени оборудования/персонала"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      При расчете используется максимальное значение из: времени работы оборудования, времени работы персонала или этого значения (если указано)
+                    </p>
+                  </div>
+                )}
 
                 {!isOneTime && (
                   <>

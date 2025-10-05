@@ -81,6 +81,7 @@ interface Operation {
   estimatedProductivityPerHour: number;
   estimatedProductivityPerHourVariance: number;
   cycleHours: number;
+  operationDuration: number | null;
   minimumBatchSize: number | null;
   operationMaterials: Material[];
   operationEquipment: Equipment[];
@@ -1178,10 +1179,11 @@ function tryStartChainOperation(
     let operationDuration: number;
     
     if (chain.chainType === "ONE_TIME") {
-      // Для разовых операций берем максимальное время из оборудования и ролей
+      // Для разовых операций берем максимальное время из оборудования, ролей и operationDuration
       const equipmentTimes = enabledEquipment.map(eq => eq.machineTime || 0);
       const roleTimes = enabledRoles.map(r => r.timeSpent || 0);
-      const allTimes = [...equipmentTimes, ...roleTimes].filter(t => t > 0);
+      const operationDurationValue = operation.operationDuration || 0;
+      const allTimes = [...equipmentTimes, ...roleTimes, operationDurationValue].filter(t => t > 0);
       operationDuration = allTimes.length > 0 ? Math.max(...allTimes) : 1;
     } else {
       // Для поточных операций используем cycleHours

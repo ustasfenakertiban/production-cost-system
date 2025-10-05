@@ -132,6 +132,7 @@ model ProductionOperation {
   estimatedProductivityPerHour Float?
   estimatedProductivityPerHourVariance Float?
   cycleHours                 Float?
+  operationDuration          Float?
   minimumBatchSize           Int?                 @default(1)
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
