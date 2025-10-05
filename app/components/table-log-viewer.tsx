@@ -57,15 +57,12 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
   const tableData = useMemo(() => {
     const lines = log.split("\n");
     const operationsMap = new Map<string, OperationProduction>();
+    
+    // Храним активные операции: ключ -> стартовый час
+    const activeOperations = new Map<string, { startHour: number; details: string[] }>();
+    
     let maxAbsoluteHour = 0;
     let currentAbsoluteHour = 0;
-    let inOperationBlock = false;
-    let currentOperation: string | null = null;
-    let currentProduct: string | null = null;
-    let currentChain: string | null = null;
-    let operationStartHour: number | null = null;
-    let currentHourDetails: string[] = [];
-    let operationBlockDetails: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -75,56 +72,88 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
       if (hourMatch) {
         currentAbsoluteHour = parseInt(hourMatch[1]);
         maxAbsoluteHour = Math.max(maxAbsoluteHour, currentAbsoluteHour);
-        currentHourDetails = [];
-        inOperationBlock = false;
-        currentOperation = null;
-        currentProduct = null;
-        currentChain = null;
-        operationStartHour = null;
         continue;
       }
 
-      // Начало блока операции (два варианта)
+      // Ищем начало операции
       const operationStartMatch = line.match(/🚀\s*НАЧАЛО ОПЕРАЦИИ:\s*"([^"]+)"/i);
-      const operationContinueMatch = line.match(/🔧\s*Операция:\s*"([^"]+)"/i);
-      
-      if (operationStartMatch || operationContinueMatch) {
-        inOperationBlock = true;
-        currentOperation = operationStartMatch ? operationStartMatch[1] : operationContinueMatch![1];
-        operationStartHour = currentAbsoluteHour;
-        operationBlockDetails = [line.trim()];
-        currentProduct = null;
-        currentChain = null;
+      if (operationStartMatch) {
+        const operationName = operationStartMatch[1];
+        let product = "";
+        let chain = "";
+        
+        // Ищем товар и цепочку в следующих строках
+        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+          const nextLine = lines[j];
+          
+          const productMatch = nextLine.match(/Товар:\s*(.+)/i);
+          if (productMatch && !productMatch[1].includes("─")) {
+            product = productMatch[1].trim();
+          }
+          
+          const chainMatch = nextLine.match(/Цепочка:\s*(.+?)\s*\(/i);
+          if (chainMatch) {
+            chain = chainMatch[1].trim();
+          }
+          
+          // Если нашли и товар и цепочку, прекращаем поиск
+          if (product && chain) break;
+          
+          // Если встретили новую операцию или новый час, прекращаем поиск
+          if (nextLine.match(/🚀\s*НАЧАЛО ОПЕРАЦИИ/i) || nextLine.match(/⏰\s*Час/i)) break;
+        }
+        
+        if (product && chain) {
+          const key = `${product}|${chain}|${operationName}`;
+          activeOperations.set(key, { startHour: currentAbsoluteHour, details: [line.trim()] });
+        }
         continue;
       }
 
-      // Внутри блока операции собираем информацию
-      if (inOperationBlock) {
-        operationBlockDetails.push(line.trim());
-
-        // Определяем товар внутри блока операции
-        const productMatch = line.match(/Товар:\s*(.+)/i);
-        if (productMatch && !productMatch[1].includes("─")) {
-          currentProduct = productMatch[1].trim();
+      // Ищем завершение операции (когда есть "Выполнено")
+      const operationCompleteMatch = line.match(/🔧\s*Операция:\s*"([^"]+)"/i);
+      if (operationCompleteMatch) {
+        const operationName = operationCompleteMatch[1];
+        let product = "";
+        let chain = "";
+        let quantity = 0;
+        let blockDetails: string[] = [line.trim()];
+        
+        // Ищем товар, цепочку и количество в следующих строках
+        for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
+          const nextLine = lines[j];
+          blockDetails.push(nextLine.trim());
+          
+          const productMatch = nextLine.match(/Товар:\s*(.+)/i);
+          if (productMatch && !productMatch[1].includes("─")) {
+            product = productMatch[1].trim();
+          }
+          
+          const chainMatch = nextLine.match(/Цепочка:\s*(.+?)\s*\(/i);
+          if (chainMatch) {
+            chain = chainMatch[1].trim();
+          }
+          
+          const producedMatch = nextLine.match(/✔️\s*Выполнено:\s*(\d+)\s*шт\./i);
+          if (producedMatch) {
+            quantity = parseInt(producedMatch[1]);
+            break;
+          }
+          
+          // Если встретили новую операцию или новый час, прекращаем поиск
+          if (nextLine.match(/🔧\s*Операция/i) || nextLine.match(/⏰\s*Час/i)) break;
         }
-
-        // Определяем цепочку внутри блока операции
-        const chainMatch = line.match(/Цепочка:\s*(.+?)\s*\(/i);
-        if (chainMatch) {
-          currentChain = chainMatch[1].trim();
-        }
-
-        // Определяем произведенное количество
-        const producedMatch = line.match(/✔️\s*Выполнено:\s*(\d+)\s*шт\./i);
-        if (producedMatch && currentOperation && currentProduct && currentChain && operationStartHour !== null) {
-          const quantity = parseInt(producedMatch[1]);
-          const key = `${currentProduct}|${currentChain}|${currentOperation}`;
+        
+        if (product && chain && quantity > 0) {
+          const key = `${product}|${chain}|${operationName}`;
+          const startInfo = activeOperations.get(key);
+          const startHour = startInfo ? startInfo.startHour : currentAbsoluteHour;
           
           if (!operationsMap.has(key)) {
             operationsMap.set(key, {
-              operationName: currentOperation,
-              productName: currentProduct,
-              chainName: currentChain,
+              operationName: operationName,
+              productName: product,
+              chainName: chain,
               hourlyProduction: new Map(),
               dailyProduction: new Map(),
               hourlyDetails: new Map(),
@@ -138,22 +167,21 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           
           // Сохраняем период выполнения операции
           opData.operationSpans.push({
-            startHour: operationStartHour,
+            startHour: startHour,
             endHour: currentAbsoluteHour,
             quantity: quantity,
           });
           
           // Сохраняем детали операции для всех часов в диапазоне
-          for (let h = operationStartHour; h <= currentAbsoluteHour; h++) {
+          for (let h = startHour; h <= currentAbsoluteHour; h++) {
             const existingDetails = opData.hourlyDetails.get(h) || [];
-            opData.hourlyDetails.set(h, [...existingDetails, ...operationBlockDetails]);
+            opData.hourlyDetails.set(h, [...existingDetails, ...blockDetails]);
           }
           
-          // Завершаем блок операции после обнаружения "Выполнено"
-          inOperationBlock = false;
-          operationBlockDetails = [];
-          operationStartHour = null;
+          // Удаляем из активных операций
+          activeOperations.delete(key);
         }
+        continue;
       }
     }
 
