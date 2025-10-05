@@ -42,6 +42,7 @@ interface OperationProduction {
   hourlyProduction: Map<number, number>; // absoluteHour -> quantity produced
   dailyProduction: Map<number, number>; // day -> total quantity produced
   hourlyDetails: Map<number, string[]>; // absoluteHour -> log details
+  operationSpans: Array<{ startHour: number; endHour: number; quantity: number }>; // periods when operation was active
 }
 
 interface TableLogViewerProps {
@@ -62,6 +63,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     let currentOperation: string | null = null;
     let currentProduct: string | null = null;
     let currentChain: string | null = null;
+    let operationStartHour: number | null = null;
     let currentHourDetails: string[] = [];
     let operationBlockDetails: string[] = [];
 
@@ -78,6 +80,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         currentOperation = null;
         currentProduct = null;
         currentChain = null;
+        operationStartHour = null;
         continue;
       }
 
@@ -88,6 +91,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
       if (operationStartMatch || operationContinueMatch) {
         inOperationBlock = true;
         currentOperation = operationStartMatch ? operationStartMatch[1] : operationContinueMatch![1];
+        operationStartHour = currentAbsoluteHour;
         operationBlockDetails = [line.trim()];
         currentProduct = null;
         currentChain = null;
@@ -112,7 +116,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
 
         // Определяем произведенное количество
         const producedMatch = line.match(/✔️\s*Выполнено:\s*(\d+)\s*шт\./i);
-        if (producedMatch && currentOperation && currentProduct && currentChain) {
+        if (producedMatch && currentOperation && currentProduct && currentChain && operationStartHour !== null) {
           const quantity = parseInt(producedMatch[1]);
           const key = `${currentProduct}|${currentChain}|${currentOperation}`;
           
@@ -124,6 +128,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
               hourlyProduction: new Map(),
               dailyProduction: new Map(),
               hourlyDetails: new Map(),
+              operationSpans: [],
             });
           }
 
@@ -131,13 +136,23 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           const existingQuantity = opData.hourlyProduction.get(currentAbsoluteHour) || 0;
           opData.hourlyProduction.set(currentAbsoluteHour, existingQuantity + quantity);
           
-          // Сохраняем детали операции для этого часа
-          const existingDetails = opData.hourlyDetails.get(currentAbsoluteHour) || [];
-          opData.hourlyDetails.set(currentAbsoluteHour, [...existingDetails, ...operationBlockDetails]);
+          // Сохраняем период выполнения операции
+          opData.operationSpans.push({
+            startHour: operationStartHour,
+            endHour: currentAbsoluteHour,
+            quantity: quantity,
+          });
+          
+          // Сохраняем детали операции для всех часов в диапазоне
+          for (let h = operationStartHour; h <= currentAbsoluteHour; h++) {
+            const existingDetails = opData.hourlyDetails.get(h) || [];
+            opData.hourlyDetails.set(h, [...existingDetails, ...operationBlockDetails]);
+          }
           
           // Завершаем блок операции после обнаружения "Выполнено"
           inOperationBlock = false;
           operationBlockDetails = [];
+          operationStartHour = null;
         }
       }
     }
@@ -299,16 +314,30 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
                         day.hours.map((absHour) => {
                           const quantity = op.hourlyProduction.get(absHour);
                           const hourInDay = ((absHour - 1) % tableData.hoursPerDay) + 1;
+                          
+                          // Проверяем, находится ли текущий час в периоде выполнения операции
+                          const isInOperationSpan = op.operationSpans.some(
+                            span => absHour >= span.startHour && absHour <= span.endHour
+                          );
+                          
+                          // Проверяем, является ли это час завершения операции
+                          const isCompletionHour = quantity && quantity > 0;
+                          
                           return (
                             <TableCell
                               key={`${key}-${absHour}`}
                               className={cn(
-                                "text-center text-sm border-l cursor-pointer hover:ring-2 hover:ring-primary transition-all",
-                                quantity && quantity > 0 ? "bg-green-50 dark:bg-green-950/20 font-medium" : "text-muted-foreground/30"
+                                "text-center text-sm border-l transition-all",
+                                isInOperationSpan && "cursor-pointer hover:ring-2 hover:ring-primary",
+                                isCompletionHour 
+                                  ? "bg-green-100 dark:bg-green-900/40 font-bold text-green-900 dark:text-green-100" 
+                                  : isInOperationSpan 
+                                  ? "bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300" 
+                                  : "text-muted-foreground/30"
                               )}
-                              onClick={() => quantity && quantity > 0 && handleCellClick(op, absHour, day.dayNum, hourInDay, quantity)}
+                              onClick={() => isInOperationSpan && handleCellClick(op, absHour, day.dayNum, hourInDay, quantity || 0)}
                             >
-                              {quantity && quantity > 0 ? quantity : "—"}
+                              {isCompletionHour ? quantity : isInOperationSpan ? "●" : "—"}
                             </TableCell>
                           );
                         })
