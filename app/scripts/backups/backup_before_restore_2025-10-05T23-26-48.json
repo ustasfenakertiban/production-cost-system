@@ -1,0 +1,16 @@
+{
+  "timestamp": "2025-10-05T23:26:48.546Z",
+  "reason": "before_restore",
+  "users": [],
+  "materialCategories": [],
+  "materials": [],
+  "equipment": [],
+  "employeeRoles": [],
+  "products": [],
+  "productionProcesses": [],
+  "operationChains": [],
+  "productionOperations": [],
+  "operationTemplates": [],
+  "orders": [],
+  "orderItems": []
+}

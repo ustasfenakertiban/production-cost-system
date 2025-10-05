@@ -112,46 +112,7 @@ async function restoreBackup(backupPath) {
         console.log(`✅ Восстановлено расходов: ${data.recurringExpenses.length}`);
       }
       
-      // Цепочки и операции
-      if (data.operationChains?.length) {
-        for (const item of data.operationChains) {
-          await tx.operationChain.create({ data: item });
-        }
-        console.log(`✅ Восстановлено цепочек: ${data.operationChains.length}`);
-      }
-      
-      if (data.operations?.length) {
-        for (const item of data.operations) {
-          const { materials, equipment, roles, ...operationData } = item;
-          await tx.operation.create({
-            data: {
-              ...operationData,
-              materials: { create: materials },
-              equipment: { create: equipment },
-              roles: { create: roles }
-            }
-          });
-        }
-        console.log(`✅ Восстановлено операций: ${data.operations.length}`);
-      }
-      
-      // Шаблоны операций
-      if (data.operationTemplates?.length) {
-        for (const item of data.operationTemplates) {
-          const { materials, equipment, roles, ...templateData } = item;
-          await tx.operationTemplate.create({
-            data: {
-              ...templateData,
-              materials: { create: materials },
-              equipment: { create: equipment },
-              roles: { create: roles }
-            }
-          });
-        }
-        console.log(`✅ Восстановлено шаблонов: ${data.operationTemplates.length}`);
-      }
-      
-      // Продукты и процессы
+      // Продукты и процессы (СНАЧАЛА - они нужны для цепочек)
       if (data.products?.length) {
         for (const item of data.products) {
           await tx.product.create({ data: item });
@@ -166,9 +127,74 @@ async function restoreBackup(backupPath) {
         console.log(`✅ Восстановлено процессов: ${data.productionProcesses.length}`);
       }
       
+      // Цепочки и операции (ПОТОМ - после процессов)
+      if (data.operationChains?.length) {
+        for (const item of data.operationChains) {
+          await tx.operationChain.create({ data: item });
+        }
+        console.log(`✅ Восстановлено цепочек: ${data.operationChains.length}`);
+      }
+      
+      if (data.operations?.length) {
+        for (const item of data.operations) {
+          const { materials, equipment, roles, ...operationData } = item;
+          
+          // Удаляем operationId из связанных записей (Prisma сам установит)
+          const cleanMaterials = materials?.map(({ operationId, ...rest }) => rest) || [];
+          const cleanEquipment = equipment?.map(({ operationId, ...rest }) => rest) || [];
+          const cleanRoles = roles?.map(({ operationId, ...rest }) => rest) || [];
+          
+          await tx.operation.create({
+            data: {
+              ...operationData,
+              materials: { create: cleanMaterials },
+              equipment: { create: cleanEquipment },
+              roles: { create: cleanRoles }
+            }
+          });
+        }
+        console.log(`✅ Восстановлено операций: ${data.operations.length}`);
+      }
+      
+      // Шаблоны операций
+      if (data.operationTemplates?.length) {
+        for (const item of data.operationTemplates) {
+          const { materials, equipment, roles, ...templateData } = item;
+          
+          // Удаляем templateId из связанных записей (Prisma сам установит)
+          const cleanMaterials = materials?.map(({ templateId, ...rest }) => rest) || [];
+          const cleanEquipment = equipment?.map(({ templateId, ...rest }) => rest) || [];
+          const cleanRoles = roles?.map(({ templateId, ...rest }) => rest) || [];
+          
+          await tx.operationTemplate.create({
+            data: {
+              ...templateData,
+              materials: { create: cleanMaterials },
+              equipment: { create: cleanEquipment },
+              roles: { create: cleanRoles }
+            }
+          });
+        }
+        console.log(`✅ Восстановлено шаблонов: ${data.operationTemplates.length}`);
+      }
+      
       if (data.productionOperations?.length) {
         for (const item of data.productionOperations) {
-          await tx.productionOperation.create({ data: item });
+          const { operationMaterials, operationEquipment, operationRoles, ...operationData } = item;
+          
+          // Удаляем operationId из связанных записей
+          const cleanMaterials = operationMaterials?.map(({ operationId, ...rest }) => rest) || [];
+          const cleanEquipment = operationEquipment?.map(({ operationId, ...rest }) => rest) || [];
+          const cleanRoles = operationRoles?.map(({ operationId, ...rest }) => rest) || [];
+          
+          await tx.productionOperation.create({
+            data: {
+              ...operationData,
+              operationMaterials: { create: cleanMaterials },
+              operationEquipment: { create: cleanEquipment },
+              operationRoles: { create: cleanRoles }
+            }
+          });
         }
         console.log(`✅ Восстановлено производственных операций: ${data.productionOperations.length}`);
       }
@@ -190,8 +216,10 @@ async function restoreBackup(backupPath) {
     });
     
     console.log('\n✅ Данные успешно восстановлены!');
-    console.log(`📅 Дата бэкапа: ${data.metadata.timestamp}`);
-    console.log(`📝 Причина: ${data.metadata.reason}`);
+    if (data.metadata) {
+      console.log(`📅 Дата бэкапа: ${data.metadata.timestamp}`);
+      console.log(`📝 Причина: ${data.metadata.reason}`);
+    }
     console.log('💾 Бэкап текущего состояния сохранён на случай отката\n');
     
   } catch (error) {

@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "timestamp": "2025-10-05T23:30:22.039Z",
+    "reason": "before_restore",
+    "version": "1.0"
+  },
+  "users": [],
+  "materialCategories": [],
+  "materials": [],
+  "equipment": [],
+  "employeeRoles": [],
+  "recurringExpenses": [],
+  "products": [],
+  "productionProcesses": [],
+  "operationChains": [],
+  "productionOperations": [],
+  "operationTemplates": [],
+  "orders": [],
+  "orderItems": []
+}
