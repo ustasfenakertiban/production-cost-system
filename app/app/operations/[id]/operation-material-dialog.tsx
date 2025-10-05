@@ -25,6 +25,7 @@ interface OperationMaterial {
   id: string;
   materialId: string;
   quantity: number;
+  quantityPerHour?: number;
   unitPrice: number;
   totalCost: number;
   variance?: number;
@@ -36,15 +37,17 @@ interface OperationMaterial {
 interface OperationMaterialDialogProps {
   material: OperationMaterial | null;
   operationId: string;
+  operationProductivity?: number; // единиц продукции в час
   open: boolean;
   onClose: () => void;
 }
 
-export function OperationMaterialDialog({ material, operationId, open, onClose }: OperationMaterialDialogProps) {
+export function OperationMaterialDialog({ material, operationId, operationProductivity, open, onClose }: OperationMaterialDialogProps) {
   const [availableMaterials, setAvailableMaterials] = useState<Material[]>([]);
   const [formData, setFormData] = useState({
     materialId: "",
     quantity: "",
+    quantityPerHour: "",
     unitPrice: "",
     variance: "",
     comment: "",
@@ -65,6 +68,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
       setFormData({
         materialId: material.materialId,
         quantity: material.quantity.toString(),
+        quantityPerHour: material.quantityPerHour?.toString() || "",
         unitPrice: material.unitPrice.toString(),
         variance: material.variance?.toString() || "",
         comment: material.comment || "",
@@ -74,6 +78,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
       setFormData({
         materialId: "",
         quantity: "",
+        quantityPerHour: "",
         unitPrice: "",
         variance: "",
         comment: "",
@@ -107,6 +112,7 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
         operationId,
         materialId: formData.materialId,
         quantity: formData.quantity,
+        quantityPerHour: formData.quantityPerHour || null,
         unitPrice: formData.unitPrice,
         variance: formData.variance || null,
         comment: formData.comment || null,
@@ -147,6 +153,34 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Специальный обработчик для изменения количества на единицу
+  const handleQuantityChange = (value: string) => {
+    const quantity = parseFloat(value) || 0;
+    const newQuantityPerHour = operationProductivity && quantity > 0 
+      ? (quantity * operationProductivity).toFixed(4)
+      : "";
+    
+    setFormData(prev => ({
+      ...prev,
+      quantity: value,
+      quantityPerHour: newQuantityPerHour,
+    }));
+  };
+
+  // Специальный обработчик для изменения количества в час
+  const handleQuantityPerHourChange = (value: string) => {
+    const quantityPerHour = parseFloat(value) || 0;
+    const newQuantity = operationProductivity && quantityPerHour > 0 && operationProductivity > 0
+      ? (quantityPerHour / operationProductivity).toFixed(4)
+      : "";
+    
+    setFormData(prev => ({
+      ...prev,
+      quantityPerHour: value,
+      quantity: newQuantity,
+    }));
   };
 
   const handleMaterialChange = (materialId: string) => {
@@ -200,17 +234,41 @@ export function OperationMaterialDialog({ material, operationId, open, onClose }
           </div>
 
           <div>
-            <Label htmlFor="quantity">Количество *</Label>
+            <Label htmlFor="quantity">На единицу продукции *</Label>
             <Input
               id="quantity"
               type="number"
-              step="0.01"
+              step="0.0001"
               value={formData.quantity}
-              onChange={(e) => handleChange('quantity', e.target.value)}
-              placeholder="Введите количество"
+              onChange={(e) => handleQuantityChange(e.target.value)}
+              placeholder="Количество на единицу"
               required
             />
+            {selectedMaterial && (
+              <div className="text-sm text-gray-500 mt-1">
+                {selectedMaterial.unit} на единицу продукции
+              </div>
+            )}
           </div>
+
+          {operationProductivity && (
+            <div>
+              <Label htmlFor="quantityPerHour">Единиц в час</Label>
+              <Input
+                id="quantityPerHour"
+                type="number"
+                step="0.0001"
+                value={formData.quantityPerHour}
+                onChange={(e) => handleQuantityPerHourChange(e.target.value)}
+                placeholder="Количество в час"
+              />
+              {selectedMaterial && (
+                <div className="text-sm text-gray-500 mt-1">
+                  {selectedMaterial.unit}/час (производительность: {operationProductivity} ед/час)
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <Label htmlFor="unitPrice">Цена за единицу *</Label>

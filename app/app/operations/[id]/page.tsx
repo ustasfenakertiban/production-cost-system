@@ -32,6 +32,9 @@ interface Operation {
   comments?: string;
   enabled: boolean;
   estimatedProductivityPerHour?: number;
+  cyclesPerHour?: number;
+  itemsPerCycle?: number;
+  cycleHours?: number;
   chain: {
     id: string;
     name: string;
@@ -51,6 +54,7 @@ interface OperationMaterial {
   id: string;
   materialId: string;
   quantity: number;
+  quantityPerHour?: number;
   unitPrice: number;
   totalCost: number;
   variance?: number;
@@ -819,6 +823,11 @@ export default function OperationDetailPage({ params }: { params: { id: string }
         <OperationMaterialDialog
           material={editingMaterial}
           operationId={operation.id}
+          operationProductivity={
+            operation.cyclesPerHour && operation.itemsPerCycle
+              ? operation.cyclesPerHour * operation.itemsPerCycle
+              : operation.estimatedProductivityPerHour
+          }
           open={materialDialogOpen}
           onClose={() => {
             setMaterialDialogOpen(false);

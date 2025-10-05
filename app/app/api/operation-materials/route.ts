@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { operationId, materialId, quantity, unitPrice, variance, comment, enabled } = data;
+    const { operationId, materialId, quantity, quantityPerHour, unitPrice, variance, comment, enabled } = data;
 
     if (!operationId || !materialId || !quantity || !unitPrice) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         operationId,
         materialId,
         quantity: parseFloat(quantity),
+        quantityPerHour: quantityPerHour ? parseFloat(quantityPerHour) : null,
         unitPrice: parseFloat(unitPrice),
         totalCost,
         variance: variance ? parseFloat(variance) : null,

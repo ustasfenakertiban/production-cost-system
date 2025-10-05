@@ -11,7 +11,7 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { quantity, unitPrice, variance, comment, enabled } = data;
+    const { quantity, quantityPerHour, unitPrice, variance, comment, enabled } = data;
 
     if (!quantity || !unitPrice) {
       return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
@@ -23,6 +23,7 @@ export async function PUT(
       where: { id: params.id },
       data: {
         quantity: parseFloat(quantity),
+        quantityPerHour: quantityPerHour ? parseFloat(quantityPerHour) : null,
         unitPrice: parseFloat(unitPrice),
         totalCost,
         variance: variance ? parseFloat(variance) : null,

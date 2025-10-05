@@ -148,19 +148,20 @@ model ProductionOperation {
 }
 
 model OperationMaterial {
-  id          String              @id @default(cuid())
-  operationId String
-  materialId  String
-  quantity    Float
-  unitPrice   Float
-  totalCost   Float
-  variance    Float?
-  comment     String?
-  enabled     Boolean             @default(true)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  material    Material            @relation(fields: [materialId], references: [id], onDelete: Cascade)
-  operation   ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  id              String              @id @default(cuid())
+  operationId     String
+  materialId      String
+  quantity        Float
+  quantityPerHour Float?
+  unitPrice       Float
+  totalCost       Float
+  variance        Float?
+  comment         String?
+  enabled         Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  material        Material            @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  operation       ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
 
   @@map("operation_materials")
 }

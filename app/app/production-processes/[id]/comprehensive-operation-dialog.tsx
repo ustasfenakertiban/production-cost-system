@@ -42,6 +42,7 @@ interface OperationMaterial {
   id: string;
   materialId: string;
   quantity: number;
+  quantityPerHour?: number;
   unitPrice: number;
   totalCost: number;
   variance?: number;
@@ -945,6 +946,11 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
           <OperationMaterialDialog
         material={editingMaterial}
         operationId={operationId}
+        operationProductivity={
+          operation?.cyclesPerHour && operation?.itemsPerCycle
+            ? operation.cyclesPerHour * operation.itemsPerCycle
+            : operation?.estimatedProductivityPerHour
+        }
         open={materialDialogOpen}
         onClose={() => {
           setMaterialDialogOpen(false);
