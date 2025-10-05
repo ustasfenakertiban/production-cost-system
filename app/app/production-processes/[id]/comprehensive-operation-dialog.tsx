@@ -29,6 +29,9 @@ interface Operation {
   cycleHours?: number;
   operationDuration?: number;
   minimumBatchSize?: number;
+  cycleName?: string;
+  cyclesPerHour?: number;
+  itemsPerCycle?: number;
   chainId: string;
   chain: {
     chainType: string;
@@ -122,6 +125,9 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
     cycleHours: "1",
     operationDuration: "",
     minimumBatchSize: "1",
+    cycleName: "",
+    cyclesPerHour: "",
+    itemsPerCycle: "",
   });
 
   // Dialog states for materials/equipment/roles
@@ -160,6 +166,9 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
           cycleHours: operationData.cycleHours?.toString() || "1",
           operationDuration: operationData.operationDuration?.toString() || "",
           minimumBatchSize: operationData.minimumBatchSize?.toString() || "1",
+          cycleName: operationData.cycleName || "",
+          cyclesPerHour: operationData.cyclesPerHour?.toString() || "",
+          itemsPerCycle: operationData.itemsPerCycle?.toString() || "",
         });
       }
 
@@ -218,6 +227,9 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
         cycleHours: formData.cycleHours ? parseFloat(formData.cycleHours) : 1,
         operationDuration: formData.operationDuration ? parseFloat(formData.operationDuration) : null,
         minimumBatchSize: formData.minimumBatchSize ? parseInt(formData.minimumBatchSize) : 1,
+        cycleName: formData.cycleName || null,
+        cyclesPerHour: formData.cyclesPerHour ? parseFloat(formData.cyclesPerHour) : null,
+        itemsPerCycle: formData.itemsPerCycle ? parseFloat(formData.itemsPerCycle) : null,
       };
 
       const response = await fetch(`/api/production-operations/${operationId}`, {
@@ -459,6 +471,47 @@ export function ComprehensiveOperationDialog({ operationId, open, onClose }: Com
                     <p className="text-xs text-gray-500 -mt-2">
                       Используется для автоматического расчёта времени операции
                     </p>
+
+                    <div>
+                      <Label htmlFor="cycleName">Название цикла</Label>
+                      <Input
+                        id="cycleName"
+                        type="text"
+                        value={formData.cycleName}
+                        onChange={(e) => handleChange('cycleName', e.target.value)}
+                        placeholder="Например: Прессовка, Литье, Обработка"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Удобное название для идентификации типа цикла
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="cyclesPerHour">Циклов в час</Label>
+                        <Input
+                          id="cyclesPerHour"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={formData.cyclesPerHour}
+                          onChange={(e) => handleChange('cyclesPerHour', e.target.value)}
+                          placeholder="Количество циклов"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="itemsPerCycle">Изделий за цикл</Label>
+                        <Input
+                          id="itemsPerCycle"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={formData.itemsPerCycle}
+                          onChange={(e) => handleChange('itemsPerCycle', e.target.value)}
+                          placeholder="Количество изделий"
+                        />
+                      </div>
+                    </div>
 
                     <div>
                       <Label htmlFor="minimumBatchSize">Минимальная партия (штук)</Label>
