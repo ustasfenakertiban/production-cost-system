@@ -8,9 +8,9 @@ const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    const { filename } = await request.json();
+    const { backupFile } = await request.json();
     
-    if (!filename) {
+    if (!backupFile) {
       return NextResponse.json(
         { error: 'Не указан файл бэкапа' },
         { status: 400 }
@@ -18,14 +18,14 @@ export async function POST(request: NextRequest) {
     }
     
     // Проверяем, что файл имеет правильное расширение
-    if (!filename.endsWith('.sql')) {
+    if (!backupFile.endsWith('.sql')) {
       return NextResponse.json(
         { error: 'Неверный формат файла бэкапа' },
         { status: 400 }
       );
     }
     
-    const backupPath = path.join(process.cwd(), '..', 'backups', filename);
+    const backupPath = path.join(process.cwd(), '..', 'backups', backupFile);
     const restoreScript = path.join(process.cwd(), '..', 'restore.sh');
     
     // Выполняем скрипт восстановления

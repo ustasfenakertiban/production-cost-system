@@ -19,7 +19,6 @@ export async function GET(request: NextRequest) {
           const stats = await stat(filePath);
           
           return {
-            filename: file,
             name: file,
             size: stats.size,
             created: stats.mtime,
