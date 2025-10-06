@@ -6,14 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Download, Upload, Database, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Download, Upload, Database, AlertTriangle, CheckCircle2, Loader2, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Backup {
   name: string;
+  type: string;
   size: number;
   created: string;
-  path: string;
 }
 
 export function BackupManager() {
@@ -23,6 +26,8 @@ export function BackupManager() {
   const [restoring, setRestoring] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [backupType, setBackupType] = useState<'full' | 'data-only'>('full');
   const { toast } = useToast();
 
   const loadBackups = async () => {
@@ -31,7 +36,7 @@ export function BackupManager() {
       const response = await fetch('/api/backups/list');
       const data = await response.json();
       
-      if (data.success) {
+      if (data.backups) {
         setBackups(data.backups);
       } else {
         throw new Error(data.error);
@@ -49,16 +54,21 @@ export function BackupManager() {
 
   const createBackup = async () => {
     setCreating(true);
+    setShowCreateDialog(false);
     try {
       const response = await fetch('/api/backups/create', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ type: backupType })
       });
       const data = await response.json();
       
       if (data.success) {
         toast({
           title: 'Успешно',
-          description: 'Бэкап успешно создан',
+          description: data.message || 'Бэкап успешно создан',
         });
         await loadBackups();
       } else {
@@ -147,12 +157,12 @@ export function BackupManager() {
           </CardTitle>
           <CardDescription>
             Создание и восстановление бэкапов базы данных. 
-            Автоматические бэкапы создаются каждый час (хранятся последние 10).
+            Автоматические бэкапы создаются каждый час (хранятся последние 10 каждого типа).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
-            <Button onClick={createBackup} disabled={creating}>
+            <Button onClick={() => setShowCreateDialog(true)} disabled={creating}>
               {creating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -182,6 +192,7 @@ export function BackupManager() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Файл</TableHead>
+                  <TableHead>Тип</TableHead>
                   <TableHead>Размер</TableHead>
                   <TableHead>Дата создания</TableHead>
                   <TableHead className="text-right">Действия</TableHead>
@@ -190,13 +201,13 @@ export function BackupManager() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8">
+                    <TableCell colSpan={5} className="text-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                     </TableCell>
                   </TableRow>
                 ) : backups.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       Бэкапы не найдены
                     </TableCell>
                   </TableRow>
@@ -205,6 +216,17 @@ export function BackupManager() {
                     <TableRow key={backup.name}>
                       <TableCell className="font-mono text-sm">
                         {backup.name}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                          backup.type === 'full' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                          backup.type === 'data-only' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                          'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                        }`}>
+                          {backup.type === 'full' ? '📦 Full' :
+                           backup.type === 'data-only' ? '📊 Data Only' :
+                           '📄 Legacy'}
+                        </span>
                       </TableCell>
                       <TableCell>{formatFileSize(backup.size)}</TableCell>
                       <TableCell>{formatDate(backup.created)}</TableCell>
@@ -230,6 +252,68 @@ export function BackupManager() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Создание бэкапа
+            </DialogTitle>
+            <DialogDescription>
+              Выберите тип бэкапа для создания
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <RadioGroup value={backupType} onValueChange={(val) => setBackupType(val as 'full' | 'data-only')}>
+              <div className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
+                <RadioGroupItem value="full" id="full" />
+                <div className="space-y-1 leading-none">
+                  <Label htmlFor="full" className="font-semibold cursor-pointer">
+                    📦 Full backup (схема + данные)
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Полный бэкап включает структуру базы данных и все данные. 
+                    Используется для полного восстановления или переноса базы.
+                  </p>
+                  <div className="flex items-start gap-2 mt-2 p-2 bg-blue-50 dark:bg-blue-950 rounded text-xs text-blue-700 dark:text-blue-300">
+                    <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>Восстановление перезапишет всю структуру и данные базы</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3 space-y-0 rounded-md border p-4">
+                <RadioGroupItem value="data-only" id="data-only" />
+                <div className="space-y-1 leading-none">
+                  <Label htmlFor="data-only" className="font-semibold cursor-pointer">
+                    📊 Data-only backup (только данные)
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Бэкап только данных без структуры базы. 
+                    Используется для восстановления данных в измененную схему.
+                  </p>
+                  <div className="flex items-start gap-2 mt-2 p-2 bg-green-50 dark:bg-green-950 rounded text-xs text-green-700 dark:text-green-300">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>Безопасно для восстановления после изменений схемы (новые поля получат значения по умолчанию)</span>
+                  </div>
+                </div>
+              </div>
+            </RadioGroup>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={createBackup}>
+              <Download className="mr-2 h-4 w-4" />
+              Создать бэкап
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
         <AlertDialogContent>

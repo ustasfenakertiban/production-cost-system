@@ -1,39 +1,43 @@
 
-import { NextRequest, NextResponse } from 'next/server';
-import { readdir, stat } from 'fs/promises';
+import { NextResponse } from 'next/server';
+import fs from 'fs';
 import path from 'path';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const backupsDir = path.join(process.cwd(), '..', 'backups');
+    const backupDir = path.join(process.cwd(), '..', 'backups');
     
-    // Читаем список файлов
-    const files = await readdir(backupsDir);
+    if (!fs.existsSync(backupDir)) {
+      return NextResponse.json({ backups: [] });
+    }
     
-    // Фильтруем только SQL файлы и получаем информацию
-    const backupFiles = await Promise.all(
-      files
-        .filter(file => file.endsWith('.sql'))
-        .map(async (file) => {
-          const filePath = path.join(backupsDir, file);
-          const stats = await stat(filePath);
-          
-          return {
-            name: file,
-            size: stats.size,
-            created: stats.mtime,
-            path: filePath
-          };
-        })
-    );
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.endsWith('.sql'))
+      .map(f => {
+        const filePath = path.join(backupDir, f);
+        const stats = fs.statSync(filePath);
+        
+        // Определяем тип бэкапа
+        let type = 'unknown';
+        if (f.startsWith('backup_full_')) {
+          type = 'full';
+        } else if (f.startsWith('backup_data_')) {
+          type = 'data-only';
+        } else if (f.startsWith('backup_')) {
+          // Старые бэкапы без префикса типа
+          type = 'full (legacy)';
+        }
+        
+        return {
+          name: f,
+          type,
+          size: stats.size,
+          created: stats.mtime.toISOString()
+        };
+      })
+      .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
     
-    // Сортируем по дате создания (новые первыми)
-    backupFiles.sort((a, b) => b.created.getTime() - a.created.getTime());
-    
-    return NextResponse.json({
-      success: true,
-      backups: backupFiles
-    });
+    return NextResponse.json({ backups: files });
   } catch (error: any) {
     console.error('List backups error:', error);
     return NextResponse.json(

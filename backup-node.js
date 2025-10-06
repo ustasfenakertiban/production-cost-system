@@ -6,9 +6,10 @@ const fs = require('fs');
 
 const execAsync = promisify(exec);
 
-async function createBackup() {
+async function createBackup(type = 'full') {
   try {
-    console.log(new Date().toISOString() + ': Создание бэкапа базы данных...');
+    const typeLabel = type === 'data-only' ? 'data-only (только данные)' : 'full (схема + данные)';
+    console.log(new Date().toISOString() + `: Создание ${typeLabel} бэкапа базы данных...`);
     
     const backupDir = '/home/ubuntu/production_cost_system/backups';
     
@@ -27,11 +28,16 @@ async function createBackup() {
     
     // Формируем имя файла бэкапа
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('.')[0];
-    const backupFile = path.join(backupDir, `backup_${timestamp}.sql`);
+    const prefix = type === 'data-only' ? 'backup_data' : 'backup_full';
+    const backupFile = path.join(backupDir, `${prefix}_${timestamp}.sql`);
     
-    // Создаем бэкап с использованием pg_dump и игнорированием ошибок версии
-    // Используем переменную окружения PGOPTIONS для подавления предупреждений
-    const command = `PGOPTIONS='--client-min-messages=warning' pg_dump "${databaseUrl}" --no-owner --no-acl`;
+    // Создаем бэкап с использованием pg_dump
+    let command = `PGOPTIONS='--client-min-messages=warning' pg_dump "${databaseUrl}" --no-owner --no-acl`;
+    
+    // Для data-only бэкапа добавляем флаг --data-only и --column-inserts
+    if (type === 'data-only') {
+      command += ' --data-only --column-inserts';
+    }
     
     const { stdout, stderr } = await execAsync(command);
     
@@ -43,28 +49,28 @@ async function createBackup() {
     const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
     
     console.log(new Date().toISOString() + `: Бэкап успешно создан: ${backupFile}`);
+    console.log(new Date().toISOString() + `: Тип: ${typeLabel}`);
     console.log(new Date().toISOString() + `: Размер бэкапа: ${sizeMB} MB`);
     
-    // Удаляем старые бэкапы, оставляя последние 10
-    const files = fs.readdirSync(backupDir)
-      .filter(f => f.startsWith('backup_') && f.endsWith('.sql'))
-      .map(f => ({
-        name: f,
-        path: path.join(backupDir, f),
-        mtime: fs.statSync(path.join(backupDir, f)).mtime
-      }))
-      .sort((a, b) => b.mtime - a.mtime);
-    
-    if (files.length > 10) {
-      console.log(new Date().toISOString() + `: Найдено ${files.length} бэкапов, удаляем старые...`);
-      const toDelete = files.slice(10);
-      toDelete.forEach(file => {
-        fs.unlinkSync(file.path);
-      });
-      console.log(new Date().toISOString() + `: Старые бэкапы удалены. Осталось 10 последних.`);
-    } else {
-      console.log(new Date().toISOString() + `: Всего бэкапов: ${files.length}`);
-    }
+    // Удаляем старые бэкапы каждого типа, оставляя последние 10
+    ['backup_full', 'backup_data'].forEach(prefix => {
+      const files = fs.readdirSync(backupDir)
+        .filter(f => f.startsWith(prefix + '_') && f.endsWith('.sql'))
+        .map(f => ({
+          name: f,
+          path: path.join(backupDir, f),
+          mtime: fs.statSync(path.join(backupDir, f)).mtime
+        }))
+        .sort((a, b) => b.mtime - a.mtime);
+      
+      if (files.length > 10) {
+        const toDelete = files.slice(10);
+        toDelete.forEach(file => {
+          fs.unlinkSync(file.path);
+        });
+        console.log(new Date().toISOString() + `: Старые ${prefix} бэкапы удалены. Осталось 10 последних.`);
+      }
+    });
     
     console.log(new Date().toISOString() + ': Готово!');
     process.exit(0);
@@ -78,4 +84,6 @@ async function createBackup() {
   }
 }
 
-createBackup();
+// Получаем тип бэкапа из аргументов командной строки
+const backupType = process.argv[2] || 'full';
+createBackup(backupType);
