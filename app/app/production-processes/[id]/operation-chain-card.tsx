@@ -2,9 +2,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronUp, ChevronDown, Trash2, Settings } from "lucide-react";
+import { Plus, ChevronUp, ChevronDown, Trash2, Settings, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 // ProductionOperationDialog больше не используется, теперь для создания и редактирования используется ComprehensiveOperationDialog
 import { ComprehensiveOperationDialog } from "./comprehensive-operation-dialog";
@@ -239,6 +240,17 @@ export function OperationChainCard({ chain, onUpdate }: OperationChainCardProps)
                 </div>
                 
                 <div className={`flex items-center gap-1 ${!operation.enabled ? 'opacity-60' : ''}`}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    title="Детали операции"
+                    className={!operation.enabled ? 'opacity-70' : ''}
+                  >
+                    <Link href={`/operations/${operation.id}`}>
+                      <Eye className="w-4 h-4" />
+                    </Link>
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
