@@ -404,34 +404,37 @@ export default function OperationDetailPage({ params }: { params: { id: string }
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/production-processes/${operation.chain.process.id}`}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              К процессу
-            </Link>
-          </Button>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setSaveTemplateDialogOpen(true)}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Сохранить как шаблон
+        {/* Навигация и кнопки действий */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/production-processes/${operation.chain.process.id}`}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                К процессу
+              </Link>
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setApplyTemplateDialogOpen(true)}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Применить шаблон
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setSaveTemplateDialogOpen(true)}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Сохранить как шаблон
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setApplyTemplateDialogOpen(true)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Применить шаблон
+              </Button>
+            </div>
           </div>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900">{operation.name}</h1>
-            <div className="flex items-center gap-4 mt-2">
+          
+          {/* Заголовок операции */}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-3">{operation.name}</h1>
+            <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-gray-600">Процесс:</span>
                 <Badge variant="outline" className="bg-blue-50 text-blue-700">
@@ -452,7 +455,7 @@ export default function OperationDetailPage({ params }: { params: { id: string }
               </div>
             </div>
             {operation.description && (
-              <p className="text-gray-600 mt-2">{operation.description}</p>
+              <p className="text-gray-600 mt-3">{operation.description}</p>
             )}
           </div>
         </div>
