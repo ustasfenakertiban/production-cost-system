@@ -13,20 +13,29 @@ export async function POST(request: NextRequest) {
     
     if (isProduction) {
       // В production используем JSON бэкап через Prisma
+      // Проверяем, существует ли таблица backups
+      let backupTableExists = false;
       try {
-        // Создаем таблицу, если она не существует
-        await prisma.$executeRawUnsafe(`
-          CREATE TABLE IF NOT EXISTS backups (
-            id TEXT PRIMARY KEY,
-            data JSONB NOT NULL,
-            type TEXT NOT NULL DEFAULT 'data-only',
-            filename TEXT,
-            size INTEGER,
-            "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
-          )
-        `);
-      } catch (tableError: any) {
-        console.error('Table creation error:', tableError);
+        await prisma.backup.findFirst();
+        backupTableExists = true;
+      } catch (tableCheckError: any) {
+        console.log('Таблица backups не существует, создаём...');
+        try {
+          // Создаем таблицу через db push вместо raw SQL
+          await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS backups (
+              id TEXT PRIMARY KEY,
+              data JSONB NOT NULL,
+              type TEXT NOT NULL DEFAULT 'data-only',
+              filename TEXT,
+              size INTEGER,
+              "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+          `);
+          backupTableExists = true;
+        } catch (createError: any) {
+          console.error('Не удалось создать таблицу backups:', createError);
+        }
       }
       
       const backup = await createPrismaBackup();

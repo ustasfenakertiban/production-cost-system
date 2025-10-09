@@ -1,5 +1,6 @@
 
 import { BackupManager } from '@/components/backup-manager';
+import { SystemStatusChecker } from '@/components/system-status-checker';
 
 export default function BackupsPage() {
   return (
@@ -9,6 +10,10 @@ export default function BackupsPage() {
         <p className="text-muted-foreground mt-2">
           Управление резервными копиями базы данных
         </p>
+      </div>
+      
+      <div className="grid gap-6 md:grid-cols-2 mb-6">
+        <SystemStatusChecker />
       </div>
       
       <BackupManager />
