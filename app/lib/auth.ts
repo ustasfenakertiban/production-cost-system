@@ -15,7 +15,11 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
+        console.log('[Auth] === AUTHORIZE FUNCTION CALLED ===');
+        console.log('[Auth] Credentials:', { email: credentials?.email, hasPassword: !!credentials?.password });
+        console.log('[Auth] Request headers:', req?.headers);
+        
         if (!credentials?.email || !credentials?.password) {
           console.log('[Auth] Missing credentials');
           return null;
@@ -98,5 +102,16 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  debug: process.env.NODE_ENV === 'development', // Debug только в режиме разработки
+  debug: true, // Debug enabled for troubleshooting
+  logger: {
+    error(code, ...message) {
+      console.error('[NextAuth Error]', code, message);
+    },
+    warn(code, ...message) {
+      console.warn('[NextAuth Warn]', code, message);
+    },
+    debug(code, ...message) {
+      console.log('[NextAuth Debug]', code, message);
+    },
+  },
 };

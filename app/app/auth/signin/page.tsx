@@ -21,20 +21,28 @@ export default function SignInPage() {
     setError("");
     setIsLoading(true);
 
+    console.log('[Client] Starting sign in with email:', email);
+
     try {
+      console.log('[Client] Calling signIn...');
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
 
+      console.log('[Client] SignIn result:', result);
+
       if (result?.error) {
+        console.log('[Client] SignIn error:', result.error);
         setError("Неверный email или пароль");
       } else if (result?.ok) {
+        console.log('[Client] SignIn successful, redirecting...');
         router.push("/");
         router.refresh();
       }
     } catch (error) {
+      console.error('[Client] SignIn exception:', error);
       setError("Произошла ошибка при входе");
     } finally {
       setIsLoading(false);
