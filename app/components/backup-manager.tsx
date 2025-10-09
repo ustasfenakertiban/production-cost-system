@@ -74,11 +74,33 @@ export function BackupManager() {
           title: 'Успешно',
           description: data.message || 'Бэкап успешно создан',
         });
+        
+        // Если бэкап возвращается в ответе (fallback режим), предлагаем скачать
+        if (data.backup && data.warning) {
+          toast({
+            title: 'Внимание',
+            description: data.warning,
+            variant: 'default'
+          });
+          
+          // Автоматически скачиваем бэкап
+          const blob = new Blob([JSON.stringify(data.backup, null, 2)], { type: 'application/json' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = data.filename || `backup_${new Date().toISOString()}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }
+        
         await loadBackups();
       } else {
-        throw new Error(data.error);
+        throw new Error(data.error || data.details);
       }
     } catch (error: any) {
+      console.error('Backup creation error:', error);
       toast({
         title: 'Ошибка',
         description: error.message || 'Не удалось создать бэкап',

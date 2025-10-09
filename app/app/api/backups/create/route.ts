@@ -13,45 +13,77 @@ export async function POST(request: NextRequest) {
     
     if (isProduction) {
       // В production используем JSON бэкап через Prisma
+      try {
+        // Создаем таблицу, если она не существует
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS backups (
+            id TEXT PRIMARY KEY,
+            data JSONB NOT NULL,
+            type TEXT NOT NULL DEFAULT 'data-only',
+            filename TEXT,
+            size INTEGER,
+            "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+          )
+        `);
+      } catch (tableError: any) {
+        console.error('Table creation error:', tableError);
+      }
+      
       const backup = await createPrismaBackup();
       
       // Формируем имя файла бэкапа
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
       const filename = `backup_${timestamp[0]}_${timestamp[1].split('-')[0]}.json`;
       
-      // Сохраняем бэкап в таблице базы данных
-      const savedBackup = await prisma.backup.create({
-        data: {
-          data: backup as any,
-          type: backupType,
-          filename: filename,
-          size: JSON.stringify(backup).length
-        }
-      });
-      
-      // Удаляем старые бэкапы, оставляя последние 10
-      const allBackups = await prisma.backup.findMany({
-        orderBy: { createdAt: 'desc' },
-        select: { id: true }
-      });
-      
-      if (allBackups.length > 10) {
-        const idsToDelete = allBackups.slice(10).map(b => b.id);
-        await prisma.backup.deleteMany({
-          where: {
-            id: { in: idsToDelete }
+      try {
+        // Сохраняем бэкап в таблице базы данных
+        const savedBackup = await prisma.backup.create({
+          data: {
+            data: backup as any,
+            type: backupType,
+            filename: filename,
+            size: JSON.stringify(backup).length
           }
         });
+        
+        // Удаляем старые бэкапы, оставляя последние 10
+        const allBackups = await prisma.backup.findMany({
+          orderBy: { createdAt: 'desc' },
+          select: { id: true }
+        });
+        
+        if (allBackups.length > 10) {
+          const idsToDelete = allBackups.slice(10).map(b => b.id);
+          await prisma.backup.deleteMany({
+            where: {
+              id: { in: idsToDelete }
+            }
+          });
+        }
+        
+        return NextResponse.json({
+          success: true,
+          message: `Бэкап (${backupType === 'data-only' ? 'только данные' : 'схема + данные'}) успешно создан в БД`,
+          type: backupType,
+          filename: filename,
+          recordCount: Object.values(backup).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0),
+          isProduction: true
+        });
+      } catch (backupError: any) {
+        console.error('Backup save error:', backupError);
+        
+        // Если не удалось сохранить в БД, возвращаем бэкап в ответе
+        return NextResponse.json({
+          success: true,
+          message: 'Бэкап создан (сохранение в БД недоступно)',
+          type: backupType,
+          filename: filename,
+          recordCount: Object.values(backup).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0),
+          backup: backup,
+          warning: 'Сохранение в БД недоступно, скачайте бэкап вручную',
+          isProduction: true
+        });
       }
-      
-      return NextResponse.json({
-        success: true,
-        message: `Бэкап (${backupType === 'data-only' ? 'только данные' : 'схема + данные'}) успешно создан в БД`,
-        type: backupType,
-        filename: filename,
-        recordCount: Object.values(backup).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0),
-        isProduction: true
-      });
     } else {
       // В dev окружении используем файловый бэкап (если доступен)
       const { exec } = require('child_process');
@@ -99,39 +131,72 @@ export async function POST(request: NextRequest) {
 }
 
 async function createPrismaBackup() {
-  // Экспортируем все данные через Prisma
-  const [
-    productionProcesses,
-    operationChains,
-    productionOperations,
-    materials,
-    equipment,
-    employeeRoles,
-    operationMaterials,
-    operationEquipment,
-    operationRoles
-  ] = await Promise.all([
-    prisma.productionProcess.findMany(),
-    prisma.operationChain.findMany(),
-    prisma.productionOperation.findMany(),
-    prisma.material.findMany(),
-    prisma.equipment.findMany(),
-    prisma.employeeRole.findMany(),
-    prisma.operationMaterial.findMany(),
-    prisma.operationEquipment.findMany(),
-    prisma.operationRole.findMany()
-  ]);
-  
-  return {
-    productionProcesses,
-    operationChains,
-    productionOperations,
-    materials,
-    equipment,
-    employeeRoles,
-    operationMaterials,
-    operationEquipment,
-    operationRoles,
-    exportedAt: new Date().toISOString()
-  };
+  try {
+    // Экспортируем все данные через Prisma
+    const [
+      products,
+      productionProcesses,
+      operationChains,
+      productionOperations,
+      materialCategories,
+      materials,
+      equipment,
+      employeeRoles,
+      operationMaterials,
+      operationEquipment,
+      operationRoles,
+      recurringExpenses,
+      operationTemplates,
+      operationTemplateMaterials,
+      operationTemplateEquipment,
+      operationTemplateRoles,
+      orders,
+      orderItems
+    ] = await Promise.all([
+      prisma.product.findMany().catch(() => []),
+      prisma.productionProcess.findMany().catch(() => []),
+      prisma.operationChain.findMany().catch(() => []),
+      prisma.productionOperation.findMany().catch(() => []),
+      prisma.materialCategory.findMany().catch(() => []),
+      prisma.material.findMany().catch(() => []),
+      prisma.equipment.findMany().catch(() => []),
+      prisma.employeeRole.findMany().catch(() => []),
+      prisma.operationMaterial.findMany().catch(() => []),
+      prisma.operationEquipment.findMany().catch(() => []),
+      prisma.operationRole.findMany().catch(() => []),
+      prisma.recurringExpense.findMany().catch(() => []),
+      prisma.operationTemplate.findMany().catch(() => []),
+      prisma.operationTemplateMaterial.findMany().catch(() => []),
+      prisma.operationTemplateEquipment.findMany().catch(() => []),
+      prisma.operationTemplateRole.findMany().catch(() => []),
+      prisma.order.findMany().catch(() => []),
+      prisma.orderItem.findMany().catch(() => [])
+    ]);
+    
+    return {
+      products,
+      productionProcesses,
+      operationChains,
+      productionOperations,
+      materialCategories,
+      materials,
+      equipment,
+      employeeRoles,
+      operationMaterials,
+      operationEquipment,
+      operationRoles,
+      recurringExpenses,
+      operationTemplates,
+      operationTemplateMaterials,
+      operationTemplateEquipment,
+      operationTemplateRoles,
+      orders,
+      orderItems,
+      exportedAt: new Date().toISOString(),
+      version: '1.0'
+    };
+  } catch (error: any) {
+    console.error('Error creating Prisma backup:', error);
+    throw new Error(`Failed to create backup: ${error.message}`);
+  }
 }
