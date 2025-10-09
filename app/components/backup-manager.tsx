@@ -13,10 +13,12 @@ import { Download, Upload, Database, AlertTriangle, CheckCircle2, Loader2, Info 
 import { useToast } from '@/hooks/use-toast';
 
 interface Backup {
+  id?: string;
   name: string;
   type: string;
   size: number;
   created: string;
+  source?: 'database' | 'file';
 }
 
 export function BackupManager() {
@@ -24,10 +26,11 @@ export function BackupManager() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
+  const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [backupType, setBackupType] = useState<'full' | 'data-only'>('data-only');
+  const [isProduction, setIsProduction] = useState(false);
   const { toast } = useToast();
 
   const loadBackups = async () => {
@@ -38,6 +41,7 @@ export function BackupManager() {
       
       if (data.backups) {
         setBackups(data.backups);
+        setIsProduction(data.isProduction || false);
       } else {
         throw new Error(data.error);
       }
@@ -90,12 +94,16 @@ export function BackupManager() {
     
     setRestoring(true);
     try {
+      const requestBody = isProduction && selectedBackup.id
+        ? { backupId: selectedBackup.id }
+        : { backupFile: selectedBackup.name };
+        
       const response = await fetch('/api/backups/restore', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ backupFile: selectedBackup })
+        body: JSON.stringify(requestBody)
       });
       const data = await response.json();
       
@@ -154,10 +162,25 @@ export function BackupManager() {
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
             Управление бэкапами
+            {isProduction && (
+              <span className="ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded">
+                Production
+              </span>
+            )}
           </CardTitle>
           <CardDescription>
-            Создание и восстановление бэкапов базы данных. 
-            Автоматические бэкапы создаются каждый час (хранятся последние 10 каждого типа).
+            {isProduction ? (
+              <>
+                Бэкапы сохраняются в базе данных через Prisma. 
+                Этот метод работает во всех окружениях, включая serverless и managed hosting.
+                Хранятся последние 10 бэкапов.
+              </>
+            ) : (
+              <>
+                Создание и восстановление бэкапов базы данных. 
+                Автоматические бэкапы создаются каждый час (хранятся последние 10 каждого типа).
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -235,7 +258,7 @@ export function BackupManager() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            setSelectedBackup(backup.name);
+                            setSelectedBackup(backup);
                             setShowRestoreDialog(true);
                           }}
                           disabled={restoring}
@@ -325,7 +348,7 @@ export function BackupManager() {
             <AlertDialogDescription className="space-y-2">
               <p>
                 Вы уверены, что хотите восстановить данные из бэкапа{' '}
-                <span className="font-semibold">{selectedBackup}</span>?
+                <span className="font-semibold">{selectedBackup?.name}</span>?
               </p>
               <p className="text-yellow-600 dark:text-yellow-500 font-semibold">
                 ⚠️ Все текущие данные будут заменены данными из бэкапа!

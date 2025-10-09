@@ -1,34 +1,88 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import path from 'path';
-
-const execAsync = promisify(exec);
+import { prisma } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const backupType = body.type || 'data-only'; // 'data-only' или 'full'
+    const backupType = body.type || 'data-only';
     
-    const backupScript = path.join(process.cwd(), '..', 'backup-node.js');
-    const nodeModules = path.join(process.cwd(), 'node_modules');
+    // Проверяем окружение
+    const isProduction = process.env.NODE_ENV === 'production' || 
+                        !process.env.DATABASE_URL?.includes('localhost');
     
-    // Выполняем скрипт бэкапа с передачей типа
-    const { stdout, stderr } = await execAsync(
-      `cd ${path.join(process.cwd(), '..')} && NODE_PATH=${nodeModules} node ${backupScript} ${backupType}`
-    );
-    
-    if (stderr && !stderr.includes('CREATE') && !stderr.includes('ALTER')) {
-      console.error('Backup stderr:', stderr);
+    if (isProduction) {
+      // В production используем JSON бэкап через Prisma
+      const backup = await createPrismaBackup();
+      
+      // Сохраняем бэкап в таблице базы данных
+      const savedBackup = await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS backups (
+          id SERIAL PRIMARY KEY,
+          data JSONB NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO backups (data, type) VALUES ($1::jsonb, $2)
+      `, JSON.stringify(backup), backupType);
+      
+      // Удаляем старые бэкапы, оставляя последние 10
+      await prisma.$executeRawUnsafe(`
+        DELETE FROM backups 
+        WHERE id NOT IN (
+          SELECT id FROM backups 
+          ORDER BY created_at DESC 
+          LIMIT 10
+        )
+      `);
+      
+      return NextResponse.json({
+        success: true,
+        message: `Бэкап (${backupType === 'data-only' ? 'только данные' : 'схема + данные'}) успешно создан в БД`,
+        type: backupType,
+        recordCount: Object.values(backup).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0),
+        isProduction: true
+      });
+    } else {
+      // В dev окружении используем файловый бэкап (если доступен)
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const path = require('path');
+      const execAsync = promisify(exec);
+      
+      try {
+        const backupScript = path.join(process.cwd(), '..', 'backup-node.js');
+        const nodeModules = path.join(process.cwd(), 'node_modules');
+        
+        const { stdout, stderr } = await execAsync(
+          `cd ${path.join(process.cwd(), '..')} && NODE_PATH=${nodeModules} node ${backupScript} ${backupType}`
+        );
+        
+        return NextResponse.json({
+          success: true,
+          message: `Бэкап (${backupType === 'data-only' ? 'только данные' : 'схема + данные'}) успешно создан`,
+          type: backupType,
+          output: stdout,
+          isProduction: false
+        });
+      } catch (fileBackupError: any) {
+        // Если файловый бэкап не работает, fallback на JSON
+        console.warn('File backup failed, using JSON backup:', fileBackupError.message);
+        const backup = await createPrismaBackup();
+        
+        return NextResponse.json({
+          success: true,
+          message: 'Бэкап создан через Prisma (файловый метод недоступен)',
+          type: 'json-fallback',
+          recordCount: Object.values(backup).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0),
+          backup: backup,
+          isProduction: false
+        });
+      }
     }
-    
-    return NextResponse.json({
-      success: true,
-      message: `Бэкап (${backupType === 'data-only' ? 'только данные' : 'схема + данные'}) успешно создан`,
-      type: backupType,
-      output: stdout
-    });
   } catch (error: any) {
     console.error('Backup error:', error);
     return NextResponse.json(
@@ -36,4 +90,42 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function createPrismaBackup() {
+  // Экспортируем все данные через Prisma
+  const [
+    productionProcesses,
+    operationChains,
+    productionOperations,
+    materials,
+    equipment,
+    employeeRoles,
+    operationMaterials,
+    operationEquipment,
+    operationRoles
+  ] = await Promise.all([
+    prisma.productionProcess.findMany(),
+    prisma.operationChain.findMany(),
+    prisma.productionOperation.findMany(),
+    prisma.material.findMany(),
+    prisma.equipment.findMany(),
+    prisma.employeeRole.findMany(),
+    prisma.operationMaterial.findMany(),
+    prisma.operationEquipment.findMany(),
+    prisma.operationRole.findMany()
+  ]);
+  
+  return {
+    productionProcesses,
+    operationChains,
+    productionOperations,
+    materials,
+    equipment,
+    employeeRoles,
+    operationMaterials,
+    operationEquipment,
+    operationRoles,
+    exportedAt: new Date().toISOString()
+  };
 }
