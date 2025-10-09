@@ -40,6 +40,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 interface BackupInfo {
   filename: string;
@@ -59,6 +61,8 @@ export default function BackupsPage() {
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [backupType, setBackupType] = useState<'data-only' | 'full'>('data-only');
 
   const loadBackups = async () => {
     try {
@@ -93,13 +97,14 @@ export default function BackupsPage() {
 
   const handleCreateBackup = async () => {
     setCreating(true);
+    setShowCreateDialog(false);
     try {
       const response = await fetch('/api/backups/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ type: 'data-only' })
+        body: JSON.stringify({ type: backupType })
       });
 
       if (response.ok) {
@@ -137,33 +142,43 @@ export default function BackupsPage() {
 
   const handleDownload = async (filename: string) => {
     try {
-      // Для бэкапов из БД используем специальный endpoint
-      const response = await fetch(`/api/backups/list`);
-      if (response.ok) {
-        const data = await response.json();
-        const backup = data.backups.find((b: any) => b.name === filename);
-        
-        if (backup && backup.id) {
-          // Скачиваем бэкап из БД
-          const backupResponse = await fetch(`/api/backups/${backup.id}`);
-          if (backupResponse.ok) {
-            const blob = await backupResponse.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            toast.success('Бэкап скачан');
-          } else {
-            toast.error('Ошибка скачивания бэкапа');
-          }
-        }
-      } else {
-        toast.error('Ошибка скачивания бэкапа');
+      // Получаем список бэкапов, чтобы найти ID
+      const response = await fetch('/api/backups/list');
+      if (!response.ok) {
+        toast.error('Ошибка загрузки списка бэкапов');
+        return;
       }
+      
+      const data = await response.json();
+      const backup = data.backups.find((b: any) => b.name === filename);
+      
+      if (!backup || !backup.id) {
+        toast.error('Бэкап не найден');
+        return;
+      }
+      
+      // Скачиваем бэкап используя правильный endpoint
+      const downloadResponse = await fetch(`/api/backups/download?id=${backup.id}`);
+      
+      if (!downloadResponse.ok) {
+        toast.error('Ошибка скачивания бэкапа');
+        return;
+      }
+      
+      // Получаем blob и создаем ссылку для скачивания
+      const blob = await downloadResponse.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Очистка
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Бэкап скачан');
     } catch (error) {
       console.error('Error downloading backup:', error);
       toast.error('Ошибка скачивания бэкапа');
@@ -309,7 +324,7 @@ export default function BackupsPage() {
         </CardHeader>
         <CardContent>
           <Button 
-            onClick={handleCreateBackup} 
+            onClick={() => setShowCreateDialog(true)} 
             disabled={creating}
             size="lg"
           >
@@ -405,6 +420,52 @@ export default function BackupsPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Выберите тип бэкапа</AlertDialogTitle>
+            <AlertDialogDescription>
+              Укажите, какие данные следует включить в резервную копию
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <RadioGroup value={backupType} onValueChange={(value: 'data-only' | 'full') => setBackupType(value)}>
+              <div className="flex items-start space-x-3 space-y-0 p-4 border rounded-lg mb-3 cursor-pointer hover:bg-accent" onClick={() => setBackupType('data-only')}>
+                <RadioGroupItem value="data-only" id="data-only" />
+                <div className="flex-1">
+                  <Label htmlFor="data-only" className="font-medium cursor-pointer">
+                    Только данные
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Создаёт бэкап всех данных (продукты, материалы, операции и т.д.) без структуры базы данных. 
+                    Рекомендуется для регулярного резервного копирования.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3 space-y-0 p-4 border rounded-lg cursor-pointer hover:bg-accent" onClick={() => setBackupType('full')}>
+                <RadioGroupItem value="full" id="full" />
+                <div className="flex-1">
+                  <Label htmlFor="full" className="font-medium cursor-pointer">
+                    Данные + структура
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Создаёт полный бэкап, включая структуру базы данных и все данные. 
+                    Используйте перед внесением изменений в схему базы данных.
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCreateBackup} disabled={creating}>
+              {creating ? 'Создание...' : 'Создать бэкап'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
         <AlertDialogContent>
