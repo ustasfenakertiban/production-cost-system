@@ -20,18 +20,19 @@ export async function POST(request: NextRequest) {
       }
       
       // Получаем бэкап из БД
-      const backupData = await prisma.$queryRawUnsafe<any[]>(`
-        SELECT data FROM backups WHERE id = $1
-      `, parseInt(backupId));
+      const backupRecord = await prisma.backup.findUnique({
+        where: { id: backupId },
+        select: { data: true }
+      });
       
-      if (!backupData || backupData.length === 0) {
+      if (!backupRecord) {
         return NextResponse.json(
           { error: 'Бэкап не найден' },
           { status: 404 }
         );
       }
       
-      const backup = backupData[0].data;
+      const backup = backupRecord.data;
       
       // Восстанавливаем данные
       const result = await restorePrismaBackup(backup);

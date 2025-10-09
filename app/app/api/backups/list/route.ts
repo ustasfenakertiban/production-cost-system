@@ -11,31 +11,23 @@ export async function GET() {
     if (isProduction) {
       // В production читаем бэкапы из БД
       try {
-        // Проверяем, существует ли таблица backups
-        const tableExists = await prisma.$queryRawUnsafe<any[]>(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_name = 'backups'
-          )
-        `);
-        
-        if (!tableExists[0]?.exists) {
-          return NextResponse.json({ backups: [], isProduction: true });
-        }
-        
-        const dbBackups = await prisma.$queryRawUnsafe<any[]>(`
-          SELECT id, type, created_at, 
-                 pg_column_size(data) as size
-          FROM backups 
-          ORDER BY created_at DESC
-        `);
+        const dbBackups = await prisma.backup.findMany({
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            filename: true,
+            size: true,
+            createdAt: true
+          }
+        });
         
         const backups = dbBackups.map(b => ({
-          id: b.id.toString(),
-          name: `backup_${b.type}_${new Date(b.created_at).toISOString().replace(/[:.]/g, '-').split('.')[0]}.json`,
+          id: b.id,
+          name: b.filename || `backup_${b.type}_${b.createdAt.toISOString().replace(/[:.]/g, '-').split('.')[0]}.json`,
           type: b.type,
           size: b.size || 0,
-          created: new Date(b.created_at).toISOString(),
+          created: b.createdAt.toISOString(),
           source: 'database'
         }));
         

@@ -385,3 +385,14 @@ model OperationTemplateRole {
 
   @@map("operation_template_roles")
 }
+
+model Backup {
+  id        String   @id @default(cuid())
+  data      Json
+  type      String   @default("data-only")
+  filename  String?
+  size      Int?
+  createdAt DateTime @default(now())
+
+  @@map("backups")
+}

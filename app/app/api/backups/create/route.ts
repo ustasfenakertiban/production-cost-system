@@ -15,34 +15,40 @@ export async function POST(request: NextRequest) {
       // В production используем JSON бэкап через Prisma
       const backup = await createPrismaBackup();
       
-      // Сохраняем бэкап в таблице базы данных
-      const savedBackup = await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS backups (
-          id SERIAL PRIMARY KEY,
-          data JSONB NOT NULL,
-          type VARCHAR(50) NOT NULL,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `);
+      // Формируем имя файла бэкапа
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
+      const filename = `backup_${timestamp[0]}_${timestamp[1].split('-')[0]}.json`;
       
-      await prisma.$executeRawUnsafe(`
-        INSERT INTO backups (data, type) VALUES ($1::jsonb, $2)
-      `, JSON.stringify(backup), backupType);
+      // Сохраняем бэкап в таблице базы данных
+      const savedBackup = await prisma.backup.create({
+        data: {
+          data: backup as any,
+          type: backupType,
+          filename: filename,
+          size: JSON.stringify(backup).length
+        }
+      });
       
       // Удаляем старые бэкапы, оставляя последние 10
-      await prisma.$executeRawUnsafe(`
-        DELETE FROM backups 
-        WHERE id NOT IN (
-          SELECT id FROM backups 
-          ORDER BY created_at DESC 
-          LIMIT 10
-        )
-      `);
+      const allBackups = await prisma.backup.findMany({
+        orderBy: { createdAt: 'desc' },
+        select: { id: true }
+      });
+      
+      if (allBackups.length > 10) {
+        const idsToDelete = allBackups.slice(10).map(b => b.id);
+        await prisma.backup.deleteMany({
+          where: {
+            id: { in: idsToDelete }
+          }
+        });
+      }
       
       return NextResponse.json({
         success: true,
         message: `Бэкап (${backupType === 'data-only' ? 'только данные' : 'схема + данные'}) успешно создан в БД`,
         type: backupType,
+        filename: filename,
         recordCount: Object.values(backup).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0),
         isProduction: true
       });
