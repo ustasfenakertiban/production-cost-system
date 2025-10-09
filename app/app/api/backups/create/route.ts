@@ -7,11 +7,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const backupType = body.type || 'data-only';
     
-    // Проверяем окружение
-    const isProduction = process.env.NODE_ENV === 'production' || 
-                        !process.env.DATABASE_URL?.includes('localhost');
+    // Проверяем окружение - используем наличие DATABASE_URL как индикатор production
+    const hasDatabase = !!process.env.DATABASE_URL;
+    const isLocalhost = process.env.DATABASE_URL?.includes('localhost');
+    const isProduction = hasDatabase && !isLocalhost;
     
-    if (isProduction) {
+    console.log('[Backup Create] Environment check:', {
+      hasDatabase,
+      isLocalhost,
+      isProduction,
+      nodeEnv: process.env.NODE_ENV,
+      backupType
+    });
+    
+    if (isProduction || hasDatabase) {
       // В production используем JSON бэкап через Prisma
       // Проверяем, существует ли таблица backups
       let backupTableExists = false;
@@ -55,11 +64,20 @@ export async function POST(request: NextRequest) {
           }
         });
         
+        console.log('[Backup Create] Backup saved to DB:', {
+          id: savedBackup.id,
+          filename: savedBackup.filename,
+          type: savedBackup.type,
+          size: savedBackup.size
+        });
+        
         // Удаляем старые бэкапы, оставляя последние 10
         const allBackups = await prisma.backup.findMany({
           orderBy: { createdAt: 'desc' },
           select: { id: true }
         });
+        
+        console.log('[Backup Create] Total backups in DB:', allBackups.length);
         
         if (allBackups.length > 10) {
           const idsToDelete = allBackups.slice(10).map(b => b.id);
@@ -68,6 +86,7 @@ export async function POST(request: NextRequest) {
               id: { in: idsToDelete }
             }
           });
+          console.log('[Backup Create] Deleted old backups:', idsToDelete.length);
         }
         
         return NextResponse.json({

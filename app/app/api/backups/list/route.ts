@@ -4,12 +4,20 @@ import { prisma } from '@/lib/db';
 
 export async function GET() {
   try {
-    // Проверяем окружение
-    const isProduction = process.env.NODE_ENV === 'production' || 
-                        !process.env.DATABASE_URL?.includes('localhost');
+    // Проверяем окружение - используем наличие DATABASE_URL как индикатор production
+    const hasDatabase = !!process.env.DATABASE_URL;
+    const isLocalhost = process.env.DATABASE_URL?.includes('localhost');
+    const isProduction = hasDatabase && !isLocalhost;
     
-    if (isProduction) {
-      // В production читаем бэкапы из БД
+    console.log('[Backup List] Environment check:', {
+      hasDatabase,
+      isLocalhost,
+      isProduction,
+      nodeEnv: process.env.NODE_ENV
+    });
+    
+    if (isProduction || hasDatabase) {
+      // Читаем бэкапы из БД
       try {
         const dbBackups = await prisma.backup.findMany({
           orderBy: { createdAt: 'desc' },
@@ -22,13 +30,15 @@ export async function GET() {
           }
         });
         
+        console.log('[Backup List] Found backups in DB:', dbBackups.length);
+        
         const backups = dbBackups.map(b => ({
           id: b.id,
           name: b.filename || `backup_${b.type}_${b.createdAt.toISOString().replace(/[:.]/g, '-').split('.')[0]}.json`,
           type: b.type,
           size: b.size || 0,
           created: b.createdAt.toISOString(),
-          source: 'database'
+          source: 'database' as const
         }));
         
         return NextResponse.json({ backups, isProduction: true });

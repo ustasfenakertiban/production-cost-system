@@ -173,6 +173,47 @@ export function BackupManager() {
     });
   };
 
+  const downloadBackup = async (backup: Backup) => {
+    try {
+      if (backup.id && isProduction) {
+        // Скачиваем бэкап из БД через API
+        const response = await fetch(`/api/backups/download?id=${backup.id}`);
+        
+        if (!response.ok) {
+          throw new Error('Ошибка при скачивании бэкапа');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = backup.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        toast({
+          title: 'Успешно',
+          description: 'Бэкап успешно скачан',
+        });
+      } else {
+        toast({
+          title: 'Информация',
+          description: 'Скачивание файловых бэкапов пока не поддерживается',
+          variant: 'default'
+        });
+      }
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast({
+        title: 'Ошибка',
+        description: error.message || 'Не удалось скачать бэкап',
+        variant: 'destructive'
+      });
+    }
+  };
+
   useEffect(() => {
     loadBackups();
   }, []);
@@ -276,18 +317,30 @@ export function BackupManager() {
                       <TableCell>{formatFileSize(backup.size)}</TableCell>
                       <TableCell>{formatDate(backup.created)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedBackup(backup);
-                            setShowRestoreDialog(true);
-                          }}
-                          disabled={restoring}
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          Восстановить
-                        </Button>
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => downloadBackup(backup)}
+                            disabled={!backup.id || !isProduction}
+                            title={!backup.id || !isProduction ? 'Скачивание доступно только для бэкапов в БД' : 'Скачать бэкап'}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Скачать
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedBackup(backup);
+                              setShowRestoreDialog(true);
+                            }}
+                            disabled={restoring}
+                          >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Восстановить
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
