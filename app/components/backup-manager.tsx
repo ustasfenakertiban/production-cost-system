@@ -60,6 +60,13 @@ export function BackupManager() {
     console.log('[BackupManager] createBackup called, backupType:', backupType);
     setCreating(true);
     setShowCreateDialog(false);
+    
+    // Показываем начальное уведомление
+    toast({
+      title: 'Создание бэкапа...',
+      description: `Создается ${backupType === 'full' ? 'полный бэкап (схема + данные)' : 'бэкап данных'}`,
+    });
+    
     try {
       console.log('[BackupManager] Sending request to API...');
       const response = await fetch('/api/backups/create', {
@@ -75,9 +82,11 @@ export function BackupManager() {
       console.log('[BackupManager] Response data:', data);
       
       if (data.success) {
+        // Показываем успешное уведомление
         toast({
-          title: 'Успешно',
-          description: data.message || 'Бэкап успешно создан',
+          title: '✅ Успешно',
+          description: data.message || `Бэкап успешно создан (${data.recordCount || 0} записей)`,
+          duration: 5000,
         });
         
         // Если бэкап возвращается в ответе (fallback режим), предлагаем скачать
@@ -109,9 +118,10 @@ export function BackupManager() {
     } catch (error: any) {
       console.error('[BackupManager] Backup creation error:', error);
       toast({
-        title: 'Ошибка',
+        title: '❌ Ошибка',
         description: error.message || 'Не удалось создать бэкап',
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 5000,
       });
     } finally {
       setCreating(false);
@@ -122,10 +132,22 @@ export function BackupManager() {
     if (!selectedBackup) return;
     
     setRestoring(true);
+    setShowRestoreDialog(false);
+    
+    // Показываем начальное уведомление
+    toast({
+      title: 'Восстановление данных...',
+      description: 'Пожалуйста, подождите. Это может занять некоторое время.',
+    });
+    
     try {
+      console.log('[BackupManager] Starting restore for backup:', selectedBackup);
+      
       const requestBody = isProduction && selectedBackup.id
         ? { backupId: selectedBackup.id }
         : { backupFile: selectedBackup.name };
+        
+      console.log('[BackupManager] Request body:', requestBody);
         
       const response = await fetch('/api/backups/restore', {
         method: 'POST',
@@ -134,14 +156,17 @@ export function BackupManager() {
         },
         body: JSON.stringify(requestBody)
       });
+      
+      console.log('[BackupManager] Restore response status:', response.status);
       const data = await response.json();
+      console.log('[BackupManager] Restore response data:', data);
       
       if (data.success) {
         toast({
-          title: 'Успешно',
+          title: '✅ Успешно',
           description: 'Данные успешно восстановлены из бэкапа',
+          duration: 5000,
         });
-        setShowRestoreDialog(false);
         setSelectedBackup(null);
         
         // Перезагружаем страницу для обновления данных
@@ -152,10 +177,12 @@ export function BackupManager() {
         throw new Error(data.error);
       }
     } catch (error: any) {
+      console.error('[BackupManager] Restore error:', error);
       toast({
-        title: 'Ошибка',
+        title: '❌ Ошибка',
         description: error.message || 'Не удалось восстановить данные',
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 5000,
       });
     } finally {
       setRestoring(false);
@@ -181,16 +208,28 @@ export function BackupManager() {
   };
 
   const downloadBackup = async (backup: Backup) => {
+    console.log('[BackupManager] downloadBackup called for:', backup);
+    console.log('[BackupManager] backup.id:', backup.id);
+    console.log('[BackupManager] isProduction:', isProduction);
+    
     try {
-      if (backup.id && isProduction) {
+      if (backup.id) {
         // Скачиваем бэкап из БД через API
+        console.log('[BackupManager] Fetching backup from API...');
         const response = await fetch(`/api/backups/download?id=${backup.id}`);
         
+        console.log('[BackupManager] Download response status:', response.status);
+        
         if (!response.ok) {
-          throw new Error('Ошибка при скачивании бэкапа');
+          const errorData = await response.json();
+          console.error('[BackupManager] Download error:', errorData);
+          throw new Error(errorData.error || 'Ошибка при скачивании бэкапа');
         }
         
+        console.log('[BackupManager] Creating blob...');
         const blob = await response.blob();
+        console.log('[BackupManager] Blob size:', blob.size);
+        
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -200,11 +239,13 @@ export function BackupManager() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
         
+        console.log('[BackupManager] Download completed successfully');
         toast({
           title: 'Успешно',
           description: 'Бэкап успешно скачан',
         });
       } else {
+        console.warn('[BackupManager] No backup ID found');
         toast({
           title: 'Информация',
           description: 'Скачивание файловых бэкапов пока не поддерживается',
@@ -212,7 +253,7 @@ export function BackupManager() {
         });
       }
     } catch (error: any) {
-      console.error('Download error:', error);
+      console.error('[BackupManager] Download error:', error);
       toast({
         title: 'Ошибка',
         description: error.message || 'Не удалось скачать бэкап',
