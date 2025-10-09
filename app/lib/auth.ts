@@ -4,13 +4,19 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
+// Singleton pattern for Prisma Client to avoid connection pool exhaustion
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+const prisma = globalForPrisma.prisma || new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-key-for-development',
   providers: [
     CredentialsProvider({
-      name: "credentials",
+      id: "credentials",
+      name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
@@ -112,6 +118,14 @@ export const authOptions: NextAuthOptions = {
     },
     debug(code, ...message) {
       console.log('[NextAuth Debug]', code, message);
+    },
+  },
+  events: {
+    async signIn(message) {
+      console.log('[NextAuth Event] signIn:', message);
+    },
+    async session(message) {
+      console.log('[NextAuth Event] session:', message);
     },
   },
 };
