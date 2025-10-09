@@ -60,10 +60,20 @@ export default function BackupsPage() {
 
   const loadBackups = async () => {
     try {
-      const response = await fetch('/api/backups');
+      const response = await fetch('/api/backups/list');
       if (response.ok) {
         const data = await response.json();
-        setBackups(data.backups);
+        // Преобразуем данные из БД-формата в формат, ожидаемый компонентом
+        const formattedBackups = (data.backups || []).map((backup: any) => ({
+          filename: backup.name,
+          size: backup.size,
+          created: backup.created,
+          metadata: {
+            reason: 'manual',
+            timestamp: backup.created
+          }
+        }));
+        setBackups(formattedBackups);
       } else {
         toast.error('Ошибка загрузки списка бэкапов');
       }
@@ -82,12 +92,34 @@ export default function BackupsPage() {
   const handleCreateBackup = async () => {
     setCreating(true);
     try {
-      const response = await fetch('/api/backups', {
+      const response = await fetch('/api/backups/create', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ type: 'data-only' })
       });
 
       if (response.ok) {
-        toast.success('Бэкап успешно создан');
+        const data = await response.json();
+        toast.success(data.message || 'Бэкап успешно создан');
+        
+        // Если бэкап возвращается в ответе (fallback режим), предлагаем скачать
+        if (data.backup && data.warning) {
+          toast.warning(data.warning);
+          
+          // Автоматически скачиваем бэкап
+          const blob = new Blob([JSON.stringify(data.backup, null, 2)], { type: 'application/json' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = data.filename || `backup_${new Date().toISOString()}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }
+        
         loadBackups();
       } else {
         const data = await response.json();
@@ -103,18 +135,30 @@ export default function BackupsPage() {
 
   const handleDownload = async (filename: string) => {
     try {
-      const response = await fetch(`/api/backups/${filename}`);
+      // Для бэкапов из БД используем специальный endpoint
+      const response = await fetch(`/api/backups/list`);
       if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.success('Бэкап скачан');
+        const data = await response.json();
+        const backup = data.backups.find((b: any) => b.name === filename);
+        
+        if (backup && backup.id) {
+          // Скачиваем бэкап из БД
+          const backupResponse = await fetch(`/api/backups/${backup.id}`);
+          if (backupResponse.ok) {
+            const blob = await backupResponse.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            toast.success('Бэкап скачан');
+          } else {
+            toast.error('Ошибка скачивания бэкапа');
+          }
+        }
       } else {
         toast.error('Ошибка скачивания бэкапа');
       }
@@ -128,7 +172,20 @@ export default function BackupsPage() {
     if (!selectedBackup) return;
 
     try {
-      const response = await fetch(`/api/backups/${selectedBackup}`, {
+      // Получаем ID бэкапа из БД
+      const listResponse = await fetch('/api/backups/list');
+      if (!listResponse.ok) {
+        throw new Error('Не удалось получить список бэкапов');
+      }
+      
+      const listData = await listResponse.json();
+      const backup = listData.backups.find((b: any) => b.name === selectedBackup);
+      
+      if (!backup || !backup.id) {
+        throw new Error('Бэкап не найден');
+      }
+
+      const response = await fetch(`/api/backups/${backup.id}`, {
         method: 'DELETE',
       });
 
@@ -139,9 +196,9 @@ export default function BackupsPage() {
         const data = await response.json();
         toast.error(data.error || 'Ошибка удаления бэкапа');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting backup:', error);
-      toast.error('Ошибка удаления бэкапа');
+      toast.error(error.message || 'Ошибка удаления бэкапа');
     } finally {
       setShowDeleteDialog(false);
       setSelectedBackup(null);
@@ -153,12 +210,25 @@ export default function BackupsPage() {
 
     setRestoring(true);
     try {
+      // Получаем ID бэкапа из БД
+      const listResponse = await fetch('/api/backups/list');
+      if (!listResponse.ok) {
+        throw new Error('Не удалось получить список бэкапов');
+      }
+      
+      const listData = await listResponse.json();
+      const backup = listData.backups.find((b: any) => b.name === selectedBackup);
+      
+      if (!backup || !backup.id) {
+        throw new Error('Бэкап не найден');
+      }
+
       const response = await fetch('/api/backups/restore', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ filename: selectedBackup }),
+        body: JSON.stringify({ backupId: backup.id }),
       });
 
       if (response.ok) {
@@ -168,9 +238,9 @@ export default function BackupsPage() {
         const data = await response.json();
         toast.error(data.error || 'Ошибка восстановления из бэкапа');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error restoring backup:', error);
-      toast.error('Ошибка восстановления из бэкапа');
+      toast.error(error.message || 'Ошибка восстановления из бэкапа');
     } finally {
       setRestoring(false);
       setShowRestoreDialog(false);
