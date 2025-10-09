@@ -3,14 +3,19 @@ const { PrismaClient } = require('@prisma/client');
 
 async function checkMigrations() {
   const prisma = new PrismaClient();
+  
   try {
     const migrations = await prisma.$queryRaw`
-      SELECT * FROM "_prisma_migrations" ORDER BY finished_at DESC LIMIT 10;
+      SELECT migration_name, finished_at 
+      FROM _prisma_migrations 
+      ORDER BY finished_at DESC;
     `;
-    console.log('=== Recent Migrations ===');
+    
+    console.log('Applied migrations:\n');
     migrations.forEach(m => {
-      console.log(`${m.migration_name} - ${m.applied_steps_count} steps - ${m.finished_at}`);
+      console.log(`${m.finished_at?.toISOString()} - ${m.migration_name}`);
     });
+    
   } catch (error) {
     console.error('Error:', error.message);
   } finally {
