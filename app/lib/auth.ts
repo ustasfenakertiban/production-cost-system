@@ -108,24 +108,4 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  debug: true, // Debug enabled for troubleshooting
-  logger: {
-    error(code, ...message) {
-      console.error('[NextAuth Error]', code, message);
-    },
-    warn(code, ...message) {
-      console.warn('[NextAuth Warn]', code, message);
-    },
-    debug(code, ...message) {
-      console.log('[NextAuth Debug]', code, message);
-    },
-  },
-  events: {
-    async signIn(message) {
-      console.log('[NextAuth Event] signIn:', message);
-    },
-    async session(message) {
-      console.log('[NextAuth Event] session:', message);
-    },
-  },
 };

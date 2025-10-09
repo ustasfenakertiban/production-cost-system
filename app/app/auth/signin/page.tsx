@@ -1,7 +1,6 @@
 
 "use client";
 
-import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -21,28 +20,26 @@ export default function SignInPage() {
     setError("");
     setIsLoading(true);
 
-    console.log('[Client] Starting sign in with email:', email);
-
     try {
-      console.log('[Client] Calling signIn...');
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       });
 
-      console.log('[Client] SignIn result:', result);
+      const data = await response.json();
 
-      if (result?.error) {
-        console.log('[Client] SignIn error:', result.error);
-        setError("Неверный email или пароль");
-      } else if (result?.ok) {
-        console.log('[Client] SignIn successful, redirecting...');
+      if (!response.ok || !data.success) {
+        setError(data.message || "Произошла ошибка при входе");
+      } else {
+        // Успешный вход - перенаправляем на главную
         router.push("/");
         router.refresh();
       }
     } catch (error) {
-      console.error('[Client] SignIn exception:', error);
+      console.error('[Client] Login error:', error);
       setError("Произошла ошибка при входе");
     } finally {
       setIsLoading(false);
