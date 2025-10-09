@@ -57,9 +57,11 @@ export function BackupManager() {
   };
 
   const createBackup = async () => {
+    console.log('[BackupManager] createBackup called, backupType:', backupType);
     setCreating(true);
     setShowCreateDialog(false);
     try {
+      console.log('[BackupManager] Sending request to API...');
       const response = await fetch('/api/backups/create', {
         method: 'POST',
         headers: {
@@ -67,7 +69,10 @@ export function BackupManager() {
         },
         body: JSON.stringify({ type: backupType })
       });
+      
+      console.log('[BackupManager] Response status:', response.status);
       const data = await response.json();
+      console.log('[BackupManager] Response data:', data);
       
       if (data.success) {
         toast({
@@ -95,12 +100,14 @@ export function BackupManager() {
           window.URL.revokeObjectURL(url);
         }
         
+        console.log('[BackupManager] Reloading backups list...');
         await loadBackups();
+        console.log('[BackupManager] Backup creation completed successfully');
       } else {
         throw new Error(data.error || data.details);
       }
     } catch (error: any) {
-      console.error('Backup creation error:', error);
+      console.error('[BackupManager] Backup creation error:', error);
       toast({
         title: 'Ошибка',
         description: error.message || 'Не удалось создать бэкап',
@@ -218,6 +225,14 @@ export function BackupManager() {
     loadBackups();
   }, []);
 
+  useEffect(() => {
+    console.log('[BackupManager] showCreateDialog changed:', showCreateDialog);
+  }, [showCreateDialog]);
+
+  useEffect(() => {
+    console.log('[BackupManager] creating state changed:', creating);
+  }, [creating]);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -248,7 +263,13 @@ export function BackupManager() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
-            <Button onClick={() => setShowCreateDialog(true)} disabled={creating}>
+            <Button 
+              onClick={() => {
+                console.log('[BackupManager] Open create dialog clicked');
+                setShowCreateDialog(true);
+              }} 
+              disabled={creating}
+            >
               {creating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -402,10 +423,21 @@ export function BackupManager() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log('[BackupManager] Cancel dialog clicked');
+                setShowCreateDialog(false);
+              }}
+            >
               Отмена
             </Button>
-            <Button onClick={createBackup}>
+            <Button 
+              onClick={() => {
+                console.log('[BackupManager] Create backup button in dialog clicked');
+                createBackup();
+              }}
+            >
               <Download className="mr-2 h-4 w-4" />
               Создать бэкап
             </Button>
