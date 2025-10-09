@@ -66,7 +66,9 @@ export default function BackupsPage() {
 
   const loadBackups = async () => {
     try {
-      const response = await fetch('/api/backups/list');
+      const response = await fetch('/api/backups/list', {
+        credentials: 'include'
+      });
       if (response.ok) {
         const data = await response.json();
         // Преобразуем данные из БД-формата в формат, ожидаемый компонентом
@@ -104,6 +106,7 @@ export default function BackupsPage() {
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({ type: backupType })
       });
 
@@ -145,7 +148,9 @@ export default function BackupsPage() {
       console.log('[Client] Starting download for:', filename);
       
       // Получаем список бэкапов, чтобы найти ID
-      const response = await fetch('/api/backups/list');
+      const response = await fetch('/api/backups/list', {
+        credentials: 'include'
+      });
       if (!response.ok) {
         console.error('[Client] Failed to fetch backup list:', response.status);
         toast.error('Ошибка загрузки списка бэкапов');
@@ -175,7 +180,9 @@ export default function BackupsPage() {
       const downloadUrl = `/api/backups/download?id=${backup.id}`;
       console.log('[Client] Downloading from:', downloadUrl);
       
-      const downloadResponse = await fetch(downloadUrl);
+      const downloadResponse = await fetch(downloadUrl, {
+        credentials: 'include' // Важно! Передаём cookies с сессией
+      });
       console.log('[Client] Download response status:', downloadResponse.status);
       console.log('[Client] Download response headers:', Object.fromEntries(downloadResponse.headers.entries()));
       
@@ -218,7 +225,9 @@ export default function BackupsPage() {
 
     try {
       // Получаем ID бэкапа из БД
-      const listResponse = await fetch('/api/backups/list');
+      const listResponse = await fetch('/api/backups/list', {
+        credentials: 'include'
+      });
       if (!listResponse.ok) {
         throw new Error('Не удалось получить список бэкапов');
       }
@@ -232,6 +241,7 @@ export default function BackupsPage() {
 
       const response = await fetch(`/api/backups/${backup.id}`, {
         method: 'DELETE',
+        credentials: 'include'
       });
 
       if (response.ok) {
@@ -256,7 +266,9 @@ export default function BackupsPage() {
     setRestoring(true);
     try {
       // Получаем ID бэкапа из БД
-      const listResponse = await fetch('/api/backups/list');
+      const listResponse = await fetch('/api/backups/list', {
+        credentials: 'include'
+      });
       if (!listResponse.ok) {
         throw new Error('Не удалось получить список бэкапов');
       }
@@ -273,6 +285,7 @@ export default function BackupsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ backupId: backup.id }),
       });
 
