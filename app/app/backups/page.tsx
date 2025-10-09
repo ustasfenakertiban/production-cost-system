@@ -142,31 +142,54 @@ export default function BackupsPage() {
 
   const handleDownload = async (filename: string) => {
     try {
+      console.log('[Client] Starting download for:', filename);
+      
       // Получаем список бэкапов, чтобы найти ID
       const response = await fetch('/api/backups/list');
       if (!response.ok) {
+        console.error('[Client] Failed to fetch backup list:', response.status);
         toast.error('Ошибка загрузки списка бэкапов');
         return;
       }
       
       const data = await response.json();
-      const backup = data.backups.find((b: any) => b.name === filename);
+      console.log('[Client] Backup list response:', data);
+      console.log('[Client] Looking for filename:', filename);
       
-      if (!backup || !backup.id) {
-        toast.error('Бэкап не найден');
+      const backup = data.backups.find((b: any) => b.name === filename);
+      console.log('[Client] Found backup:', backup);
+      
+      if (!backup) {
+        console.error('[Client] Backup not found in list');
+        toast.error('Бэкап не найден в списке');
+        return;
+      }
+      
+      if (!backup.id) {
+        console.error('[Client] Backup has no ID');
+        toast.error('У бэкапа нет ID');
         return;
       }
       
       // Скачиваем бэкап используя правильный endpoint
-      const downloadResponse = await fetch(`/api/backups/download?id=${backup.id}`);
+      const downloadUrl = `/api/backups/download?id=${backup.id}`;
+      console.log('[Client] Downloading from:', downloadUrl);
+      
+      const downloadResponse = await fetch(downloadUrl);
+      console.log('[Client] Download response status:', downloadResponse.status);
+      console.log('[Client] Download response headers:', Object.fromEntries(downloadResponse.headers.entries()));
       
       if (!downloadResponse.ok) {
-        toast.error('Ошибка скачивания бэкапа');
+        const errorText = await downloadResponse.text();
+        console.error('[Client] Download failed:', errorText);
+        toast.error(`Ошибка скачивания: ${errorText}`);
         return;
       }
       
       // Получаем blob и создаем ссылку для скачивания
       const blob = await downloadResponse.blob();
+      console.log('[Client] Blob created, size:', blob.size, 'type:', blob.type);
+      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -174,14 +197,19 @@ export default function BackupsPage() {
       document.body.appendChild(a);
       a.click();
       
+      console.log('[Client] Click triggered for download');
+      
       // Очистка
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        console.log('[Client] Cleanup completed');
+      }, 100);
       
       toast.success('Бэкап скачан');
     } catch (error) {
-      console.error('Error downloading backup:', error);
-      toast.error('Ошибка скачивания бэкапа');
+      console.error('[Client] Error downloading backup:', error);
+      toast.error('Ошибка скачивания бэкапа: ' + (error instanceof Error ? error.message : 'неизвестная ошибка'));
     }
   };
 
