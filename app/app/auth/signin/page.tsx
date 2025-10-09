@@ -26,6 +26,7 @@ export default function SignInPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Важно для сохранения cookies
         body: JSON.stringify({ email, password }),
       });
 
@@ -35,11 +36,10 @@ export default function SignInPage() {
         setError(data.message || "Произошла ошибка при входе");
       } else {
         // Успешный вход - перенаправляем на главную
-        router.push("/");
-        router.refresh();
+        window.location.href = "/";
       }
     } catch (error) {
-      console.error('[Client] Login error:', error);
+      console.error('Ошибка при входе:', error);
       setError("Произошла ошибка при входе");
     } finally {
       setIsLoading(false);
