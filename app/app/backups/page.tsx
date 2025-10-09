@@ -44,7 +44,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
 interface BackupInfo {
+  id?: string;
   filename: string;
+  type?: string;
   size: number;
   created: string;
   metadata?: {
@@ -73,7 +75,9 @@ export default function BackupsPage() {
         const data = await response.json();
         // Преобразуем данные из БД-формата в формат, ожидаемый компонентом
         const formattedBackups = (data.backups || []).map((backup: any) => ({
+          id: backup.id,
           filename: backup.name,
+          type: backup.type || 'unknown',
           size: backup.size,
           created: backup.created,
           metadata: {
@@ -260,7 +264,7 @@ export default function BackupsPage() {
     }
   };
 
-  const handleRestore = async () => {
+  const handleRestore = async (ignoreWarnings: boolean = false) => {
     if (!selectedBackup) return;
 
     setRestoring(true);
@@ -286,23 +290,58 @@ export default function BackupsPage() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ backupId: backup.id }),
+        body: JSON.stringify({ 
+          backupId: backup.id,
+          ignoreWarnings 
+        }),
       });
 
       if (response.ok) {
         toast.success('Данные успешно восстановлены из бэкапа');
-        window.location.href = '/';
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1500);
       } else {
         const data = await response.json();
-        toast.error(data.error || 'Ошибка восстановления из бэкапа');
+        
+        // Если схема несовместима, показываем предупреждение
+        if (data.error === 'schema_incompatible' && !ignoreWarnings) {
+          setRestoring(false);
+          const confirmRestore = window.confirm(
+            `⚠️ ПРЕДУПРЕЖДЕНИЕ О НЕСОВМЕСТИМОСТИ СХЕМЫ\n\n` +
+            `${data.warning}\n\n` +
+            `Тип бэкапа: ${getBackupTypeLabel(backup.type)}\n\n` +
+            (backup.type === 'full' 
+              ? `⚠️ ВНИМАНИЕ: Этот бэкап содержит структуру базы данных!\n` +
+                `При восстановлении:\n` +
+                `• Структура базы данных будет заменена на старую версию\n` +
+                `• Все новые поля и таблицы будут УДАЛЕНЫ\n` +
+                `• Это может привести к потере данных и функциональности\n\n`
+              : `Рекомендация: используйте бэкапы типа "Только данные" при регулярном восстановлении.\n\n`
+            ) +
+            `Вы ДЕЙСТВИТЕЛЬНО хотите продолжить?`
+          );
+          
+          if (confirmRestore) {
+            // Повторяем запрос с ignoreWarnings = true
+            handleRestore(true);
+          } else {
+            setShowRestoreDialog(false);
+            setSelectedBackup(null);
+          }
+        } else {
+          toast.error(data.error || 'Ошибка восстановления из бэкапа');
+        }
       }
     } catch (error: any) {
       console.error('Error restoring backup:', error);
       toast.error(error.message || 'Ошибка восстановления из бэкапа');
     } finally {
-      setRestoring(false);
-      setShowRestoreDialog(false);
-      setSelectedBackup(null);
+      if (!ignoreWarnings) {
+        setRestoring(false);
+        setShowRestoreDialog(false);
+        setSelectedBackup(null);
+      }
     }
   };
 
@@ -325,16 +364,25 @@ export default function BackupsPage() {
     });
   };
 
-  const getBackupTypeLabel = (reason?: string): string => {
-    switch (reason) {
-      case 'manual':
-        return 'Ручной';
-      case 'auto':
-        return 'Автоматический';
-      case 'before_restore':
-        return 'Перед восстановлением';
+  const getBackupTypeLabel = (type?: string): string => {
+    switch (type) {
+      case 'data-only':
+        return 'Только данные';
+      case 'full':
+        return 'Данные + структура';
       default:
         return 'Неизвестный';
+    }
+  };
+
+  const getBackupTypeBadgeColor = (type?: string): string => {
+    switch (type) {
+      case 'data-only':
+        return 'bg-blue-100 text-blue-800';
+      case 'full':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -411,9 +459,9 @@ export default function BackupsPage() {
                         {backup.filename}
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          <Clock className="h-3 w-3" />
-                          {getBackupTypeLabel(backup.metadata?.reason)}
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getBackupTypeBadgeColor(backup.type)}`}>
+                          <Database className="h-3 w-3" />
+                          {getBackupTypeLabel(backup.type)}
                         </span>
                       </TableCell>
                       <TableCell>{formatDate(backup.created)}</TableCell>
@@ -492,9 +540,12 @@ export default function BackupsPage() {
                     Данные + структура
                   </Label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Создаёт полный бэкап, включая структуру базы данных и все данные. 
-                    Используйте перед внесением изменений в схему базы данных.
+                    Создаёт полный бэкап, включая структуру базы данных и все данные.
                   </p>
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                    <strong>⚠️ Осторожно:</strong> При восстановлении этого типа бэкапа структура БД будет заменена на старую версию. 
+                    Все новые поля и таблицы будут удалены. Используйте только для полного отката системы.
+                  </div>
                 </div>
               </div>
             </RadioGroup>
@@ -512,20 +563,45 @@ export default function BackupsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Восстановить из бэкапа?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Все текущие данные будут заменены данными из бэкапа{' '}
-              <strong>{selectedBackup}</strong>.
-              <br />
-              <br />
-              Перед восстановлением будет автоматически создан бэкап текущих данных.
-              <br />
-              <br />
-              Это действие нельзя отменить. Вы уверены?
+            <AlertDialogDescription className="space-y-3">
+              <div>
+                Все текущие данные будут заменены данными из бэкапа{' '}
+                <strong>{selectedBackup}</strong>.
+              </div>
+              
+              {(() => {
+                const backup = backups.find(b => b.filename === selectedBackup);
+                if (backup?.type === 'full') {
+                  return (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                      <div className="flex items-start gap-2">
+                        <span className="text-amber-600 font-bold text-lg">⚠️</span>
+                        <div className="text-sm text-amber-800">
+                          <strong>ВНИМАНИЕ:</strong> Этот бэкап типа "Данные + структура"!
+                          <br />
+                          При восстановлении структура базы данных будет заменена на старую версию.
+                          <br />
+                          Все новые поля и таблицы, добавленные после создания бэкапа, будут удалены.
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
+              <div>
+                Перед восстановлением будет автоматически создан бэкап текущих данных.
+              </div>
+              
+              <div className="font-semibold">
+                Это действие нельзя отменить. Вы уверены?
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestore} disabled={restoring}>
+            <AlertDialogAction onClick={() => handleRestore(false)} disabled={restoring}>
               {restoring ? 'Восстановление...' : 'Восстановить'}
             </AlertDialogAction>
           </AlertDialogFooter>

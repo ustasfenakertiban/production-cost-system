@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth-helpers';
+import { getCurrentSchemaInfo } from '@/lib/schema-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,13 +66,17 @@ export async function POST(request: NextRequest) {
       const filename = `backup_${backupType}_${timestamp}.json`;
       
       try {
+        // Получаем информацию о текущей схеме
+        const schemaInfo = await getCurrentSchemaInfo();
+        
         // Сохраняем бэкап в таблице базы данных
         const savedBackup = await prisma.backup.create({
           data: {
             data: backup as any,
             type: backupType,
             filename: filename,
-            size: JSON.stringify(backup).length
+            size: JSON.stringify(backup).length,
+            schemaHash: schemaInfo.hash
           }
         });
         

@@ -387,12 +387,13 @@ model OperationTemplateRole {
 }
 
 model Backup {
-  id        String   @id @default(cuid())
-  data      Json
-  type      String   @default("data-only")
-  filename  String?
-  size      Int?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  data       Json
+  type       String   @default("data-only")
+  filename   String?
+  size       Int?
+  schemaHash String?  // Хэш схемы базы данных для проверки совместимости
+  createdAt  DateTime @default(now())
 
   @@map("backups")
 }
