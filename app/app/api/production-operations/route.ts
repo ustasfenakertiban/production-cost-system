@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { chainId, name, description, comment, enabled, estimatedProductivityPerHour, estimatedProductivityPerHourVariance, cycleHours, operationDuration, cycleName, cyclesPerHour, itemsPerCycle } = data;
+    const { chainId, name, description, comment, comments, enabled, estimatedProductivityPerHour, estimatedProductivityPerHourVariance, cycleHours, operationDuration, minimumBatchSize, cycleName, cyclesPerHour, itemsPerCycle } = data;
 
     if (!chainId || !name) {
       return NextResponse.json(
@@ -72,13 +72,14 @@ export async function POST(request: NextRequest) {
         chainId,
         name,
         description,
-        comment,
+        comment: comment || comments || null,
         orderIndex: nextOrderIndex,
         enabled: enabled !== undefined ? enabled : true,
         estimatedProductivityPerHour: estimatedProductivityPerHour || null,
         estimatedProductivityPerHourVariance: estimatedProductivityPerHourVariance || null,
         cycleHours: cycleHours !== undefined ? cycleHours : 1,
         operationDuration: operationDuration || null,
+        minimumBatchSize: minimumBatchSize !== undefined && minimumBatchSize !== null ? minimumBatchSize : 1,
         cycleName: cycleName || null,
         cyclesPerHour: cyclesPerHour || null,
         itemsPerCycle: itemsPerCycle || null,

@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { OperationChainCard } from "./operation-chain-card";
 import { OperationChainDialog } from "./operation-chain-dialog";
 import { CloneChainDialog } from "./clone-chain-dialog";
+import { CloneProcessDialog } from "./clone-process-dialog";
 import { calculateChainCosts, formatCurrency, formatPercent } from "@/lib/cost-calculations";
 
 interface Product {
@@ -75,6 +76,7 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
   const [editingChain, setEditingChain] = useState<any>(null);
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
   const [cloningChain, setCloningChain] = useState<{ id: string; name: string } | null>(null);
+  const [cloneProcessDialogOpen, setCloneProcessDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -197,6 +199,14 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
               <p className="text-gray-600 mt-2">{process.description}</p>
             )}
           </div>
+          <Button 
+            variant="outline" 
+            onClick={() => setCloneProcessDialogOpen(true)}
+            title="Клонировать весь процесс со всеми цепочками"
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            Клонировать процесс
+          </Button>
         </div>
 
         {/* Цепочки операций */}
@@ -395,6 +405,15 @@ export default function ProductionProcessDetailPage({ params }: { params: { id: 
             open={cloneDialogOpen}
             onClose={handleCloneDialogClose}
             onSuccess={handleCloneSuccess}
+          />
+        )}
+
+        {process && (
+          <CloneProcessDialog
+            processId={process.id}
+            processName={process.name}
+            open={cloneProcessDialogOpen}
+            onClose={() => setCloneProcessDialogOpen(false)}
           />
         )}
       </div>

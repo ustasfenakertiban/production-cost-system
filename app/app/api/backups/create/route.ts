@@ -9,7 +9,7 @@ const execAsync = promisify(exec);
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const backupType = body.type || 'full'; // 'full' или 'data-only'
+    const backupType = body.type || 'data-only'; // 'data-only' или 'full'
     
     const backupScript = path.join(process.cwd(), '..', 'backup-node.js');
     const nodeModules = path.join(process.cwd(), 'node_modules');

@@ -27,7 +27,7 @@ export function BackupManager() {
   const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [backupType, setBackupType] = useState<'full' | 'data-only'>('full');
+  const [backupType, setBackupType] = useState<'full' | 'data-only'>('data-only');
   const { toast } = useToast();
 
   const loadBackups = async () => {
