@@ -4,6 +4,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { LogOut, User } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function AuthHeader() {
-  const { data: session } = useSession() || {};
+  const { data: session, status } = useSession() || {};
+  const [mounted, setMounted] = useState(false);
+
+  // Рендерим только на клиенте для избежания ошибки гидратации
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Показываем пустой div до монтирования, чтобы избежать hydration mismatch
+  if (!mounted || status === "loading") {
+    return <div className="bg-white/70 backdrop-blur-sm border-b h-[60px]" />;
+  }
 
   if (!session?.user) {
     return null;

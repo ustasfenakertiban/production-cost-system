@@ -43,13 +43,14 @@ export function OrderDialog({ order, open, onClose }: OrderDialogProps) {
         orderDate: formattedDate,
       });
     } else {
+      // Устанавливаем дату только на клиенте, чтобы избежать ошибки гидратации
       const today = new Date().toISOString().split("T")[0];
       setFormData({
         name: "",
         orderDate: today,
       });
     }
-  }, [order]);
+  }, [order, open]); // Добавили open в зависимости
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
