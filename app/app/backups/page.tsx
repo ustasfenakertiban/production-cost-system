@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import {
   Card,
   CardContent,
@@ -25,7 +26,8 @@ import {
   Plus,
   Database,
   Clock,
-  HardDrive
+  HardDrive,
+  ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -283,6 +285,12 @@ export default function BackupsPage() {
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="mb-8">
+        <Link href="/">
+          <Button variant="outline" className="mb-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Вернуться в главное меню
+          </Button>
+        </Link>
         <h1 className="text-3xl font-bold mb-2">Управление бэкапами</h1>
         <p className="text-muted-foreground">
           Создавайте, скачивайте и восстанавливайте бэкапы базы данных

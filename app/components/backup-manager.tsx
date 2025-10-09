@@ -363,7 +363,7 @@ export function BackupManager() {
                   </TableRow>
                 ) : (
                   backups.map((backup) => (
-                    <TableRow key={backup.name}>
+                    <TableRow key={backup.id || backup.name}>
                       <TableCell className="font-mono text-sm">
                         {backup.name}
                       </TableCell>

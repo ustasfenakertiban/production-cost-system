@@ -49,9 +49,10 @@ export async function POST(request: NextRequest) {
       
       const backup = await createPrismaBackup();
       
-      // Формируем имя файла бэкапа
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T');
-      const filename = `backup_${timestamp[0]}_${timestamp[1].split('-')[0]}.json`;
+      // Формируем уникальное имя файла бэкапа с полным timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-');
+      const filename = `backup_${backupType}_${timestamp}.json`;
       
       try {
         // Сохраняем бэкап в таблице базы данных
