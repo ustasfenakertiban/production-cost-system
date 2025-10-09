@@ -143,7 +143,7 @@ export function BackupManager() {
     try {
       console.log('[BackupManager] Starting restore for backup:', selectedBackup);
       
-      const requestBody = isProduction && selectedBackup.id
+      const requestBody = selectedBackup.id
         ? { backupId: selectedBackup.id }
         : { backupFile: selectedBackup.name };
         
@@ -216,12 +216,12 @@ export function BackupManager() {
       if (backup.id) {
         // Скачиваем бэкап из БД через API
         console.log('[BackupManager] Fetching backup from API...');
-        const response = await fetch(`/api/backups/download?id=${backup.id}`);
+        const response = await fetch(`/api/backups/${backup.id}`);
         
         console.log('[BackupManager] Download response status:', response.status);
         
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorData = await response.json().catch(() => ({ error: 'Ошибка при скачивании бэкапа' }));
           console.error('[BackupManager] Download error:', errorData);
           throw new Error(errorData.error || 'Ошибка при скачивании бэкапа');
         }
@@ -241,8 +241,9 @@ export function BackupManager() {
         
         console.log('[BackupManager] Download completed successfully');
         toast({
-          title: 'Успешно',
+          title: '✅ Успешно',
           description: 'Бэкап успешно скачан',
+          duration: 3000,
         });
       } else {
         console.warn('[BackupManager] No backup ID found');
@@ -255,9 +256,10 @@ export function BackupManager() {
     } catch (error: any) {
       console.error('[BackupManager] Download error:', error);
       toast({
-        title: 'Ошибка',
+        title: '❌ Ошибка',
         description: error.message || 'Не удалось скачать бэкап',
-        variant: 'destructive'
+        variant: 'destructive',
+        duration: 5000,
       });
     }
   };
@@ -384,8 +386,8 @@ export function BackupManager() {
                             size="sm"
                             variant="outline"
                             onClick={() => downloadBackup(backup)}
-                            disabled={!backup.id || !isProduction}
-                            title={!backup.id || !isProduction ? 'Скачивание доступно только для бэкапов в БД' : 'Скачать бэкап'}
+                            disabled={!backup.id}
+                            title={!backup.id ? 'Скачивание доступно только для бэкапов в БД' : 'Скачать бэкап'}
                           >
                             <Download className="mr-2 h-4 w-4" />
                             Скачать
