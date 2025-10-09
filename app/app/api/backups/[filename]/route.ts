@@ -1,7 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { verifyAuth } from '@/lib/auth-helpers';
 import { getBackupPath, deleteBackup } from '@/lib/backup-service';
 import { prisma } from '@/lib/db';
 import * as fs from 'fs';
@@ -11,8 +10,9 @@ export async function GET(
   { params }: { params: { filename: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Проверка аутентификации
+    const auth = await verifyAuth(req);
+    if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -68,8 +68,9 @@ export async function DELETE(
   { params }: { params: { filename: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
+    // Проверка аутентификации
+    const auth = await verifyAuth(req);
+    if (!auth.authenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

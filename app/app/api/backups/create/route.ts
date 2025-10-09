@@ -1,9 +1,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { verifyAuth } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
   try {
+    // Проверка аутентификации
+    const auth = await verifyAuth(request);
+    if (!auth.authenticated) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    
     const body = await request.json().catch(() => ({}));
     const backupType = body.type || 'data-only';
     

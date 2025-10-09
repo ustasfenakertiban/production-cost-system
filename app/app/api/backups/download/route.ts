@@ -1,55 +1,25 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { jwtVerify } from 'jose';
+import { verifyAuth } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
     console.log('[Backup Download] Request received');
-    console.log('[Backup Download] Headers:', Object.fromEntries(request.headers.entries()));
-    console.log('[Backup Download] Cookies:', request.cookies.getAll());
     
-    // Проверка аутентификации - пробуем два способа
-    let isAuthenticated = false;
-    
-    // Способ 1: через NextAuth session
-    const session = await getServerSession(authOptions);
-    console.log('[Backup Download] Session:', session ? { user: session.user?.email } : null);
-    
-    if (session) {
-      isAuthenticated = true;
-    } else {
-      // Способ 2: проверяем JWT токен напрямую из cookie
-      const sessionToken = request.cookies.get('next-auth.session-token')?.value || 
-                          request.cookies.get('__Secure-next-auth.session-token')?.value;
-      
-      console.log('[Backup Download] Session token from cookie:', sessionToken ? 'exists' : 'missing');
-      
-      if (sessionToken) {
-        try {
-          const secret = new TextEncoder().encode(
-            process.env.NEXTAUTH_SECRET || 'fallback-secret-key-for-development'
-          );
-          await jwtVerify(sessionToken, secret);
-          isAuthenticated = true;
-          console.log('[Backup Download] Token verified successfully');
-        } catch (error) {
-          console.error('[Backup Download] Token verification failed:', error);
-        }
-      }
-    }
-    
-    if (!isAuthenticated) {
-      console.log('[Backup Download] Unauthorized - no valid session or token');
+    // Проверка аутентификации
+    const auth = await verifyAuth(request);
+    if (!auth.authenticated) {
+      console.log('[Backup Download] Unauthorized:', auth.error);
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+    
+    console.log('[Backup Download] Authenticated user:', auth.user?.email);
     
     const searchParams = request.nextUrl.searchParams;
     const backupId = searchParams.get('id');
