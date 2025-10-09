@@ -198,7 +198,7 @@ export default function HomePage() {
             </CardHeader>
             <CardContent className="text-center">
               <Button asChild className="w-full">
-                <Link href="/backup">
+                <Link href="/backups">
                   Управлять бэкапами
                 </Link>
               </Button>
