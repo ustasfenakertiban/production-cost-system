@@ -88,5 +88,5 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  debug: false, // Debug отключен (включите при необходимости отладки)
+  debug: false, // Debug отключен
 };
