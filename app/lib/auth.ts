@@ -17,25 +17,35 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.log('[Auth] Missing credentials');
           return null;
         }
+
+        console.log('[Auth] Attempting login for:', credentials.email);
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         });
 
         if (!user || !user.password) {
+          console.log('[Auth] User not found or no password set');
           return null;
         }
+
+        console.log('[Auth] User found, checking password');
 
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         );
 
+        console.log('[Auth] Password valid:', isPasswordValid);
+
         if (!isPasswordValid) {
           return null;
         }
+
+        console.log('[Auth] Login successful for:', user.email);
 
         return {
           id: user.id,
@@ -88,5 +98,5 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  debug: false, // Debug отключен
+  debug: true, // Debug включен для отладки
 };
