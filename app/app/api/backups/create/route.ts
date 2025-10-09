@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      const backup = await createPrismaBackup();
+      const backup = await createPrismaBackup(backupType);
       
       // Формируем уникальное имя файла бэкапа с полным timestamp
       const now = new Date();
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function createPrismaBackup() {
+async function createPrismaBackup(backupType: string = 'data-only') {
   try {
     // Экспортируем все данные через Prisma
     const [
@@ -202,7 +202,7 @@ async function createPrismaBackup() {
       prisma.orderItem.findMany().catch(() => [])
     ]);
     
-    return {
+    const backupData: any = {
       products,
       productionProcesses,
       operationChains,
@@ -222,8 +222,33 @@ async function createPrismaBackup() {
       orders,
       orderItems,
       exportedAt: new Date().toISOString(),
-      version: '1.0'
+      version: '1.0',
+      backupType
     };
+
+    // Если это полный бэкап, добавляем схему базы данных
+    if (backupType === 'full') {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma');
+        
+        if (fs.existsSync(schemaPath)) {
+          const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+          backupData.schema = schemaContent;
+          backupData.schemaIncluded = true;
+        } else {
+          backupData.schemaIncluded = false;
+          backupData.schemaNote = 'Schema file not found';
+        }
+      } catch (schemaError: any) {
+        console.error('Error reading schema file:', schemaError);
+        backupData.schemaIncluded = false;
+        backupData.schemaError = schemaError.message;
+      }
+    }
+    
+    return backupData;
   } catch (error: any) {
     console.error('Error creating Prisma backup:', error);
     throw new Error(`Failed to create backup: ${error.message}`);

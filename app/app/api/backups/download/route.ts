@@ -8,9 +8,12 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('[Backup Download] Request received');
+    
     // Проверка аутентификации
     const session = await getServerSession(authOptions);
     if (!session) {
+      console.log('[Backup Download] Unauthorized - no session');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -20,7 +23,10 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const backupId = searchParams.get('id');
     
+    console.log('[Backup Download] Backup ID:', backupId);
+    
     if (!backupId) {
+      console.log('[Backup Download] No backup ID provided');
       return NextResponse.json(
         { error: 'ID бэкапа не указан' },
         { status: 400 }
@@ -32,7 +38,15 @@ export async function GET(request: NextRequest) {
       where: { id: backupId }
     });
     
+    console.log('[Backup Download] Backup found:', backup ? {
+      id: backup.id,
+      filename: backup.filename,
+      size: backup.size,
+      type: backup.type
+    } : null);
+    
     if (!backup) {
+      console.log('[Backup Download] Backup not found');
       return NextResponse.json(
         { error: 'Бэкап не найден' },
         { status: 404 }
@@ -41,6 +55,8 @@ export async function GET(request: NextRequest) {
     
     // Формируем JSON для скачивания
     const backupData = JSON.stringify(backup.data, null, 2);
+    
+    console.log('[Backup Download] Sending backup, size:', backupData.length);
     
     // Возвращаем файл для скачивания
     return new NextResponse(backupData, {
@@ -52,7 +68,7 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error: any) {
-    console.error('Download backup error:', error);
+    console.error('[Backup Download] Error:', error);
     return NextResponse.json(
       { error: 'Ошибка при скачивании бэкапа', details: error.message },
       { status: 500 }
