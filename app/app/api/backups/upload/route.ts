@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth-helpers';
 import { prisma } from '@/lib/db';
 import { ensureBackupDir } from '@/lib/backup-utils';
+import { detectBackupTypeFromContent } from '@/lib/schema-utils';
 import fs from 'fs';
 import path from 'path';
 
@@ -55,20 +56,21 @@ export async function POST(req: NextRequest) {
 
     const stats = fs.statSync(filePath);
 
-    // Определяем тип бэкапа
-    let type = 'data-only';
-    if (filename.includes('_full_')) {
-      type = 'full';
-    } else if (filename.includes('_data-only_')) {
-      type = 'data-only';
-    }
+    // Определяем тип бэкапа по содержимому файла
+    const typeInfo = detectBackupTypeFromContent(filePath);
+    
+    console.log('[Upload] Detected backup type:', {
+      type: typeInfo.type,
+      confidence: typeInfo.confidence,
+      indicators: typeInfo.indicators
+    });
 
     // Сохраняем метаданные в БД
     const backup = await prisma.backup.create({
       data: {
         filename,
         filePath,
-        type,
+        type: typeInfo.type,
         size: stats.size,
         schemaHash: null
       }
@@ -77,7 +79,9 @@ export async function POST(req: NextRequest) {
     console.log('[Upload] Backup uploaded:', {
       id: backup.id,
       filename: backup.filename,
-      size: backup.size
+      type: backup.type,
+      size: backup.size,
+      confidence: typeInfo.confidence
     });
 
     return NextResponse.json({
@@ -89,6 +93,10 @@ export async function POST(req: NextRequest) {
         type: backup.type,
         size: backup.size,
         created: backup.createdAt
+      },
+      typeDetection: {
+        confidence: typeInfo.confidence,
+        indicators: typeInfo.indicators
       }
     });
   } catch (error: any) {

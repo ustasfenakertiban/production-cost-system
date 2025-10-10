@@ -2,6 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { prisma } from './db';
+import { detectBackupTypeFromContent } from './schema-utils';
 
 const BACKUP_DIR = path.join(process.cwd(), '..', 'backups');
 
@@ -89,20 +90,21 @@ export async function syncBackupsFromDisk(): Promise<{
         continue;
       }
 
-      // Определяем тип бэкапа из имени файла
-      let type = 'data-only';
-      if (filename.includes('_full_')) {
-        type = 'full';
-      } else if (filename.includes('_data-only_')) {
-        type = 'data-only';
-      }
+      // Определяем тип бэкапа по содержимому файла
+      const typeInfo = detectBackupTypeFromContent(filePath);
+      
+      console.log(`[Sync] Detected type for ${filename}:`, {
+        type: typeInfo.type,
+        confidence: typeInfo.confidence,
+        indicators: typeInfo.indicators
+      });
 
       // Добавляем запись в БД
       await prisma.backup.create({
         data: {
           filename,
           filePath,
-          type,
+          type: typeInfo.type,
           size: stats.size,
           schemaHash: null, // Для старых бэкапов не знаем хэш схемы
           createdAt: stats.birthtime || stats.mtime
@@ -110,7 +112,7 @@ export async function syncBackupsFromDisk(): Promise<{
       });
 
       added++;
-      console.log(`[Sync] Added to DB: ${filename}`);
+      console.log(`[Sync] Added to DB: ${filename} (type: ${typeInfo.type}, confidence: ${typeInfo.confidence})`);
     } catch (error) {
       errors++;
       console.error(`[Sync] Error processing ${filename}:`, error);
