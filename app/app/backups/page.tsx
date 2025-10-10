@@ -65,6 +65,7 @@ export default function BackupsPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [backupType, setBackupType] = useState<'data-only' | 'full'>('data-only');
+  const [uploading, setUploading] = useState(false);
 
   const loadBackups = async () => {
     try {
