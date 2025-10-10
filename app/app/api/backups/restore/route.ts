@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth-helpers';
 import { prisma } from '@/lib/db';
 import { checkSchemaCompatibility, getCurrentSchemaInfo } from '@/lib/schema-utils';
+import { readBackupFromFile, saveBackupToFile } from '@/lib/backup-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,29 +43,21 @@ export async function POST(req: NextRequest) {
     // Создаем бэкап текущего состояния перед восстановлением
     try {
       const currentSchemaInfo = await getCurrentSchemaInfo();
-      const currentData = await createBackupData();
+      const currentData = await createBackupData('data-only');
       
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const autoBackupFilename = `backup_before_restore_${timestamp}.json`;
+      await saveBackupToFile(currentData, 'data-only');
       
-      await prisma.backup.create({
-        data: {
-          data: currentData as any,
-          type: 'data-only',
-          filename: autoBackupFilename,
-          size: JSON.stringify(currentData).length,
-          schemaHash: currentSchemaInfo.hash
-        }
-      });
-      
-      console.log('[Restore] Auto-backup created:', autoBackupFilename);
+      console.log('[Restore] Auto-backup created before restore');
     } catch (autoBackupError) {
       console.error('[Restore] Failed to create auto-backup:', autoBackupError);
       // Продолжаем восстановление даже если не удалось создать авто-бэкап
     }
 
+    // Читаем данные бэкапа из файла
+    const backupData = readBackupFromFile(backup.filePath);
+
     // Восстанавливаем данные
-    await restoreBackupData(backup.data);
+    await restoreBackupData(backupData);
 
     return NextResponse.json({ 
       success: true, 
@@ -78,7 +71,7 @@ export async function POST(req: NextRequest) {
 }
 
 // Функция для создания данных бэкапа
-async function createBackupData() {
+async function createBackupData(backupType: 'data-only' | 'full') {
   const [
     products,
     productionProcesses,
@@ -139,13 +132,14 @@ async function createBackupData() {
     orders,
     orderItems,
     exportedAt: new Date().toISOString(),
-    version: '1.0'
+    version: '1.0',
+    backupType
   };
 }
 
 // Функция для восстановления данных из бэкапа
 async function restoreBackupData(backupData: any) {
-  // Удаляем текущие данные (кроме пользователей)
+  // Удаляем текущие данные (кроме пользователей и бэкапов)
   await prisma.orderItem.deleteMany({});
   await prisma.order.deleteMany({});
   await prisma.operationTemplateRole.deleteMany({});

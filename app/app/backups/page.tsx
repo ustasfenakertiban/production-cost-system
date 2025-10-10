@@ -27,7 +27,9 @@ import {
   Database,
   Clock,
   HardDrive,
-  ArrowLeft
+  ArrowLeft,
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -66,6 +68,7 @@ export default function BackupsPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [backupType, setBackupType] = useState<'data-only' | 'full'>('data-only');
   const [uploading, setUploading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const loadBackups = async () => {
     try {
@@ -101,6 +104,63 @@ export default function BackupsPage() {
   useEffect(() => {
     loadBackups();
   }, []);
+
+  const handleUploadBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/backups/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(data.message || 'Бэкап успешно загружен');
+        loadBackups();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Ошибка загрузки бэкапа');
+      }
+    } catch (error) {
+      console.error('Error uploading backup:', error);
+      toast.error('Ошибка загрузки бэкапа');
+    } finally {
+      setUploading(false);
+      // Сбрасываем input для возможности загрузить тот же файл снова
+      event.target.value = '';
+    }
+  };
+
+  const handleSyncBackups = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch('/api/backups/sync', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(data.message);
+        loadBackups();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Ошибка синхронизации');
+      }
+    } catch (error) {
+      console.error('Error syncing backups:', error);
+      toast.error('Ошибка синхронизации');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleCreateBackup = async () => {
     setCreating(true);
@@ -406,21 +466,54 @@ export default function BackupsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Создание бэкапа
+            Управление бэкапами
           </CardTitle>
           <CardDescription>
-            Создайте резервную копию всех данных системы
+            Создайте, загрузите или синхронизируйте резервные копии
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button 
-            onClick={() => setShowCreateDialog(true)} 
-            disabled={creating}
-            size="lg"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            {creating ? 'Создание...' : 'Создать новый бэкап'}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button 
+              onClick={() => setShowCreateDialog(true)} 
+              disabled={creating}
+              size="lg"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {creating ? 'Создание...' : 'Создать новый бэкап'}
+            </Button>
+
+            <Button 
+              variant="outline" 
+              size="lg"
+              disabled={uploading}
+              onClick={() => document.getElementById('backup-file-input')?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {uploading ? 'Загрузка...' : 'Загрузить файл бэкапа'}
+            </Button>
+            <input
+              id="backup-file-input"
+              type="file"
+              accept=".json,.sql"
+              style={{ display: 'none' }}
+              onChange={handleUploadBackup}
+            />
+
+            <Button 
+              variant="outline" 
+              size="lg"
+              disabled={syncing}
+              onClick={handleSyncBackups}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Синхронизация...' : 'Синхронизировать с диском'}
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground mt-4">
+            💡 <strong>Совет:</strong> Используйте "Синхронизировать с диском" для добавления файлов бэкапов, 
+            которые были созданы вручную или скопированы в папку backups
+          </p>
         </CardContent>
       </Card>
 

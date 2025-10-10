@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth-helpers';
+import fs from 'fs';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Получаем бэкап из базы данных
+    // Получаем метаданные бэкапа из базы данных
     const backup = await prisma.backup.findUnique({
       where: { id: backupId }
     });
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
     console.log('[Backup Download] Backup found:', backup ? {
       id: backup.id,
       filename: backup.filename,
+      filePath: backup.filePath,
       size: backup.size,
       type: backup.type
     } : null);
@@ -54,18 +56,27 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Формируем JSON для скачивания
-    const backupData = JSON.stringify(backup.data, null, 2);
+    // Проверяем существование файла
+    if (!fs.existsSync(backup.filePath)) {
+      console.log('[Backup Download] File not found:', backup.filePath);
+      return NextResponse.json(
+        { error: 'Файл бэкапа не найден на диске' },
+        { status: 404 }
+      );
+    }
     
-    console.log('[Backup Download] Sending backup, size:', backupData.length);
+    // Читаем файл
+    const fileContent = fs.readFileSync(backup.filePath);
+    
+    console.log('[Backup Download] Sending backup, size:', fileContent.length);
     
     // Возвращаем файл для скачивания
-    return new NextResponse(backupData, {
+    return new NextResponse(fileContent, {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="${backup.filename || `backup_${backup.createdAt.toISOString()}.json`}"`,
-        'Content-Length': backupData.length.toString()
+        'Content-Disposition': `attachment; filename="${backup.filename}"`,
+        'Content-Length': fileContent.length.toString()
       }
     });
   } catch (error: any) {

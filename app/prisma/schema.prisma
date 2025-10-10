@@ -388,10 +388,10 @@ model OperationTemplateRole {
 
 model Backup {
   id         String   @id @default(cuid())
-  data       Json
-  type       String   @default("data-only")
-  filename   String?
-  size       Int?
+  filename   String   // Имя файла бэкапа
+  filePath   String   // Путь к файлу на диске
+  type       String   @default("data-only") // data-only или full
+  size       Int      // Размер файла в байтах
   schemaHash String?  // Хэш схемы базы данных для проверки совместимости
   createdAt  DateTime @default(now())
 
