@@ -19,6 +19,8 @@ export async function GET() {
     if (isProduction || hasDatabase) {
       // Читаем бэкапы из БД
       try {
+        console.log('[Backup List] Querying database for backups...');
+        
         const dbBackups = await prisma.backup.findMany({
           orderBy: { createdAt: 'desc' },
           select: {
@@ -26,11 +28,19 @@ export async function GET() {
             type: true,
             filename: true,
             size: true,
-            createdAt: true
+            createdAt: true,
+            schemaHash: true
           }
         });
         
         console.log('[Backup List] Found backups in DB:', dbBackups.length);
+        if (dbBackups.length > 0) {
+          console.log('[Backup List] First backup:', {
+            id: dbBackups[0].id,
+            filename: dbBackups[0].filename,
+            created: dbBackups[0].createdAt
+          });
+        }
         
         const backups = dbBackups.map(b => ({
           id: b.id,
@@ -43,7 +53,8 @@ export async function GET() {
         
         return NextResponse.json({ backups, isProduction: true });
       } catch (dbError: any) {
-        console.error('Database backup list error:', dbError);
+        console.error('[Backup List] Database backup list error:', dbError);
+        console.error('[Backup List] Error stack:', dbError.stack);
         return NextResponse.json({ backups: [], isProduction: true, error: dbError.message });
       }
     } else {

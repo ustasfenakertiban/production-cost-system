@@ -48,6 +48,18 @@ export async function POST(request: NextRequest) {
       size: savedBackup.size
     });
     
+    // Проверяем, что бэкап действительно сохранился
+    const verifyBackup = await prisma.backup.findUnique({
+      where: { id: savedBackup.id }
+    });
+    
+    if (!verifyBackup) {
+      console.error('[Backup Create] WARNING: Backup not found after creation!');
+      throw new Error('Backup was not saved to database');
+    }
+    
+    console.log('[Backup Create] Backup verified in DB');
+    
     // Удаляем старые бэкапы, оставляя последние 10
     const allBackups = await prisma.backup.findMany({
       orderBy: { createdAt: 'desc' },
