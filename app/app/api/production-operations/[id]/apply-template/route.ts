@@ -36,7 +36,11 @@ export async function POST(
         estimatedProductivityPerHour: template.estimatedProductivityPerHour,
         estimatedProductivityPerHourVariance: template.estimatedProductivityPerHourVariance,
         cycleHours: template.cycleHours,
+        operationDuration: template.operationDuration,
         minimumBatchSize: template.minimumBatchSize,
+        cycleName: template.cycleName,
+        cyclesPerHour: template.cyclesPerHour,
+        itemsPerCycle: template.itemsPerCycle,
         // Удаляем старые материалы, оборудование и роли
         operationMaterials: {
           deleteMany: {},

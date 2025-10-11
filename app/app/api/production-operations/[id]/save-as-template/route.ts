@@ -48,7 +48,11 @@ export async function POST(
         estimatedProductivityPerHour: operation.estimatedProductivityPerHour,
         estimatedProductivityPerHourVariance: operation.estimatedProductivityPerHourVariance,
         cycleHours: operation.cycleHours,
+        operationDuration: operation.operationDuration,
         minimumBatchSize: operation.minimumBatchSize,
+        cycleName: operation.cycleName,
+        cyclesPerHour: operation.cyclesPerHour,
+        itemsPerCycle: operation.itemsPerCycle,
         materials: {
           create: operation.operationMaterials.map((m) => ({
             materialId: m.materialId,
