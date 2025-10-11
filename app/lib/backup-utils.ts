@@ -4,7 +4,8 @@ import path from 'path';
 import { prisma } from './db';
 import { detectBackupTypeFromContent } from './schema-utils';
 
-const BACKUP_DIR = path.join(process.cwd(), '..', 'backups');
+// Всегда используем постоянную папку, не зависимо от окружения
+const BACKUP_DIR = process.env.BACKUP_DIR || '/home/ubuntu/production_cost_system/backups';
 
 // Убеждаемся, что папка для бэкапов существует
 export function ensureBackupDir() {
