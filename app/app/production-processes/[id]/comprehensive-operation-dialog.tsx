@@ -11,11 +11,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Wrench, Users, Plus, Edit, Trash2, X } from "lucide-react";
+import { Package, Wrench, Users, Plus, Edit, Trash2, X, Save, FileUp, FileDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { OperationMaterialDialog } from "@/app/operations/[id]/operation-material-dialog";
 import { OperationEquipmentDialog } from "@/app/operations/[id]/operation-equipment-dialog";
 import { OperationRoleDialog } from "@/app/operations/[id]/operation-role-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Operation {
   id: string;
@@ -144,6 +151,14 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
   const [editingEquipment, setEditingEquipment] = useState<OperationEquipment | null>(null);
   const [editingRole, setEditingRole] = useState<OperationRole | null>(null);
 
+  // Шаблоны
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -209,7 +224,7 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
     }
   };
 
-  const handleSaveOperation = async () => {
+  const handleSaveOperation = async (closeAfterSave = true) => {
     if (!formData.name.trim()) {
       toast({
         title: "Ошибка",
@@ -254,9 +269,15 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
       if (response.ok) {
         toast({
           title: "Успешно",
-          description: isCreating ? "Операция создана" : "Операция обновлена",
+          description: isCreating ? "Операция создана" : "Операция сохранена",
         });
-        onClose();
+        
+        if (closeAfterSave) {
+          onClose();
+        } else {
+          // Перезагружаем данные операции после сохранения
+          await loadOperationData();
+        }
       } else {
         throw new Error('Ошибка сохранения');
       }
@@ -269,6 +290,115 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const loadTemplates = async () => {
+    try {
+      const response = await fetch('/api/operation-templates');
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки шаблонов:', error);
+    }
+  };
+
+  const handleSaveAsTemplate = async () => {
+    if (!operationId) {
+      toast({
+        title: "Ошибка",
+        description: "Сначала сохраните операцию",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!templateName.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Введите название шаблона",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/production-operations/${operationId}/save-as-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: templateName,
+          description: templateDescription,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Успешно",
+          description: "Шаблон сохранен",
+        });
+        setShowSaveTemplateDialog(false);
+        setTemplateName("");
+        setTemplateDescription("");
+      } else {
+        throw new Error('Ошибка сохранения шаблона');
+      }
+    } catch (error) {
+      console.error('Ошибка сохранения шаблона:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось сохранить шаблон",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleApplyTemplate = async () => {
+    if (!selectedTemplateId) {
+      toast({
+        title: "Ошибка",
+        description: "Выберите шаблон",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!operationId) {
+      toast({
+        title: "Ошибка",
+        description: "Сначала создайте операцию",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/production-operations/${operationId}/apply-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: selectedTemplateId }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Успешно",
+          description: "Шаблон применен",
+        });
+        setShowTemplateDialog(false);
+        setSelectedTemplateId("");
+        await loadOperationData();
+      } else {
+        throw new Error('Ошибка применения шаблона');
+      }
+    } catch (error) {
+      console.error('Ошибка применения шаблона:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось применить шаблон",
+        variant: "destructive",
+      });
     }
   };
 
@@ -416,7 +546,50 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
       <Dialog open={open} onOpenChange={onClose}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{isCreating ? "Создание операции" : "Редактирование операции"}</DialogTitle>
+            <div className="flex items-center justify-between pr-6">
+              <DialogTitle>{isCreating ? "Создание операции" : "Редактирование операции"}</DialogTitle>
+              <div className="flex gap-2">
+                {/* Кнопка сохранения без закрытия */}
+                {!isCreating && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSaveOperation(false)}
+                    disabled={saving || !formData.name}
+                    title="Сохранить без закрытия"
+                  >
+                    <Save className="w-4 h-4" />
+                  </Button>
+                )}
+                
+                {/* Кнопки работы с шаблонами */}
+                {!isCreating && operationId && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        loadTemplates();
+                        setShowTemplateDialog(true);
+                      }}
+                      title="Загрузить из шаблона"
+                    >
+                      <FileUp className="w-4 h-4 mr-1" />
+                      Из шаблона
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowSaveTemplateDialog(true)}
+                      title="Сохранить как шаблон"
+                    >
+                      <FileDown className="w-4 h-4 mr-1" />
+                      В шаблон
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -932,7 +1105,7 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
               <Button variant="outline" onClick={onClose}>
                 Отмена
               </Button>
-              <Button onClick={handleSaveOperation} disabled={saving || !formData.name}>
+              <Button onClick={() => handleSaveOperation(true)} disabled={saving || !formData.name}>
                 {saving ? 'Сохранение...' : (isCreating ? 'Создать операцию' : 'Сохранить изменения')}
               </Button>
             </div>
@@ -984,6 +1157,90 @@ export function ComprehensiveOperationDialog({ operationId, chainId, chainType, 
       />
         </>
       )}
+
+      {/* Диалог применения шаблона */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Загрузить из шаблона</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Выберите шаблон</Label>
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите шаблон" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {templates.find(t => t.id === selectedTemplateId)?.description && (
+                <p className="text-sm text-gray-500 mt-2">
+                  {templates.find(t => t.id === selectedTemplateId)?.description}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setShowTemplateDialog(false);
+                setSelectedTemplateId("");
+              }}>
+                Отмена
+              </Button>
+              <Button onClick={handleApplyTemplate} disabled={!selectedTemplateId}>
+                Применить
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Диалог сохранения как шаблон */}
+      <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Сохранить как шаблон</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="template-name">Название шаблона *</Label>
+              <Input
+                id="template-name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Введите название шаблона"
+              />
+            </div>
+            <div>
+              <Label htmlFor="template-description">Описание</Label>
+              <Textarea
+                id="template-description"
+                value={templateDescription}
+                onChange={(e) => setTemplateDescription(e.target.value)}
+                placeholder="Описание шаблона (опционально)"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setShowSaveTemplateDialog(false);
+                setTemplateName("");
+                setTemplateDescription("");
+              }}>
+                Отмена
+              </Button>
+              <Button onClick={handleSaveAsTemplate} disabled={!templateName.trim()}>
+                Сохранить
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
