@@ -58,29 +58,58 @@ export async function getBackupDownloadUrlFromS3(s3Key: string): Promise<string>
 
 /**
  * Синхронизировать бэкапы из S3 с базой данных
+ * - Удаляет записи из БД, если файлов нет в S3
+ * - Добавляет записи в БД для файлов из S3, которых нет в БД
  */
 export async function syncBackupsFromS3(): Promise<{
   added: number;
   existing: number;
+  deleted: number;
   errors: number;
 }> {
   let added = 0;
   let existing = 0;
+  let deleted = 0;
   let errors = 0;
 
   try {
     console.log('[Sync] Fetching backups from S3...');
     const s3Backups = await listBackups();
-    
     console.log(`[Sync] Found ${s3Backups.length} backup files in S3`);
 
+    // Получаем все записи из БД
+    const dbBackups = await prisma.backup.findMany({
+      select: {
+        id: true,
+        filename: true,
+        filePath: true
+      }
+    });
+    console.log(`[Sync] Found ${dbBackups.length} backups in DB`);
+
+    const s3Keys = new Set(s3Backups.map(b => b.key));
+    
+    // Удаляем записи из БД, для которых нет файлов в S3
+    const toDelete = dbBackups.filter(b => !s3Keys.has(b.filePath));
+    
+    if (toDelete.length > 0) {
+      console.log(`[Sync] Deleting ${toDelete.length} orphaned records from DB`);
+      await prisma.backup.deleteMany({
+        where: {
+          id: { in: toDelete.map(b => b.id) }
+        }
+      });
+      deleted = toDelete.length;
+    }
+
+    // Добавляем записи в БД для файлов из S3
     for (const s3Backup of s3Backups) {
       try {
         const filename = s3Backup.key.split('/').pop() || s3Backup.key;
 
         // Проверяем, есть ли уже запись в БД
         const existingBackup = await prisma.backup.findFirst({
-          where: { filename }
+          where: { filePath: s3Backup.key }
         });
 
         if (existingBackup) {
@@ -96,7 +125,7 @@ export async function syncBackupsFromS3(): Promise<{
         await prisma.backup.create({
           data: {
             filename,
-            filePath: s3Backup.key, // Используем S3 key как путь
+            filePath: s3Backup.key,
             type,
             size: s3Backup.size,
             schemaHash: null,
@@ -112,11 +141,11 @@ export async function syncBackupsFromS3(): Promise<{
       }
     }
 
-    console.log(`[Sync] Summary: added=${added}, existing=${existing}, errors=${errors}`);
+    console.log(`[Sync] Summary: added=${added}, existing=${existing}, deleted=${deleted}, errors=${errors}`);
   } catch (error) {
     console.error('[Sync] Error fetching backups from S3:', error);
     throw error;
   }
 
-  return { added, existing, errors };
+  return { added, existing, deleted, errors };
 }

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Синхронизация завершена. Добавлено: ${result.added}, Существует: ${result.existing}, Ошибок: ${result.errors}`,
+      message: `Синхронизация завершена. Добавлено: ${result.added}, Удалено: ${result.deleted}, Существует: ${result.existing}, Ошибок: ${result.errors}`,
       ...result
     });
   } catch (error: any) {
