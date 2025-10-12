@@ -930,10 +930,30 @@ function processActiveOperations(
             // Can only process parts that have been transferred from previous operation
             const maxAvailable = prevOp.transferredQuantity - opState.completedQuantity;
             log.push(`     Доступно деталей от предыдущей операции: ${maxAvailable} шт. (передано: ${prevOp.transferredQuantity}, уже обработано: ${opState.completedQuantity})`);
-            const beforeLimit = producedThisCycle;
-            producedThisCycle = Math.min(producedThisCycle, maxAvailable);
-            if (producedThisCycle < beforeLimit) {
-              log.push(`     ⚠️  Производство ограничено доступностью деталей: ${beforeLimit} → ${producedThisCycle} шт.`);
+            
+            // КРИТИЧЕСКАЯ ПРОВЕРКА: если задана минимальная партия, проверяем накопление
+            if (operation.minimumBatchSize && operation.minimumBatchSize > 1) {
+              if (maxAvailable < operation.minimumBatchSize) {
+                log.push(`     ⏸️  Ожидание минимальной партии: доступно ${maxAvailable} шт., требуется минимум ${operation.minimumBatchSize} шт.`);
+                log.push(`     ⏰ Пропускаем этот цикл, ждем накопления еще ${operation.minimumBatchSize - maxAvailable} шт...`);
+                // Не производим ничего в этом цикле - ждем накопления
+                producedThisCycle = 0;
+              } else {
+                log.push(`     ✅ Минимальная партия накоплена: ${maxAvailable} >= ${operation.minimumBatchSize} шт.`);
+                // Ограничиваем производство доступным количеством
+                const beforeLimit = producedThisCycle;
+                producedThisCycle = Math.min(producedThisCycle, maxAvailable);
+                if (producedThisCycle < beforeLimit) {
+                  log.push(`     ⚠️  Производство ограничено доступностью деталей: ${beforeLimit} → ${producedThisCycle} шт.`);
+                }
+              }
+            } else {
+              // Нет требования минимальной партии - работаем с любым количеством
+              const beforeLimit = producedThisCycle;
+              producedThisCycle = Math.min(producedThisCycle, maxAvailable);
+              if (producedThisCycle < beforeLimit) {
+                log.push(`     ⚠️  Производство ограничено доступностью деталей: ${beforeLimit} → ${producedThisCycle} шт.`);
+              }
             }
           } else {
             // Previous operation completed - check in completed operations
@@ -957,6 +977,33 @@ function processActiveOperations(
       }
 
       opState.completedQuantity += producedThisCycle;
+      
+      // Если в этом цикле ничего не произведено (ожидание минимальной партии), освобождаем ресурсы
+      if (producedThisCycle === 0) {
+        log.push(`     🔓 Освобождение ресурсов (операция ожидает минимальную партию):`);
+        
+        // Освобождаем работников
+        opState.assignedWorkerIds.forEach(workerId => {
+          if (resources.busyWorkers.has(workerId)) {
+            resources.busyWorkers.delete(workerId);
+            log.push(`        ✅ Работник #${workerId} освобожден`);
+          }
+        });
+        
+        // Освобождаем оборудование
+        opState.assignedEquipmentIds.forEach(equipmentId => {
+          if (resources.busyEquipment.has(equipmentId)) {
+            const equipInfo = resources.busyEquipment.get(equipmentId);
+            resources.busyEquipment.delete(equipmentId);
+            log.push(`        ✅ Оборудование "${equipInfo?.equipmentName}" освобождено`);
+          }
+        });
+        
+        // Отмечаем операцию для удаления из активных, чтобы она могла стартовать заново, когда партия накопится
+        toRemove.push(index);
+        log.push(`     🔄 Операция временно приостановлена до накопления минимальной партии`);
+        return; // Пропускаем расчет затрат и продолжение операции
+      }
       
       // For PER_UNIT operations, mark parts for transfer at the start of next hour
       if (opState.chainType === "PER_UNIT") {
