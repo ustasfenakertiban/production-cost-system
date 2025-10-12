@@ -72,11 +72,19 @@ export default function BackupsPage() {
 
   const loadBackups = async () => {
     try {
-      const response = await fetch('/api/backups/list', {
-        credentials: 'include'
+      console.log('[Client] Loading backups list...');
+      // Добавляем параметр для предотвращения кэширования
+      const response = await fetch('/api/backups/list?' + new Date().getTime(), {
+        credentials: 'include',
+        cache: 'no-store' // Отключаем кэширование
       });
+      console.log('[Client] Backups list response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('[Client] Backups list data:', data);
+        console.log('[Client] Number of backups:', data.backups?.length || 0);
+        
         // Преобразуем данные из БД-формата в формат, ожидаемый компонентом
         const formattedBackups = (data.backups || []).map((backup: any) => ({
           id: backup.id,
@@ -89,12 +97,15 @@ export default function BackupsPage() {
             timestamp: backup.created
           }
         }));
+        
+        console.log('[Client] Formatted backups:', formattedBackups.length);
         setBackups(formattedBackups);
       } else {
+        console.error('[Client] Failed to load backups, status:', response.status);
         toast.error('Ошибка загрузки списка бэкапов');
       }
     } catch (error) {
-      console.error('Error loading backups:', error);
+      console.error('[Client] Error loading backups:', error);
       toast.error('Ошибка загрузки списка бэкапов');
     } finally {
       setLoading(false);
@@ -205,8 +216,16 @@ export default function BackupsPage() {
           window.URL.revokeObjectURL(url);
         }
         
+        // Небольшая задержка для надежности, затем обновляем список
+        console.log('[Client] Waiting 1 second before reloading list...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         console.log('[Client] Reloading backups list');
+        setLoading(true);
         await loadBackups();
+        
+        console.log('[Client] List reloaded successfully');
+        toast.success('Список обновлён', { id: 'backup-list-reload' });
       } else {
         const data = await response.json().catch(() => ({ error: 'Неизвестная ошибка' }));
         console.error('[Client] Error response:', data);
