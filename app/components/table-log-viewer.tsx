@@ -39,6 +39,7 @@ interface OperationProduction {
   operationName: string;
   productName: string;
   chainName: string;
+  operationOrder: number; // порядок операции в цепочке
   hourlyProduction: Map<number, number>; // absoluteHour -> quantity produced
   dailyProduction: Map<number, number>; // day -> total quantity produced
   hourlyDetails: Map<number, string[]>; // absoluteHour -> log details
@@ -60,8 +61,8 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     const lines = log.split("\n");
     const operationsMap = new Map<string, OperationProduction>();
     
-    // Храним активные операции: ключ -> стартовый час
-    const activeOperations = new Map<string, { startHour: number; details: string[] }>();
+    // Храним активные операции: ключ -> стартовый час, детали и порядок
+    const activeOperations = new Map<string, { startHour: number; details: string[]; operationOrder: number }>();
     
     let maxAbsoluteHour = 0;
     let currentAbsoluteHour = 0;
@@ -83,8 +84,9 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         const operationName = operationStartMatch[1];
         let product = "";
         let chain = "";
+        let operationOrder = 999; // Значение по умолчанию для сортировки в конец, если не найдено
         
-        // Ищем товар и цепочку в следующих строках
+        // Ищем товар, цепочку и порядок в следующих строках
         for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
           const nextLine = lines[j];
           
@@ -98,6 +100,11 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
             chain = chainMatch[1].trim();
           }
           
+          const orderMatch = nextLine.match(/^\s*Порядок:\s*(\d+)/i);
+          if (orderMatch) {
+            operationOrder = parseInt(orderMatch[1]);
+          }
+          
           // Если нашли и товар и цепочку, прекращаем поиск
           if (product && chain) break;
           
@@ -107,7 +114,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         
         if (product && chain) {
           const key = `${product}|${chain}|${operationName}`;
-          activeOperations.set(key, { startHour: currentAbsoluteHour, details: [line.trim()] });
+          activeOperations.set(key, { startHour: currentAbsoluteHour, details: [line.trim()], operationOrder });
         }
         continue;
       }
@@ -150,12 +157,14 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           const key = `${product}|${chain}|${operationName}`;
           const startInfo = activeOperations.get(key);
           const startHour = startInfo ? startInfo.startHour : currentAbsoluteHour;
+          const operationOrder = startInfo ? startInfo.operationOrder : 999;
           
           if (!operationsMap.has(key)) {
             operationsMap.set(key, {
               operationName: operationName,
               productName: product,
               chainName: chain,
+              operationOrder: operationOrder,
               hourlyProduction: new Map(),
               dailyProduction: new Map(),
               hourlyDetails: new Map(),
@@ -259,8 +268,26 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     // Создаем массив только дней
     const daysOnly = Array.from(new Set(days.map(d => d.dayNum))).sort((a, b) => a - b);
 
+    // Сортируем операции по порядку выполнения (operationOrder)
+    const sortedOperations = Array.from(operationsMap.values()).sort((a, b) => {
+      // Сначала по порядку операции
+      if (a.operationOrder !== b.operationOrder) {
+        return a.operationOrder - b.operationOrder;
+      }
+      // Затем по названию цепочки
+      if (a.chainName !== b.chainName) {
+        return a.chainName.localeCompare(b.chainName);
+      }
+      // Затем по названию товара
+      if (a.productName !== b.productName) {
+        return a.productName.localeCompare(b.productName);
+      }
+      // Наконец, по названию операции
+      return a.operationName.localeCompare(b.operationName);
+    });
+
     return {
-      operations: Array.from(operationsMap.values()),
+      operations: sortedOperations,
       days,
       daysOnly,
       maxAbsoluteHour,
