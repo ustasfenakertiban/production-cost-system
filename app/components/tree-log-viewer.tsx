@@ -21,6 +21,7 @@ interface HourNode {
   absoluteHour: number;
   operations: OperationGroup[];
   generalEntries: LogEntry[];
+  waitingOperations?: OperationGroup; // Отдельный блок для ожидающих операций
 }
 
 interface DayNode {
@@ -36,6 +37,7 @@ export default function TreeLogViewer({ log }: TreeLogViewerProps) {
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
   const [expandedHours, setExpandedHours] = useState<Set<string>>(new Set(["1-1"]));
   const [expandedOperations, setExpandedOperations] = useState<Set<string>>(new Set());
+  const [expandedWaiting, setExpandedWaiting] = useState<Set<string>>(new Set()); // По умолчанию НЕ раскрыты
 
   const parsedLog = useMemo(() => {
     const lines = log.split("\n");
@@ -43,6 +45,7 @@ export default function TreeLogViewer({ log }: TreeLogViewerProps) {
     let currentDay: DayNode | null = null;
     let currentHour: HourNode | null = null;
     let currentOperation: OperationGroup | null = null;
+    let isInWaitingBlock = false; // Флаг, что мы внутри блока "Ожидающие операции"
 
     const classifyEntry = (line: string): LogEntry["type"] => {
       if (line.includes("⚠️") || line.includes("⏸️") || line.includes("Ожидание") || line.includes("невозможно") || line.includes("недостаточно")) {
@@ -85,6 +88,7 @@ export default function TreeLogViewer({ log }: TreeLogViewerProps) {
         days.push(currentDay);
         currentHour = null;
         currentOperation = null;
+        isInWaitingBlock = false;
         continue;
       }
 
@@ -96,12 +100,28 @@ export default function TreeLogViewer({ log }: TreeLogViewerProps) {
         currentHour = { hour: hourNum, absoluteHour: absHour, operations: [], generalEntries: [] };
         currentDay.hours.push(currentHour);
         currentOperation = null;
+        isInWaitingBlock = false;
         continue;
+      }
+
+      // Определяем блок "Ожидающие операции"
+      if (line.match(/⏸️\s*Ожидающие операции/i)) {
+        if (currentHour) {
+          isInWaitingBlock = true;
+          currentHour.waitingOperations = { operationName: "Ожидающие операции", entries: [] };
+          currentOperation = null;
+        }
+        continue;
+      }
+
+      // Если мы встретили новый "⏰ Час" или "📊 Выполняется операций", завершаем блок ожидающих
+      if (isInWaitingBlock && (line.match(/📊\s*Выполняется операций/i) || line.match(/👥\s*Работники/i))) {
+        isInWaitingBlock = false;
       }
 
       // Определяем операцию
       const operationMatch = line.match(/^[\s]*(?:🏃|▶️|⚠️|✓|❌)\s*(?:Операция|Operation)?\s*['"](.+?)['"]|^[\s]*(?:🏃|▶️|⚠️|✓|❌)\s*(.+?)(?:\s+\(|:|$)/i);
-      if (operationMatch && currentHour && !line.includes("Ожидающие операции") && !line.includes("Общая информация")) {
+      if (operationMatch && currentHour && !line.includes("Ожидающие операции") && !line.includes("Общая информация") && !isInWaitingBlock) {
         const opName = operationMatch[1] || operationMatch[2];
         if (opName && opName.length > 2) {
           // Проверяем, существует ли уже такая операция в текущем часе
@@ -117,7 +137,10 @@ export default function TreeLogViewer({ log }: TreeLogViewerProps) {
       if (line.trim()) {
         const entry = createEntry(line);
         
-        if (currentOperation && !line.match(/⏰\s*Час/)) {
+        if (isInWaitingBlock && currentHour?.waitingOperations) {
+          // Добавляем в блок ожидающих операций
+          currentHour.waitingOperations.entries.push(entry);
+        } else if (currentOperation && !line.match(/⏰\s*Час/)) {
           currentOperation.entries.push(entry);
         } else if (currentHour) {
           currentHour.generalEntries.push(entry);
@@ -165,6 +188,17 @@ export default function TreeLogViewer({ log }: TreeLogViewerProps) {
       newSet.add(key);
     }
     setExpandedOperations(newSet);
+  };
+
+  const toggleWaiting = (day: number, hour: number) => {
+    const key = `${day}-${hour}-waiting`;
+    const newSet = new Set(expandedWaiting);
+    if (newSet.has(key)) {
+      newSet.delete(key);
+    } else {
+      newSet.add(key);
+    }
+    setExpandedWaiting(newSet);
   };
 
   const getIconForType = (type: LogEntry["type"]) => {
@@ -335,6 +369,47 @@ export default function TreeLogViewer({ log }: TreeLogViewerProps) {
                               </div>
                             );
                           })}
+
+                          {/* Блок ожидающих операций */}
+                          {hour.waitingOperations && hour.waitingOperations.entries.length > 0 && (
+                            <div className="border-b last:border-b-0">
+                              <button
+                                onClick={() => toggleWaiting(day.day, hour.hour)}
+                                className="w-full flex items-center gap-2 p-2 pl-3 bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                              >
+                                {expandedWaiting.has(`${day.day}-${hour.hour}-waiting`) ? (
+                                  <ChevronDown className="w-3 h-3 flex-shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                                )}
+                                <AlertCircle className="w-3 h-3 flex-shrink-0 text-orange-600 dark:text-orange-400" />
+                                <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
+                                  {hour.waitingOperations.operationName}
+                                </span>
+                                <span className="text-xs text-muted-foreground ml-auto">
+                                  {hour.waitingOperations.entries.length} записей
+                                </span>
+                              </button>
+
+                              {expandedWaiting.has(`${day.day}-${hour.hour}-waiting`) && (
+                                <div className="ml-4 p-2 pl-3 space-y-1 bg-white dark:bg-slate-950">
+                                  {hour.waitingOperations.entries.map((entry, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 text-xs">
+                                      {getIconForType(entry.type)}
+                                      <span className={cn(
+                                        "flex-1",
+                                        entry.type === "warning" && "text-yellow-600 dark:text-yellow-400",
+                                        entry.type === "success" && "text-green-600 dark:text-green-400",
+                                        entry.type === "error" && "text-red-600 dark:text-red-400"
+                                      )}>
+                                        {entry.message}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

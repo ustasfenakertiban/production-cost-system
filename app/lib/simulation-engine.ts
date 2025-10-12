@@ -860,8 +860,13 @@ function processActiveOperations(
 
         // Calculate produced quantity
         const cycleHours = opState.operationDuration;
-        producedThisCycle = Math.floor(realProductivity * cycleHours);
-        log.push(`     🔢 Базовый расчет производства: ${realProductivity.toFixed(2)} шт/час × ${cycleHours.toFixed(2)} час = ${producedThisCycle} шт.`);
+        
+        // КРИТИЧЕСКИ ВАЖНО: для коротких циклов (менее часа) используем правильное округление
+        // Если производительность * время дает > 0.5, то должна быть хотя бы 1 деталь
+        const exactProduction = realProductivity * cycleHours;
+        producedThisCycle = exactProduction >= 0.5 ? Math.max(1, Math.floor(exactProduction)) : Math.floor(exactProduction);
+        
+        log.push(`     🔢 Базовый расчет производства: ${realProductivity.toFixed(2)} шт/час × ${cycleHours.toFixed(2)} час = ${exactProduction.toFixed(2)} → ${producedThisCycle} шт.`);
         log.push(`     📊 Первая в цепочке: ${opState.isFirstInChain ? 'Да' : 'Нет'}`);
         
         // For dependent operations in PER_UNIT chains, limit by available parts from previous operation
