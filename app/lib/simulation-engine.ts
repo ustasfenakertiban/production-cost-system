@@ -782,6 +782,7 @@ function processActiveOperations(
         // Для разовых операций выполняется весь тираж за один раз
         log.push(`     Режим: разовая операция (выполняется полностью за ${opState.operationDuration} час(ов))`);
         producedThisCycle = opState.totalQuantity - opState.completedQuantity;
+        log.push(`     🔢 Произведено в этом цикле: ${producedThisCycle} шт.`);
       } else {
         // Для поточных операций считаем производительность
         // Base productivity with variance (если указана)
@@ -860,6 +861,8 @@ function processActiveOperations(
         // Calculate produced quantity
         const cycleHours = opState.operationDuration;
         producedThisCycle = Math.floor(realProductivity * cycleHours);
+        log.push(`     🔢 Базовый расчет производства: ${realProductivity.toFixed(2)} шт/час × ${cycleHours.toFixed(2)} час = ${producedThisCycle} шт.`);
+        log.push(`     📊 Первая в цепочке: ${opState.isFirstInChain ? 'Да' : 'Нет'}`);
         
         // For dependent operations in PER_UNIT chains, limit by available parts from previous operation
         if (opState.chainType === "PER_UNIT" && !opState.isFirstInChain && opState.previousOperationId) {
@@ -871,15 +874,29 @@ function processActiveOperations(
             // Can only process parts that have been transferred from previous operation
             const maxAvailable = prevOp.transferredQuantity - opState.completedQuantity;
             log.push(`     Доступно деталей от предыдущей операции: ${maxAvailable} шт. (передано: ${prevOp.transferredQuantity}, уже обработано: ${opState.completedQuantity})`);
+            const beforeLimit = producedThisCycle;
             producedThisCycle = Math.min(producedThisCycle, maxAvailable);
+            if (producedThisCycle < beforeLimit) {
+              log.push(`     ⚠️  Производство ограничено доступностью деталей: ${beforeLimit} → ${producedThisCycle} шт.`);
+            }
           } else {
             // Previous operation completed - check in completed operations
             const maxAvailable = opState.totalQuantity - opState.completedQuantity;
+            const beforeLimit = producedThisCycle;
             producedThisCycle = Math.min(producedThisCycle, maxAvailable);
+            if (producedThisCycle < beforeLimit) {
+              log.push(`     ⚠️  Производство ограничено оставшимся количеством: ${beforeLimit} → ${producedThisCycle} шт.`);
+            }
           }
         } else {
+          // First operation or not dependent on previous
           const remaining = opState.totalQuantity - opState.completedQuantity;
+          const beforeLimit = producedThisCycle;
           producedThisCycle = Math.min(producedThisCycle, remaining);
+          if (producedThisCycle < beforeLimit) {
+            log.push(`     ⚠️  Производство ограничено оставшимся количеством: ${beforeLimit} → ${producedThisCycle} шт.`);
+          }
+          log.push(`     ✅ Итого будет произведено: ${producedThisCycle} шт. (осталось: ${remaining} шт.)`);
         }
       }
 
