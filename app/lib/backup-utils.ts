@@ -1,166 +1,122 @@
 
-import fs from 'fs';
-import path from 'path';
 import { prisma } from './db';
-import { detectBackupTypeFromContent } from './schema-utils';
+import { uploadBackup, downloadBackup, deleteBackup, listBackups, getBackupDownloadUrl } from './s3';
 
-// Определяем директорию для бэкапов
-// В продакшене используем /tmp/backups (доступно в контейнере)
-// В разработке используем локальную папку
-function getDefaultBackupDir() {
-  if (process.env.NODE_ENV === 'production' && !process.env.BACKUP_DIR) {
-    return '/tmp/backups';
-  }
-  return process.env.BACKUP_DIR || path.join(process.cwd(), 'backups');
-}
-
-const BACKUP_DIR = getDefaultBackupDir();
-
-// Убеждаемся, что папка для бэкапов существует
-export function ensureBackupDir() {
-  try {
-    console.log('[ensureBackupDir] Checking backup directory:', BACKUP_DIR);
-    console.log('[ensureBackupDir] Environment:', {
-      nodeEnv: process.env.NODE_ENV,
-      cwd: process.cwd(),
-      backupDir: BACKUP_DIR
-    });
-    
-    if (!fs.existsSync(BACKUP_DIR)) {
-      console.log('[ensureBackupDir] Directory does not exist, creating...');
-      fs.mkdirSync(BACKUP_DIR, { recursive: true });
-      console.log('[ensureBackupDir] Directory created successfully');
-    } else {
-      console.log('[ensureBackupDir] Directory already exists');
-    }
-    
-    // Проверим права доступа
-    fs.accessSync(BACKUP_DIR, fs.constants.W_OK);
-    console.log('[ensureBackupDir] Directory is writable');
-    
-    return BACKUP_DIR;
-  } catch (error: any) {
-    console.error('[ensureBackupDir] Error:', {
-      message: error.message,
-      code: error.code,
-      path: error.path,
-      stack: error.stack
-    });
-    throw new Error(`Cannot access backup directory: ${error.message}`);
-  }
-}
-
-// Сохранить бэкап в файл
-export async function saveBackupToFile(data: any, type: 'data-only' | 'full'): Promise<{
+/**
+ * Сохранить бэкап в S3
+ */
+export async function saveBackupToS3(data: any, type: 'data-only' | 'full'): Promise<{
   filename: string;
-  filePath: string;
+  s3Key: string;
   size: number;
 }> {
-  const backupDir = ensureBackupDir();
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const filename = `backup_${type}_${timestamp}.json`;
-  const filePath = path.join(backupDir, filename);
 
   const jsonData = JSON.stringify(data, null, 2);
-  fs.writeFileSync(filePath, jsonData, 'utf-8');
+  const buffer = Buffer.from(jsonData, 'utf-8');
 
-  const stats = fs.statSync(filePath);
+  console.log(`[Backup] Uploading to S3: ${filename}, size: ${buffer.length} bytes`);
 
-  console.log(`[Backup] Saved to file: ${filePath}, size: ${stats.size} bytes`);
+  const result = await uploadBackup(buffer, filename);
+
+  console.log(`[Backup] Uploaded to S3: ${result.key}`);
 
   return {
     filename,
-    filePath,
-    size: stats.size
+    s3Key: result.key,
+    size: result.size
   };
 }
 
-// Прочитать бэкап из файла
-export function readBackupFromFile(filePath: string): any {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Backup file not found: ${filePath}`);
-  }
-
-  const data = fs.readFileSync(filePath, 'utf-8');
+/**
+ * Прочитать бэкап из S3
+ */
+export async function readBackupFromS3(s3Key: string): Promise<any> {
+  console.log(`[Backup] Downloading from S3: ${s3Key}`);
+  
+  const buffer = await downloadBackup(s3Key);
+  const data = buffer.toString('utf-8');
+  
   return JSON.parse(data);
 }
 
-// Удалить файл бэкапа
-export function deleteBackupFile(filePath: string): void {
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-    console.log(`[Backup] Deleted file: ${filePath}`);
-  }
+/**
+ * Удалить бэкап из S3
+ */
+export async function deleteBackupFromS3(s3Key: string): Promise<void> {
+  console.log(`[Backup] Deleting from S3: ${s3Key}`);
+  await deleteBackup(s3Key);
 }
 
-// Синхронизировать файлы из папки backups с базой данных
-export async function syncBackupsFromDisk(): Promise<{
+/**
+ * Получить URL для скачивания бэкапа
+ */
+export async function getBackupDownloadUrlFromS3(s3Key: string): Promise<string> {
+  return await getBackupDownloadUrl(s3Key);
+}
+
+/**
+ * Синхронизировать бэкапы из S3 с базой данных
+ */
+export async function syncBackupsFromS3(): Promise<{
   added: number;
   existing: number;
   errors: number;
 }> {
-  const backupDir = ensureBackupDir();
-  const files = fs.readdirSync(backupDir);
-  
-  const backupFiles = files.filter(f => f.endsWith('.json') || f.endsWith('.sql'));
-  
   let added = 0;
   let existing = 0;
   let errors = 0;
 
-  console.log(`[Sync] Found ${backupFiles.length} backup files in ${backupDir}`);
+  try {
+    console.log('[Sync] Fetching backups from S3...');
+    const s3Backups = await listBackups();
+    
+    console.log(`[Sync] Found ${s3Backups.length} backup files in S3`);
 
-  for (const filename of backupFiles) {
-    try {
-      const filePath = path.join(backupDir, filename);
-      const stats = fs.statSync(filePath);
+    for (const s3Backup of s3Backups) {
+      try {
+        const filename = s3Backup.key.split('/').pop() || s3Backup.key;
 
-      // Проверяем, есть ли уже запись в БД
-      const existingBackup = await prisma.backup.findFirst({
-        where: { filename }
-      });
+        // Проверяем, есть ли уже запись в БД
+        const existingBackup = await prisma.backup.findFirst({
+          where: { filename }
+        });
 
-      if (existingBackup) {
-        existing++;
-        console.log(`[Sync] Backup already in DB: ${filename}`);
-        continue;
-      }
-
-      // Определяем тип бэкапа по содержимому файла
-      const typeInfo = detectBackupTypeFromContent(filePath);
-      
-      console.log(`[Sync] Detected type for ${filename}:`, {
-        type: typeInfo.type,
-        confidence: typeInfo.confidence,
-        indicators: typeInfo.indicators
-      });
-
-      // Добавляем запись в БД
-      await prisma.backup.create({
-        data: {
-          filename,
-          filePath,
-          type: typeInfo.type,
-          size: stats.size,
-          schemaHash: null, // Для старых бэкапов не знаем хэш схемы
-          createdAt: stats.birthtime || stats.mtime
+        if (existingBackup) {
+          existing++;
+          console.log(`[Sync] Backup already in DB: ${filename}`);
+          continue;
         }
-      });
 
-      added++;
-      console.log(`[Sync] Added to DB: ${filename} (type: ${typeInfo.type}, confidence: ${typeInfo.confidence})`);
-    } catch (error) {
-      errors++;
-      console.error(`[Sync] Error processing ${filename}:`, error);
+        // Определяем тип бэкапа по имени файла
+        const type = filename.includes('_full_') ? 'full' : 'data-only';
+
+        // Добавляем запись в БД
+        await prisma.backup.create({
+          data: {
+            filename,
+            filePath: s3Backup.key, // Используем S3 key как путь
+            type,
+            size: s3Backup.size,
+            schemaHash: null,
+            createdAt: s3Backup.lastModified
+          }
+        });
+
+        added++;
+        console.log(`[Sync] Added to DB: ${filename} (type: ${type})`);
+      } catch (error) {
+        errors++;
+        console.error(`[Sync] Error processing ${s3Backup.key}:`, error);
+      }
     }
+
+    console.log(`[Sync] Summary: added=${added}, existing=${existing}, errors=${errors}`);
+  } catch (error) {
+    console.error('[Sync] Error fetching backups from S3:', error);
+    throw error;
   }
 
-  console.log(`[Sync] Summary: added=${added}, existing=${existing}, errors=${errors}`);
-
   return { added, existing, errors };
-}
-
-// Получить путь к папке бэкапов
-export function getBackupDir(): string {
-  return BACKUP_DIR;
 }

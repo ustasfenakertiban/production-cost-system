@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth-helpers';
 import { prisma } from '@/lib/db';
 import { checkSchemaCompatibility, getCurrentSchemaInfo } from '@/lib/schema-utils';
-import { readBackupFromFile, saveBackupToFile } from '@/lib/backup-utils';
+import { readBackupFromS3, saveBackupToS3 } from '@/lib/backup-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,7 +45,18 @@ export async function POST(req: NextRequest) {
       const currentSchemaInfo = await getCurrentSchemaInfo();
       const currentData = await createBackupData('data-only');
       
-      await saveBackupToFile(currentData, 'data-only');
+      const { filename, s3Key, size } = await saveBackupToS3(currentData, 'data-only');
+      
+      // Сохраняем в БД
+      await prisma.backup.create({
+        data: {
+          filename,
+          filePath: s3Key,
+          type: 'data-only',
+          size,
+          schemaHash: currentSchemaInfo.hash
+        }
+      });
       
       console.log('[Restore] Auto-backup created before restore');
     } catch (autoBackupError) {
@@ -53,8 +64,8 @@ export async function POST(req: NextRequest) {
       // Продолжаем восстановление даже если не удалось создать авто-бэкап
     }
 
-    // Читаем данные бэкапа из файла
-    const backupData = readBackupFromFile(backup.filePath);
+    // Читаем данные бэкапа из S3
+    const backupData = await readBackupFromS3(backup.filePath);
 
     // Восстанавливаем данные
     await restoreBackupData(backupData);

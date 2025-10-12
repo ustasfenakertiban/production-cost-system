@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth-helpers';
-import { syncBackupsFromDisk } from '@/lib/backup-utils';
+import { syncBackupsFromS3 } from '@/lib/backup-utils';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const result = await syncBackupsFromDisk();
+    const result = await syncBackupsFromS3();
 
     return NextResponse.json({
       success: true,

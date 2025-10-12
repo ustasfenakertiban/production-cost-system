@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth-helpers';
 import { prisma } from '@/lib/db';
-import { deleteBackupFile } from '@/lib/backup-utils';
-import * as fs from 'fs';
+import { deleteBackupFromS3 } from '@/lib/backup-utils';
 
 export async function DELETE(
   req: NextRequest,
@@ -25,11 +24,11 @@ export async function DELETE(
       });
       
       if (backup) {
-        // Удаляем файл
+        // Удаляем файл из S3
         try {
-          deleteBackupFile(backup.filePath);
+          await deleteBackupFromS3(backup.filePath);
         } catch (fileError) {
-          console.error('Error deleting backup file:', fileError);
+          console.error('Error deleting backup from S3:', fileError);
         }
         
         // Удаляем запись из БД

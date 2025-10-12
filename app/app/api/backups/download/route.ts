@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth-helpers';
-import fs from 'fs';
+import { downloadBackup } from '@/lib/s3';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,17 +56,8 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Проверяем существование файла
-    if (!fs.existsSync(backup.filePath)) {
-      console.log('[Backup Download] File not found:', backup.filePath);
-      return NextResponse.json(
-        { error: 'Файл бэкапа не найден на диске' },
-        { status: 404 }
-      );
-    }
-    
-    // Читаем файл
-    const fileContent = fs.readFileSync(backup.filePath);
+    // Скачиваем файл из S3
+    const fileContent = await downloadBackup(backup.filePath);
     
     console.log('[Backup Download] Sending backup, size:', fileContent.length);
     

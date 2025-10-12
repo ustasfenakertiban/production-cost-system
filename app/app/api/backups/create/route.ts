@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth-helpers';
 import { getCurrentSchemaInfo } from '@/lib/schema-utils';
-import { saveBackupToFile } from '@/lib/backup-utils';
+import { saveBackupToS3, deleteBackupFromS3 } from '@/lib/backup-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,16 +44,16 @@ export async function POST(request: NextRequest) {
     const backupData = await createBackupData(backupType);
     console.log('[Backup Create] Backup data created');
     
-    // Сохраняем бэкап в файл
-    console.log('[Backup Create] Saving to file...');
-    const { filename, filePath, size } = await saveBackupToFile(backupData, backupType);
-    console.log('[Backup Create] File saved:', { filename, filePath, size });
+    // Сохраняем бэкап в S3
+    console.log('[Backup Create] Saving to S3...');
+    const { filename, s3Key, size } = await saveBackupToS3(backupData, backupType);
+    console.log('[Backup Create] Saved to S3:', { filename, s3Key, size });
     
     // Сохраняем метаданные в БД
     const savedBackup = await prisma.backup.create({
       data: {
         filename,
-        filePath,
+        filePath: s3Key, // Используем S3 key как filePath
         type: backupType,
         size,
         schemaHash: schemaInfo.hash
@@ -86,14 +86,13 @@ export async function POST(request: NextRequest) {
     });
     
     if (allBackups.length > 10) {
-      const { deleteBackupFile } = await import('@/lib/backup-utils');
       const backupsToDelete = allBackups.slice(10);
       
       for (const backup of backupsToDelete) {
         try {
-          deleteBackupFile(backup.filePath);
+          await deleteBackupFromS3(backup.filePath);
         } catch (error) {
-          console.error(`Failed to delete backup file: ${backup.filePath}`, error);
+          console.error(`Failed to delete backup from S3: ${backup.filePath}`, error);
         }
       }
       

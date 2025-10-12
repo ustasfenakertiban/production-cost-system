@@ -2,10 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth-helpers';
 import { prisma } from '@/lib/db';
-import { ensureBackupDir } from '@/lib/backup-utils';
-import { detectBackupTypeFromContent } from '@/lib/schema-utils';
-import fs from 'fs';
-import path from 'path';
+import { uploadBackup } from '@/lib/s3';
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,39 +46,35 @@ export async function POST(req: NextRequest) {
     const extension = file.name.split('.').pop();
     const filename = `${originalName}_uploaded_${timestamp}.${extension}`;
 
-    // Сохраняем файл
-    const backupDir = ensureBackupDir();
-    const filePath = path.join(backupDir, filename);
-    fs.writeFileSync(filePath, buffer);
+    // Загружаем файл в S3
+    const { key, size } = await uploadBackup(buffer, filename);
 
-    const stats = fs.statSync(filePath);
-
-    // Определяем тип бэкапа по содержимому файла
-    const typeInfo = detectBackupTypeFromContent(filePath);
+    // Определяем тип бэкапа по имени файла
+    const type = filename.includes('_full_') ? 'full' : 'data-only';
     
-    console.log('[Upload] Detected backup type:', {
-      type: typeInfo.type,
-      confidence: typeInfo.confidence,
-      indicators: typeInfo.indicators
+    console.log('[Upload] Uploaded to S3:', {
+      filename,
+      key,
+      type,
+      size
     });
 
     // Сохраняем метаданные в БД
     const backup = await prisma.backup.create({
       data: {
         filename,
-        filePath,
-        type: typeInfo.type,
-        size: stats.size,
+        filePath: key, // Используем S3 key как filePath
+        type,
+        size,
         schemaHash: null
       }
     });
 
-    console.log('[Upload] Backup uploaded:', {
+    console.log('[Upload] Backup record created:', {
       id: backup.id,
       filename: backup.filename,
       type: backup.type,
-      size: backup.size,
-      confidence: typeInfo.confidence
+      size: backup.size
     });
 
     return NextResponse.json({
@@ -93,10 +86,6 @@ export async function POST(req: NextRequest) {
         type: backup.type,
         size: backup.size,
         created: backup.createdAt
-      },
-      typeDetection: {
-        confidence: typeInfo.confidence,
-        indicators: typeInfo.indicators
       }
     });
   } catch (error: any) {
