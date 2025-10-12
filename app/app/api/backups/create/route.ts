@@ -7,14 +7,24 @@ import { saveBackupToFile } from '@/lib/backup-utils';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[Backup Create] Request received');
+    console.log('[Backup Create] Environment:', {
+      nodeEnv: process.env.NODE_ENV,
+      cwd: process.cwd(),
+      backupDir: process.env.BACKUP_DIR
+    });
+    
     // Проверка аутентификации
     const auth = await verifyAuth(request);
     if (!auth.authenticated) {
+      console.log('[Backup Create] Authentication failed');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
+    
+    console.log('[Backup Create] Authentication successful');
     
     const body = await request.json().catch(() => ({}));
     const backupType: 'data-only' | 'full' = body.type || 'data-only';
@@ -22,13 +32,22 @@ export async function POST(request: NextRequest) {
     console.log('[Backup Create] Creating backup, type:', backupType);
     
     // Получаем информацию о текущей схеме
+    console.log('[Backup Create] Getting schema info...');
     const schemaInfo = await getCurrentSchemaInfo();
+    console.log('[Backup Create] Schema info retrieved:', { 
+      hash: schemaInfo.hash.substring(0, 10) + '...', 
+      tableCount: schemaInfo.tables.length 
+    });
     
     // Создаем данные бэкапа
+    console.log('[Backup Create] Creating backup data...');
     const backupData = await createBackupData(backupType);
+    console.log('[Backup Create] Backup data created');
     
     // Сохраняем бэкап в файл
+    console.log('[Backup Create] Saving to file...');
     const { filename, filePath, size } = await saveBackupToFile(backupData, backupType);
+    console.log('[Backup Create] File saved:', { filename, filePath, size });
     
     // Сохраняем метаданные в БД
     const savedBackup = await prisma.backup.create({

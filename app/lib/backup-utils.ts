@@ -9,10 +9,36 @@ const BACKUP_DIR = process.env.BACKUP_DIR || '/home/ubuntu/production_cost_syste
 
 // Убеждаемся, что папка для бэкапов существует
 export function ensureBackupDir() {
-  if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  try {
+    console.log('[ensureBackupDir] Checking backup directory:', BACKUP_DIR);
+    console.log('[ensureBackupDir] Environment:', {
+      nodeEnv: process.env.NODE_ENV,
+      cwd: process.cwd(),
+      backupDir: BACKUP_DIR
+    });
+    
+    if (!fs.existsSync(BACKUP_DIR)) {
+      console.log('[ensureBackupDir] Directory does not exist, creating...');
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+      console.log('[ensureBackupDir] Directory created successfully');
+    } else {
+      console.log('[ensureBackupDir] Directory already exists');
+    }
+    
+    // Проверим права доступа
+    fs.accessSync(BACKUP_DIR, fs.constants.W_OK);
+    console.log('[ensureBackupDir] Directory is writable');
+    
+    return BACKUP_DIR;
+  } catch (error: any) {
+    console.error('[ensureBackupDir] Error:', {
+      message: error.message,
+      code: error.code,
+      path: error.path,
+      stack: error.stack
+    });
+    throw new Error(`Cannot access backup directory: ${error.message}`);
   }
-  return BACKUP_DIR;
 }
 
 // Сохранить бэкап в файл
