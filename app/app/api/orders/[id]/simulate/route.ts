@@ -59,21 +59,23 @@ export async function POST(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    // Run simulation
-    const result = simulateOrder(order as any, simulationParams);
-
-    // Check if log contains error about missing params
-    if (result.log.includes("ОШИБКА: Не все параметры заполнены")) {
+    // Validate order before simulation
+    const { validateOrder } = require("@/lib/simulation-engine");
+    const validation = validateOrder(order);
+    
+    if (!validation.valid) {
       return NextResponse.json(
         {
           error: "Missing parameters",
-          missingParams: true,
-          message: "Не все параметры заполнены",
-          details: result.log,
+          missingParams: validation.missingParams,
+          message: "Не все параметры заполнены для запуска симуляции",
         },
         { status: 400 }
       );
     }
+
+    // Run simulation
+    const result = simulateOrder(order as any, simulationParams);
 
     return NextResponse.json(result);
   } catch (error) {

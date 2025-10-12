@@ -20,7 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Play, Download, Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Play, Download, Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import TreeLogViewer from "@/components/tree-log-viewer";
 import TableLogViewer from "@/components/table-log-viewer";
@@ -55,6 +56,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     varianceMode: "NONE",
   });
   const [simulationLog, setSimulationLog] = useState<string>("");
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [operationBreakdown, setOperationBreakdown] = useState<OperationCostBreakdown[]>([]);
   const [totalCosts, setTotalCosts] = useState<{
     materials: number;
@@ -68,6 +70,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
   const handleSimulate = async () => {
     setIsSimulating(true);
     setSimulationLog("");
+    setValidationErrors([]);
     setOperationBreakdown([]);
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
 
@@ -81,13 +84,13 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       const data = await response.json();
 
       if (!response.ok) {
-        if (data.missingParams) {
+        if (data.missingParams && Array.isArray(data.missingParams)) {
+          setValidationErrors(data.missingParams);
           toast({
             title: "Не все параметры заполнены",
-            description: data.message,
+            description: `Найдено ${data.missingParams.length} проблем(ы). См. подробности ниже.`,
             variant: "destructive",
           });
-          setSimulationLog(data.details || data.message);
         } else {
           throw new Error(data.error || "Ошибка симуляции");
         }
@@ -230,6 +233,29 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </div>
         </CardContent>
       </Card>
+
+      {validationErrors.length > 0 && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Не все параметры заполнены</AlertTitle>
+          <AlertDescription>
+            <div className="mt-2 space-y-1">
+              <p className="font-medium mb-2">
+                Для запуска симуляции необходимо заполнить следующие параметры:
+              </p>
+              <div className="bg-destructive/10 rounded-md p-3 max-h-[400px] overflow-y-auto">
+                <ol className="list-decimal list-inside space-y-2">
+                  {validationErrors.map((error, idx) => (
+                    <li key={idx} className="text-sm leading-relaxed">
+                      {error}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {simulationLog && (
         <Card>
