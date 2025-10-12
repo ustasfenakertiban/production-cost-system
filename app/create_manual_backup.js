@@ -2,6 +2,7 @@ require('dotenv').config({ path: './.env' });
 const { PrismaClient } = require('./node_modules/.prisma/client');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 async function createBackup() {
   const prisma = new PrismaClient();
@@ -85,11 +86,32 @@ async function createBackup() {
     const backupDir = path.join(__dirname, '..', 'backups');
     const filepath = path.join(backupDir, filename);
     
-    fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+    const jsonContent = JSON.stringify(data, null, 2);
+    fs.writeFileSync(filepath, jsonContent);
+    
+    const fileSize = fs.statSync(filepath).size;
     
     console.log(`\n✅ Бэкап успешно создан: ${filename}`);
-    console.log(`📁 Размер файла: ${(fs.statSync(filepath).size / 1024).toFixed(2)} KB`);
+    console.log(`📁 Размер файла: ${(fileSize / 1024).toFixed(2)} KB`);
     console.log(`📂 Путь: ${filepath}`);
+    
+    // Создаем схема-хэш для full бэкапа
+    const schemaHash = crypto.createHash('md5').update(jsonContent.substring(0, 1000)).digest('hex');
+    
+    // Добавляем запись в базу данных
+    console.log('\n💾 Добавляем запись в базу данных...');
+    const backupRecord = await prisma.backup.create({
+      data: {
+        filename,
+        filePath: filepath,
+        type: 'full',
+        size: fileSize,
+        schemaHash,
+        createdAt: new Date()
+      }
+    });
+    
+    console.log(`✅ Запись в БД создана (ID: ${backupRecord.id})`);
     
     // Выводим статистику
     console.log('\n📊 Статистика данных:');
