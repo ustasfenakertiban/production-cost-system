@@ -14,6 +14,7 @@ export async function POST(
       physicalWorkers: body.physicalWorkers || 5,
       breakMinutesPerHour: body.breakMinutesPerHour || 15,
       varianceMode: body.varianceMode || "NONE",
+      productivityAlgorithm: body.productivityAlgorithm || "BOTTLENECK",
     };
 
     // Fetch order with all related data

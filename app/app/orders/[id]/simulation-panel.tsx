@@ -43,11 +43,14 @@ export type VarianceMode =
   | "MIN_PRODUCTIVITY_MAX_COSTS"
   | "RANDOM_ASYMMETRIC";
 
+export type ProductivityAlgorithm = "BOTTLENECK" | "NOMINAL";
+
 export interface SimulationParams {
   hoursPerDay: number;
   physicalWorkers: number;
   breakMinutesPerHour: number;
   varianceMode: VarianceMode;
+  productivityAlgorithm: ProductivityAlgorithm;
 }
 
 export default function SimulationPanel({ orderId }: SimulationPanelProps) {
@@ -56,6 +59,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     physicalWorkers: 5,
     breakMinutesPerHour: 15,
     varianceMode: "NONE",
+    productivityAlgorithm: "BOTTLENECK",
   });
   const [simulationLog, setSimulationLog] = useState<string>("");
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -217,6 +221,33 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="productivityAlgorithm">Алгоритм расчета производительности</Label>
+              <Select
+                value={params.productivityAlgorithm}
+                onValueChange={(value: ProductivityAlgorithm) =>
+                  setParams({ ...params, productivityAlgorithm: value })
+                }
+              >
+                <SelectTrigger id="productivityAlgorithm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BOTTLENECK">
+                    Бутылочное горлышко
+                  </SelectItem>
+                  <SelectItem value="NOMINAL">
+                    По номиналу
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {params.productivityAlgorithm === "BOTTLENECK" 
+                  ? "Производительность ограничивается самым медленным ресурсом (оборудование, работники, номинал)"
+                  : "Используется только номинальная производительность операции. Производительность оборудования учитывается только для амортизации, работников - только для зарплаты"}
+              </p>
             </div>
           </div>
 

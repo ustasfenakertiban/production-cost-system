@@ -9,11 +9,14 @@ export type VarianceMode =
   | "MIN_PRODUCTIVITY_MAX_COSTS"
   | "RANDOM_ASYMMETRIC";
 
+export type ProductivityAlgorithm = "BOTTLENECK" | "NOMINAL";
+
 export interface SimulationParams {
   hoursPerDay: number;
   physicalWorkers: number;
   breakMinutesPerHour: number;
   varianceMode: VarianceMode;
+  productivityAlgorithm: ProductivityAlgorithm;
 }
 
 export interface OperationCostBreakdown {
@@ -267,7 +270,7 @@ export function simulateOrder(
   params: SimulationParams
 ): SimulationResult {
   const log: string[] = [];
-  const { hoursPerDay, physicalWorkers, breakMinutesPerHour, varianceMode } = params;
+  const { hoursPerDay, physicalWorkers, breakMinutesPerHour, varianceMode, productivityAlgorithm } = params;
 
   // Validate order first
   const validation = validateOrder(order);
@@ -299,7 +302,8 @@ export function simulateOrder(
   log.push(`   • Часов в рабочем дне: ${hoursPerDay}`);
   log.push(`   • Физических работников: ${physicalWorkers}`);
   log.push(`   • Отдых (мин/час): ${breakMinutesPerHour}`);
-  log.push(`   • Режим разброса: ${getVarianceModeLabel(varianceMode)}\n`);
+  log.push(`   • Режим разброса: ${getVarianceModeLabel(varianceMode)}`);
+  log.push(`   • Алгоритм расчета производительности: ${getProductivityAlgorithmLabel(productivityAlgorithm)}\n`);
 
   const breakCoefficient = 1 - breakMinutesPerHour / 60;
 
@@ -474,6 +478,7 @@ export function simulateOrder(
       absoluteHour,
       breakCoefficient,
       varianceMode,
+      productivityAlgorithm,
       shouldLogDetails ? log : [],
       {
         totalMaterialCost: (v: number) => totalMaterialCost += v,
@@ -714,6 +719,13 @@ function getVarianceModeLabel(mode: VarianceMode): string {
   }
 }
 
+function getProductivityAlgorithmLabel(algorithm: ProductivityAlgorithm): string {
+  switch (algorithm) {
+    case "BOTTLENECK": return "Бутылочное горлышко";
+    case "NOMINAL": return "По номиналу";
+  }
+}
+
 function getDaysLabel(days: number): string {
   if (days === 1) return "день";
   if (days >= 2 && days <= 4) return "дня";
@@ -763,6 +775,7 @@ function processActiveOperations(
   currentHour: number,
   breakCoefficient: number,
   varianceMode: VarianceMode,
+  productivityAlgorithm: ProductivityAlgorithm,
   log: string[],
   totals: {
     totalMaterialCost: (v: number) => void;
@@ -865,14 +878,32 @@ function processActiveOperations(
           }
         }
 
-        // Real productivity (минимальное значение из всех доступных)
-        let realProductivity = Math.min(baseProductivity!, equipmentProductivity, roleProductivity);
+        // Real productivity - зависит от выбранного алгоритма
+        let realProductivity: number;
         
-        // Если ничего не указано (все Infinity), считаем по времени работы
-        // За 1 час цикла производится 1 единица
-        if (realProductivity === Infinity) {
-          realProductivity = 1; // 1 шт/час по умолчанию
-          log.push(`     Производительность по умолчанию: ${realProductivity.toFixed(2)} шт/час (расчет по времени)`);
+        if (productivityAlgorithm === "NOMINAL") {
+          // При расчете по номиналу используем только baseProductivity
+          realProductivity = baseProductivity;
+          if (realProductivity === Infinity) {
+            realProductivity = 1; // 1 шт/час по умолчанию
+            log.push(`     ⚙️  Алгоритм: По номиналу (производительность оборудования и сотрудников не учитывается)`);
+            log.push(`     Производительность по умолчанию: ${realProductivity.toFixed(2)} шт/час (расчет по времени)`);
+          } else {
+            log.push(`     ⚙️  Алгоритм: По номиналу (используется только номинальная производительность)`);
+            log.push(`     Итоговая производительность: ${realProductivity.toFixed(2)} шт/час`);
+          }
+        } else {
+          // BOTTLENECK - бутылочное горлышко (минимальное значение из всех доступных)
+          realProductivity = Math.min(baseProductivity, equipmentProductivity, roleProductivity);
+          
+          if (realProductivity === Infinity) {
+            realProductivity = 1; // 1 шт/час по умолчанию
+            log.push(`     ⚙️  Алгоритм: Бутылочное горлышко`);
+            log.push(`     Производительность по умолчанию: ${realProductivity.toFixed(2)} шт/час (расчет по времени)`);
+          } else {
+            log.push(`     ⚙️  Алгоритм: Бутылочное горлышко (минимум из всех)`);
+            log.push(`     Итоговая производительность: ${realProductivity.toFixed(2)} шт/час`);
+          }
         }
         
         realProductivity *= breakCoefficient;

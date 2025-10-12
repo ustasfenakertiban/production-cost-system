@@ -59,7 +59,8 @@ async function main() {
     hoursPerDay: 8,
     physicalWorkers: 5,
     breakMinutesPerHour: 0,
-    varianceMode: 'NONE' as const
+    varianceMode: 'NONE' as const,
+    productivityAlgorithm: 'BOTTLENECK' as const
   };
 
   const result = simulateOrder(order as any, params);
