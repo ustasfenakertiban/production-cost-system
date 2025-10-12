@@ -217,8 +217,8 @@ export default function BackupsPage() {
         }
         
         // Небольшая задержка для надежности, затем обновляем список
-        console.log('[Client] Waiting 1 second before reloading list...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('[Client] Waiting 2 seconds before reloading list...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         console.log('[Client] Reloading backups list');
         setLoading(true);

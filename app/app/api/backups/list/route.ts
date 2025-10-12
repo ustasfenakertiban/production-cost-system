@@ -2,13 +2,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
-export async function GET() {
+// Помечаем роут как динамический, чтобы он не пытался статически генерироваться
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
   try {
+    // Получаем timestamp из query параметра для логирования
+    const url = new URL(request.url);
+    const timestamp = url.searchParams.get('t');
+    
     // Проверяем окружение - используем наличие DATABASE_URL как индикатор production
     const hasDatabase = !!process.env.DATABASE_URL;
     const isLocalhost = process.env.DATABASE_URL?.includes('localhost');
     const isProduction = hasDatabase && !isLocalhost;
     
+    console.log('[Backup List] Request at', new Date().toISOString(), 'timestamp:', timestamp);
     console.log('[Backup List] Environment check:', {
       hasDatabase,
       isLocalhost,
@@ -35,10 +43,9 @@ export async function GET() {
         
         console.log('[Backup List] Found backups in DB:', dbBackups.length);
         if (dbBackups.length > 0) {
-          console.log('[Backup List] First backup:', {
-            id: dbBackups[0].id,
-            filename: dbBackups[0].filename,
-            created: dbBackups[0].createdAt
+          console.log('[Backup List] First 3 backups:');
+          dbBackups.slice(0, 3).forEach((b, i) => {
+            console.log(`  ${i + 1}. ${b.filename} - ${b.createdAt.toISOString()}`);
           });
         }
         
