@@ -39,6 +39,7 @@ interface OperationProduction {
   operationName: string;
   productName: string;
   chainName: string;
+  chainOrder: number; // порядок цепочки
   operationOrder: number; // порядок операции в цепочке
   hourlyProduction: Map<number, number>; // absoluteHour -> quantity produced
   dailyProduction: Map<number, number>; // day -> total quantity produced
@@ -61,8 +62,8 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     const lines = log.split("\n");
     const operationsMap = new Map<string, OperationProduction>();
     
-    // Храним активные операции: ключ -> стартовый час, детали и порядок
-    const activeOperations = new Map<string, { startHour: number; details: string[]; operationOrder: number }>();
+    // Храним активные операции: ключ -> стартовый час, детали, порядок цепочки и порядок операции
+    const activeOperations = new Map<string, { startHour: number; details: string[]; chainOrder: number; operationOrder: number }>();
     
     let maxAbsoluteHour = 0;
     let currentAbsoluteHour = 0;
@@ -84,10 +85,11 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         const operationName = operationStartMatch[1];
         let product = "";
         let chain = "";
+        let chainOrder = 999; // Значение по умолчанию для сортировки в конец, если не найдено
         let operationOrder = 999; // Значение по умолчанию для сортировки в конец, если не найдено
         
         // Ищем товар, цепочку и порядок в следующих строках
-        for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
+        for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
           const nextLine = lines[j];
           
           const productMatch = nextLine.match(/^\s*Товар:\s*(.+)/i);
@@ -100,13 +102,21 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
             chain = chainMatch[1].trim();
           }
           
-          const orderMatch = nextLine.match(/^\s*Порядок:\s*(\d+)/i);
-          if (orderMatch) {
-            operationOrder = parseInt(orderMatch[1]);
+          const chainOrderMatch = nextLine.match(/^\s*Порядок цепочки:\s*(\d+)/i);
+          if (chainOrderMatch) {
+            chainOrder = parseInt(chainOrderMatch[1]);
+          }
+          
+          const operationOrderMatch = nextLine.match(/^\s*Порядок операции:\s*(\d+)/i);
+          if (operationOrderMatch) {
+            operationOrder = parseInt(operationOrderMatch[1]);
           }
           
           // Если нашли и товар и цепочку, прекращаем поиск
-          if (product && chain) break;
+          if (product && chain) {
+            // Продолжаем поиск порядков, если еще не нашли
+            if (chainOrder !== 999 && operationOrder !== 999) break;
+          }
           
           // Если встретили новую операцию или новый час, прекращаем поиск
           if (nextLine.match(/^\s*🚀\s*НАЧАЛО ОПЕРАЦИИ/i) || nextLine.match(/^\s*⏰\s*Час/i)) break;
@@ -114,7 +124,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         
         if (product && chain) {
           const key = `${product}|${chain}|${operationName}`;
-          activeOperations.set(key, { startHour: currentAbsoluteHour, details: [line.trim()], operationOrder });
+          activeOperations.set(key, { startHour: currentAbsoluteHour, details: [line.trim()], chainOrder, operationOrder });
         }
         continue;
       }
@@ -157,6 +167,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           const key = `${product}|${chain}|${operationName}`;
           const startInfo = activeOperations.get(key);
           const startHour = startInfo ? startInfo.startHour : currentAbsoluteHour;
+          const chainOrder = startInfo ? startInfo.chainOrder : 999;
           const operationOrder = startInfo ? startInfo.operationOrder : 999;
           
           if (!operationsMap.has(key)) {
@@ -164,6 +175,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
               operationName: operationName,
               productName: product,
               chainName: chain,
+              chainOrder: chainOrder,
               operationOrder: operationOrder,
               hourlyProduction: new Map(),
               dailyProduction: new Map(),
@@ -268,19 +280,23 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     // Создаем массив только дней
     const daysOnly = Array.from(new Set(days.map(d => d.dayNum))).sort((a, b) => a - b);
 
-    // Сортируем операции по порядку выполнения (operationOrder)
+    // Сортируем операции по порядку выполнения (сначала по порядку цепочки, затем по порядку операции)
     const sortedOperations = Array.from(operationsMap.values()).sort((a, b) => {
-      // Сначала по порядку операции
+      // Сначала по порядку цепочки
+      if (a.chainOrder !== b.chainOrder) {
+        return a.chainOrder - b.chainOrder;
+      }
+      // Затем по порядку операции внутри цепочки
       if (a.operationOrder !== b.operationOrder) {
         return a.operationOrder - b.operationOrder;
-      }
-      // Затем по названию цепочки
-      if (a.chainName !== b.chainName) {
-        return a.chainName.localeCompare(b.chainName);
       }
       // Затем по названию товара
       if (a.productName !== b.productName) {
         return a.productName.localeCompare(b.productName);
+      }
+      // Затем по названию цепочки
+      if (a.chainName !== b.chainName) {
+        return a.chainName.localeCompare(b.chainName);
       }
       // Наконец, по названию операции
       return a.operationName.localeCompare(b.operationName);

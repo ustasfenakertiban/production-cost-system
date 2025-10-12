@@ -1473,7 +1473,8 @@ function tryStartChainOperation(
     log.push(`\n  🚀 НАЧАЛО ОПЕРАЦИИ: "${operation.name}"`);
     log.push(`     Товар: ${item.product.name}`);
     log.push(`     Цепочка: ${chain.name} (${chain.chainType === "ONE_TIME" ? "разовая" : "поточная"})`);
-    log.push(`     Порядок: ${operation.orderIndex}`);
+    log.push(`     Порядок цепочки: ${chain.orderIndex}`);
+    log.push(`     Порядок операции: ${operation.orderIndex}`);
     log.push(`     Тираж: ${totalQuantity} шт.`);
     
     // For PER_UNIT chains, show available parts from previous operation
