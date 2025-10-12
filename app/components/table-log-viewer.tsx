@@ -70,7 +70,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
       const line = lines[i];
 
       // Определяем абсолютный час
-      const hourMatch = line.match(/⏰\s*Час\s+\d+\s*\(абсолютный час:\s*(\d+)\)/i);
+      const hourMatch = line.match(/^\s*⏰\s*Час\s+\d+\s*\(абсолютный час:\s*(\d+)\)/i);
       if (hourMatch) {
         currentAbsoluteHour = parseInt(hourMatch[1]);
         maxAbsoluteHour = Math.max(maxAbsoluteHour, currentAbsoluteHour);
@@ -78,7 +78,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
       }
 
       // Ищем начало операции
-      const operationStartMatch = line.match(/🚀\s*НАЧАЛО ОПЕРАЦИИ:\s*"([^"]+)"/i);
+      const operationStartMatch = line.match(/^\s*🚀\s*НАЧАЛО ОПЕРАЦИИ:\s*"([^"]+)"/i);
       if (operationStartMatch) {
         const operationName = operationStartMatch[1];
         let product = "";
@@ -88,12 +88,12 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         for (let j = i + 1; j < Math.min(i + 10, lines.length); j++) {
           const nextLine = lines[j];
           
-          const productMatch = nextLine.match(/Товар:\s*(.+)/i);
+          const productMatch = nextLine.match(/^\s*Товар:\s*(.+)/i);
           if (productMatch && !productMatch[1].includes("─")) {
             product = productMatch[1].trim();
           }
           
-          const chainMatch = nextLine.match(/Цепочка:\s*(.+?)\s*\(/i);
+          const chainMatch = nextLine.match(/^\s*Цепочка:\s*(.+?)\s*\(/i);
           if (chainMatch) {
             chain = chainMatch[1].trim();
           }
@@ -102,7 +102,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           if (product && chain) break;
           
           // Если встретили новую операцию или новый час, прекращаем поиск
-          if (nextLine.match(/🚀\s*НАЧАЛО ОПЕРАЦИИ/i) || nextLine.match(/⏰\s*Час/i)) break;
+          if (nextLine.match(/^\s*🚀\s*НАЧАЛО ОПЕРАЦИИ/i) || nextLine.match(/^\s*⏰\s*Час/i)) break;
         }
         
         if (product && chain) {
@@ -113,7 +113,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
       }
 
       // Ищем завершение операции (когда есть "Выполнено")
-      const operationCompleteMatch = line.match(/🔧\s*Операция:\s*"([^"]+)"/i);
+      const operationCompleteMatch = line.match(/^\s*🔧\s*Операция:\s*"([^"]+)"/i);
       if (operationCompleteMatch) {
         const operationName = operationCompleteMatch[1];
         let product = "";
@@ -126,24 +126,24 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           const nextLine = lines[j];
           blockDetails.push(nextLine.trim());
           
-          const productMatch = nextLine.match(/Товар:\s*(.+)/i);
+          const productMatch = nextLine.match(/^\s*Товар:\s*(.+)/i);
           if (productMatch && !productMatch[1].includes("─")) {
             product = productMatch[1].trim();
           }
           
-          const chainMatch = nextLine.match(/Цепочка:\s*(.+?)\s*\(/i);
+          const chainMatch = nextLine.match(/^\s*Цепочка:\s*(.+?)\s*\(/i);
           if (chainMatch) {
             chain = chainMatch[1].trim();
           }
           
-          const producedMatch = nextLine.match(/✔️\s*Выполнено:\s*(\d+)\s*шт\./i);
+          const producedMatch = nextLine.match(/^\s*✔️\s*Выполнено:\s*(\d+)\s*шт\./i);
           if (producedMatch) {
             quantity = parseInt(producedMatch[1]);
             break;
           }
           
           // Если встретили новую операцию или новый час, прекращаем поиск
-          if (nextLine.match(/🔧\s*Операция/i) || nextLine.match(/⏰\s*Час/i)) break;
+          if (nextLine.match(/^\s*🔧\s*Операция/i) || nextLine.match(/^\s*⏰\s*Час/i)) break;
         }
         
         if (product && chain && quantity > 0) {
@@ -191,7 +191,7 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
 
     // Извлекаем hoursPerDay из лога
     let hoursPerDay = 8;
-    const hoursPerDayMatch = log.match(/Часов в рабочем дне:\s*(\d+)/i);
+    const hoursPerDayMatch = log.match(/^\s*[•●]?\s*Часов в рабочем дне:\s*(\d+)/im);
     if (hoursPerDayMatch) {
       hoursPerDay = parseInt(hoursPerDayMatch[1]);
     }
