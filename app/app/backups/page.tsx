@@ -165,7 +165,12 @@ export default function BackupsPage() {
   const handleCreateBackup = async () => {
     setCreating(true);
     setShowCreateDialog(false);
+    
+    console.log('[Client] Starting backup creation, type:', backupType);
+    toast.loading('Создание бэкапа...', { id: 'backup-create' });
+    
     try {
+      console.log('[Client] Sending request to /api/backups/create');
       const response = await fetch('/api/backups/create', {
         method: 'POST',
         headers: {
@@ -175,9 +180,14 @@ export default function BackupsPage() {
         body: JSON.stringify({ type: backupType })
       });
 
+      console.log('[Client] Response status:', response.status);
+      console.log('[Client] Response ok:', response.ok);
+
       if (response.ok) {
         const data = await response.json();
-        toast.success(data.message || 'Бэкап успешно создан');
+        console.log('[Client] Response data:', data);
+        
+        toast.success(data.message || 'Бэкап успешно создан', { id: 'backup-create' });
         
         // Если бэкап возвращается в ответе (fallback режим), предлагаем скачать
         if (data.backup && data.warning) {
@@ -195,16 +205,19 @@ export default function BackupsPage() {
           window.URL.revokeObjectURL(url);
         }
         
-        loadBackups();
+        console.log('[Client] Reloading backups list');
+        await loadBackups();
       } else {
-        const data = await response.json();
-        toast.error(data.error || 'Ошибка создания бэкапа');
+        const data = await response.json().catch(() => ({ error: 'Неизвестная ошибка' }));
+        console.error('[Client] Error response:', data);
+        toast.error(data.error || 'Ошибка создания бэкапа', { id: 'backup-create' });
       }
     } catch (error) {
-      console.error('Error creating backup:', error);
-      toast.error('Ошибка создания бэкапа');
+      console.error('[Client] Error creating backup:', error);
+      toast.error('Ошибка создания бэкапа: ' + (error instanceof Error ? error.message : 'неизвестная ошибка'), { id: 'backup-create' });
     } finally {
       setCreating(false);
+      console.log('[Client] Backup creation finished');
     }
   };
 
