@@ -5,7 +5,9 @@ export type VarianceMode =
   | "MIN" 
   | "NONE" 
   | "RANDOM_POSITIVE" 
-  | "RANDOM_FULL";
+  | "RANDOM_FULL"
+  | "MIN_PRODUCTIVITY_MAX_COSTS"
+  | "RANDOM_ASYMMETRIC";
 
 export interface SimulationParams {
   hoursPerDay: number;
@@ -149,7 +151,8 @@ interface ActiveOperation {
 export function applyVariance(
   baseValue: number,
   variance: number | null | undefined,
-  mode: VarianceMode
+  mode: VarianceMode,
+  isProductivity: boolean = true // true для производительности, false для расходов
 ): number {
   // Если разброс не указан (null, undefined или 0), считаем его равным 0
   if (variance == null || variance === 0 || mode === "NONE") return baseValue;
@@ -165,6 +168,21 @@ export function applyVariance(
       return baseValue * (1 + Math.random() * varianceDecimal);
     case "RANDOM_FULL":
       return baseValue * (1 + (Math.random() * 2 - 1) * varianceDecimal);
+    case "MIN_PRODUCTIVITY_MAX_COSTS":
+      // Производительность уменьшается, расходы увеличиваются
+      if (isProductivity) {
+        return baseValue * (1 - varianceDecimal);
+      } else {
+        return baseValue * (1 + varianceDecimal);
+      }
+    case "RANDOM_ASYMMETRIC":
+      // Производительность: случайно от 0 до -разброс
+      // Расходы: случайно от 0 до +разброс
+      if (isProductivity) {
+        return baseValue * (1 - Math.random() * varianceDecimal);
+      } else {
+        return baseValue * (1 + Math.random() * varianceDecimal);
+      }
     default:
       return baseValue;
   }
@@ -691,6 +709,8 @@ function getVarianceModeLabel(mode: VarianceMode): string {
     case "NONE": return "Без разброса (=)";
     case "RANDOM_POSITIVE": return "Случайное 0+ (↑)";
     case "RANDOM_FULL": return "Случайное полное (↕)";
+    case "MIN_PRODUCTIVITY_MAX_COSTS": return "Производительность −, расходы + (↓↑)";
+    case "RANDOM_ASYMMETRIC": return "Случайное асимметричное (производительность 0−, расходы 0+)";
   }
 }
 
@@ -927,7 +947,9 @@ function processActiveOperations(
       const enabledMaterials = operation.operationMaterials.filter(m => m.enabled);
       if (enabledMaterials.length > 0) {
         enabledMaterials.forEach(mat => {
-          const quantityUsed = mat.quantity * producedThisCycle;
+          // Применяем variance к количеству материала (для расходов isProductivity = false)
+          const adjustedQuantity = applyVariance(mat.quantity, mat.variance, varianceMode, false);
+          const quantityUsed = adjustedQuantity * producedThisCycle;
           const cost = mat.unitPrice * quantityUsed;
           const vatAmount = cost * (mat.material.vatPercentage / 100);
           cycleMaterialCost += cost;
@@ -942,9 +964,11 @@ function processActiveOperations(
       // Equipment
       if (enabledEquipment.length > 0) {
         enabledEquipment.forEach(eq => {
-          const cost = eq.hourlyRate * opState.operationDuration;
+          // Применяем variance к hourlyRate (для расходов isProductivity = false)
+          const adjustedHourlyRate = applyVariance(eq.hourlyRate, eq.variance, varianceMode, false);
+          const cost = adjustedHourlyRate * opState.operationDuration;
           cycleEquipmentCost += cost;
-          log.push(`     ⚙️  Оборудование "${eq.equipment.name}": ${opState.operationDuration} час(ов) × ${eq.hourlyRate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
+          log.push(`     ⚙️  Оборудование "${eq.equipment.name}": ${opState.operationDuration} час(ов) × ${adjustedHourlyRate.toFixed(2)} = ${cost.toFixed(2)} руб.`);
         });
         totals.totalEquipmentCost(cycleEquipmentCost);
         log.push(`     💰 Амортизация оборудования: ${cycleEquipmentCost.toFixed(2)} руб.`);
@@ -956,19 +980,22 @@ function processActiveOperations(
           let cost = 0;
           let costNote = "";
           
+          // Применяем variance к ставке (для расходов isProductivity = false)
+          const adjustedRate = applyVariance(role.rate, role.variance, varianceMode, false);
+          
           if (role.requiresContinuousPresence) {
             // Роль требует постоянного присутствия - оплачиваем за всю длительность
-            cost = role.rate * opState.operationDuration;
-            costNote = ` (постоянно: ${opState.operationDuration.toFixed(4)} час × ${role.rate} руб/час)`;
+            cost = adjustedRate * opState.operationDuration;
+            costNote = ` (постоянно: ${opState.operationDuration.toFixed(4)} час × ${adjustedRate.toFixed(2)} руб/час)`;
           } else if (role.piecesPerHour && role.piecesPerHour > 0) {
             // Роль оплачивается по количеству деталей
-            const costPerPiece = role.rate / role.piecesPerHour;
+            const costPerPiece = adjustedRate / role.piecesPerHour;
             cost = costPerPiece * producedThisCycle;
             costNote = ` (${producedThisCycle} шт × ${costPerPiece.toFixed(6)} руб/шт, производительность: ${role.piecesPerHour} шт/час)`;
           } else {
             // Роль оплачивается только за время настройки
-            cost = role.rate * role.timeSpent;
-            costNote = ` (настройка: ${role.timeSpent.toFixed(6)} час × ${role.rate} руб/час)`;
+            cost = adjustedRate * role.timeSpent;
+            costNote = ` (настройка: ${role.timeSpent.toFixed(6)} час × ${adjustedRate.toFixed(2)} руб/час)`;
           }
           
           cycleLaborCost += cost;

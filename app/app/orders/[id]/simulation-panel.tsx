@@ -39,7 +39,9 @@ export type VarianceMode =
   | "MIN" 
   | "NONE" 
   | "RANDOM_POSITIVE" 
-  | "RANDOM_FULL";
+  | "RANDOM_FULL"
+  | "MIN_PRODUCTIVITY_MAX_COSTS"
+  | "RANDOM_ASYMMETRIC";
 
 export interface SimulationParams {
   hoursPerDay: number;
@@ -206,6 +208,12 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                   </SelectItem>
                   <SelectItem value="RANDOM_FULL">
                     Случайное значение во всем диапазоне
+                  </SelectItem>
+                  <SelectItem value="MIN_PRODUCTIVITY_MAX_COSTS">
+                    Производительность по минимуму, расходы по максимуму
+                  </SelectItem>
+                  <SelectItem value="RANDOM_ASYMMETRIC">
+                    Случайные значения (расходы 0+, производительность 0-)
                   </SelectItem>
                 </SelectContent>
               </Select>
