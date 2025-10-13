@@ -956,12 +956,25 @@ function processActiveOperations(
               }
             }
           } else {
-            // Previous operation completed - check in completed operations
-            const maxAvailable = opState.totalQuantity - opState.completedQuantity;
-            const beforeLimit = producedThisCycle;
-            producedThisCycle = Math.min(producedThisCycle, maxAvailable);
-            if (producedThisCycle < beforeLimit) {
-              log.push(`     ⚠️  Производство ограничено оставшимся количеством: ${beforeLimit} → ${producedThisCycle} шт.`);
+            // Previous operation not in active operations - check if it's completed
+            const prevOpKey = `${opState.itemId}-${opState.previousOperationId}`;
+            const prevOpCompleted = completedOperations.has(prevOpKey);
+            
+            if (prevOpCompleted) {
+              // Previous operation is truly completed - can process all remaining
+              const maxAvailable = opState.totalQuantity - opState.completedQuantity;
+              const beforeLimit = producedThisCycle;
+              producedThisCycle = Math.min(producedThisCycle, maxAvailable);
+              if (producedThisCycle < beforeLimit) {
+                log.push(`     ⚠️  Производство ограничено оставшимся количеством: ${beforeLimit} → ${producedThisCycle} шт.`);
+              }
+            } else {
+              // Previous operation is not active and not completed - something is wrong
+              // This can happen if previous operation is waiting for minimum batch
+              // In this case, we can't produce anything
+              log.push(`     ⚠️  Предыдущая операция не активна и не завершена - возможно, ожидает минимальную партию`);
+              log.push(`     ⏸️  Производство приостановлено до возобновления предыдущей операции`);
+              producedThisCycle = 0;
             }
           }
         } else {
@@ -999,9 +1012,12 @@ function processActiveOperations(
           }
         });
         
-        // Отмечаем операцию для удаления из активных, чтобы она могла стартовать заново, когда партия накопится
-        toRemove.push(index);
-        log.push(`     🔄 Операция временно приостановлена до накопления минимальной партии`);
+        // НЕ удаляем операцию из активных! Просто сбрасываем её на следующий цикл
+        // Это критически важно для сохранения информации о transferredQuantity
+        opState.cycleStartHour = currentHour;
+        opState.assignedWorkerIds = [];
+        opState.assignedEquipmentIds = [];
+        log.push(`     🔄 Операция ожидает в следующем цикле накопления минимальной партии`);
         return; // Пропускаем расчет затрат и продолжение операции
       }
       
@@ -1286,12 +1302,54 @@ function tryStartChainOperation(
       continue;
     }
 
-    // Skip if already active
-    if (activeOperations.some(op => op.operation.id === operation.id && op.itemId === item.id)) {
+    // Skip if already active AND has resources allocated
+    const existingActiveOp = activeOperations.find(op => op.operation.id === operation.id && op.itemId === item.id);
+    if (existingActiveOp && (existingActiveOp.assignedWorkerIds.length > 0 || existingActiveOp.assignedEquipmentIds.length > 0)) {
       if (log.length > 0) {  // Only log if logging is enabled
         log.push(`\n  ⏩ Операция "${operation.name}" (${item.product.name}) уже выполняется, пропускаем...`);
       }
       continue; // Skip this operation, but continue checking next operations
+    }
+    
+    // If operation exists but has no resources (waiting for minimum batch), try to allocate resources again
+    if (existingActiveOp && existingActiveOp.assignedWorkerIds.length === 0 && existingActiveOp.assignedEquipmentIds.length === 0) {
+      if (log.length > 0) {
+        log.push(`\n  🔄 Операция "${operation.name}" (${item.product.name}) ожидала минимальную партию, попытка возобновления...`);
+        log.push(`     Прогресс операции: выполнено ${existingActiveOp.completedQuantity}, передано ${existingActiveOp.transferredQuantity}`);
+      }
+      
+      // Check if minimum batch is now available
+      const enabledOpsForCheck = chain.operations.filter(op => op.enabled).sort((a, b) => a.orderIndex - b.orderIndex);
+      const prevOps = enabledOpsForCheck.filter(op => op.orderIndex < operation.orderIndex);
+      
+      if (prevOps.length > 0 && chain.chainType === "PER_UNIT") {
+        const prevOp = prevOps[prevOps.length - 1];
+        const prevActiveOp = activeOperations.find(
+          active => active.operation.id === prevOp.id && active.itemId === item.id
+        );
+        
+        let availableFromPrevious = 0;
+        if (prevActiveOp) {
+          availableFromPrevious = prevActiveOp.transferredQuantity - existingActiveOp.completedQuantity;
+        } else if (completedOperations.has(`${item.id}-${prevOp.id}`)) {
+          availableFromPrevious = totalQuantity - existingActiveOp.completedQuantity;
+        }
+        
+        if (operation.minimumBatchSize && availableFromPrevious < operation.minimumBatchSize) {
+          if (log.length > 0) {
+            log.push(`     ⏸️  Минимальная партия еще не накоплена: доступно ${availableFromPrevious} шт., требуется ${operation.minimumBatchSize} шт.`);
+          }
+          continue; // Still waiting, skip this operation
+        } else {
+          if (log.length > 0) {
+            log.push(`     ✅ Минимальная партия накоплена: ${availableFromPrevious} >= ${operation.minimumBatchSize} шт. Возобновляем операцию.`);
+          }
+          // Continue below to allocate resources
+        }
+      }
+      
+      // Fall through to resource allocation below
+      // The operation will be restarted with its existing progress
     }
     
     if (log.length > 0) {  // Only log if logging is enabled
@@ -1523,32 +1581,45 @@ function tryStartChainOperation(
       }
     }
 
-    // Create active operation
-    const activeOp: ActiveOperation = {
-      itemId: item.id,
-      productName: item.product.name,
-      chainId: chain.id,
-      chainName: chain.name,
-      chainType: chain.chainType,
-      operation: operation,
-      totalQuantity,
-      completedQuantity: 0,
-      transferredQuantity: 0,
-      pendingTransferQuantity: 0,
-      cycleStartHour: currentHour,
-      operationDuration,
-      assignedWorkerIds,
-      assignedEquipmentIds,
-      continuousWorkerIds,
-      continuousEquipmentIds,
-      initialDuration: operationDuration,
-      isFirstInChain,
-      previousOperationId,
-    };
+    // Update existing operation or create new one
+    if (existingActiveOp && existingActiveOp.assignedWorkerIds.length === 0 && existingActiveOp.assignedEquipmentIds.length === 0) {
+      // Update existing operation that was waiting for minimum batch
+      existingActiveOp.cycleStartHour = currentHour;
+      existingActiveOp.operationDuration = operationDuration;
+      existingActiveOp.assignedWorkerIds = assignedWorkerIds;
+      existingActiveOp.assignedEquipmentIds = assignedEquipmentIds;
+      existingActiveOp.continuousWorkerIds = continuousWorkerIds;
+      existingActiveOp.continuousEquipmentIds = continuousEquipmentIds;
+      // Note: Keep completedQuantity and transferredQuantity from existing operation
+      log.push(`\n  🔄 ВОЗОБНОВЛЕНИЕ ОПЕРАЦИИ: "${operation.name}" (было выполнено: ${existingActiveOp.completedQuantity}, передано: ${existingActiveOp.transferredQuantity})`);
+    } else {
+      // Create new active operation
+      const activeOp: ActiveOperation = {
+        itemId: item.id,
+        productName: item.product.name,
+        chainId: chain.id,
+        chainName: chain.name,
+        chainType: chain.chainType,
+        operation: operation,
+        totalQuantity,
+        completedQuantity: 0,
+        transferredQuantity: 0,
+        pendingTransferQuantity: 0,
+        cycleStartHour: currentHour,
+        operationDuration,
+        assignedWorkerIds,
+        assignedEquipmentIds,
+        continuousWorkerIds,
+        continuousEquipmentIds,
+        initialDuration: operationDuration,
+        isFirstInChain,
+        previousOperationId,
+      };
 
-    activeOperations.push(activeOp);
+      activeOperations.push(activeOp);
+    }
 
-    log.push(`\n  🚀 НАЧАЛО ОПЕРАЦИИ: "${operation.name}"`);
+    // Log operation details (for both new and resumed operations)
     log.push(`     Товар: ${item.product.name}`);
     log.push(`     Цепочка: ${chain.name} (${chain.chainType === "ONE_TIME" ? "разовая" : "поточная"})`);
     log.push(`     Порядок цепочки: ${chain.orderIndex}`);
