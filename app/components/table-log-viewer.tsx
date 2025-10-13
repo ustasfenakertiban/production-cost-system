@@ -187,6 +187,14 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           }
 
           const opData = operationsMap.get(key)!;
+          
+          // Обновляем порядок операции и цепочки, если они были найдены и отличаются от значения по умолчанию
+          if (chainOrder !== 999 && opData.chainOrder === 999) {
+            opData.chainOrder = chainOrder;
+          }
+          if (operationOrder !== 999 && opData.operationOrder === 999) {
+            opData.operationOrder = operationOrder;
+          }
           const existingQuantity = opData.hourlyProduction.get(currentAbsoluteHour) || 0;
           opData.hourlyProduction.set(currentAbsoluteHour, existingQuantity + quantity);
           
