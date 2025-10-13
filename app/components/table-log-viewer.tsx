@@ -439,6 +439,9 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
                   <TableRow key={key} className={cn(idx % 2 === 0 && "bg-muted/20")}>
                     <TableCell className="sticky left-0 bg-background z-10 border-r font-medium text-sm">
                       {op.operationName}
+                      <div className="text-[10px] text-red-600 font-mono">
+                        [C:{op.chainOrder} O:{op.operationOrder}]
+                      </div>
                     </TableCell>
                     <TableCell className="sticky left-[200px] bg-background z-10 border-r text-xs text-muted-foreground">
                       <div className="max-w-[150px] truncate" title={op.productName}>
