@@ -34,8 +34,34 @@ model EmployeeRole {
   updatedAt      DateTime                @updatedAt
   operationRoles OperationRole[]
   templateRoles  OperationTemplateRole[]
+  employeeRoles  EmployeeRoleAssignment[]
 
   @@map("employee_roles")
+}
+
+model Employee {
+  id        String                   @id @default(cuid())
+  name      String
+  isActive  Boolean                  @default(true)
+  comment   String?
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  roles     EmployeeRoleAssignment[]
+
+  @@map("employees")
+}
+
+model EmployeeRoleAssignment {
+  id         String       @id @default(cuid())
+  employeeId String
+  roleId     String
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  employee   Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  role       EmployeeRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, roleId])
+  @@map("employee_role_assignments")
 }
 
 model Product {

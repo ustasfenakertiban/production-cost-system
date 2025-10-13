@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wrench, Users, Package, BarChart3, PackageOpen, Calendar, ClipboardList, FileText, Database } from "lucide-react";
+import { Wrench, Users, Package, BarChart3, PackageOpen, Calendar, ClipboardList, FileText, Database, UserCheck } from "lucide-react";
 import { AuthHeader } from "@/components/auth-header";
 
 export default function HomePage() {
@@ -22,8 +22,8 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 lg:grid-cols-3 gap-6 mb-8">
-          {/* Первый ряд - 3 карточки */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Первый ряд - 4 карточки */}
           <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
             <CardHeader className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -57,6 +57,25 @@ export default function HomePage() {
               <Button asChild className="w-full">
                 <Link href="/roles">
                   Управлять ролями
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <UserCheck className="w-8 h-8 text-teal-600" />
+              </div>
+              <CardTitle>Сотрудники</CardTitle>
+              <CardDescription>
+                Справочник сотрудников и их ролей
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Button asChild className="w-full">
+                <Link href="/employees">
+                  Управлять сотрудниками
                 </Link>
               </Button>
             </CardContent>
