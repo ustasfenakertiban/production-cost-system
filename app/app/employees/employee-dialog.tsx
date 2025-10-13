@@ -194,15 +194,14 @@ export function EmployeeDialog({ employee, open, onClose }: EmployeeDialogProps)
                 {availableRoles.map((role) => (
                   <div
                     key={role.id}
-                    className="flex items-center p-3 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => toggleRole(role.id)}
+                    className="flex items-center p-3 hover:bg-gray-50"
                   >
                     <Checkbox
                       id={`role-${role.id}`}
                       checked={formData.roleIds.includes(role.id)}
                       onCheckedChange={() => toggleRole(role.id)}
                     />
-                    <Label
+                    <label
                       htmlFor={`role-${role.id}`}
                       className="ml-3 flex-1 cursor-pointer"
                     >
@@ -217,7 +216,7 @@ export function EmployeeDialog({ employee, open, onClose }: EmployeeDialogProps)
                           </span>
                         </div>
                       </div>
-                    </Label>
+                    </label>
                   </div>
                 ))}
               </div>
