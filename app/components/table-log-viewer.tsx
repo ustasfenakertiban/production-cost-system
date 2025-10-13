@@ -65,6 +65,12 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
     // Храним активные операции: ключ -> стартовый час, детали, порядок цепочки и порядок операции
     const activeOperations = new Map<string, { startHour: number; details: string[]; chainOrder: number; operationOrder: number }>();
     
+    // Счетчики для автоматического присвоения порядковых номеров
+    const chainFirstSeen = new Map<string, number>(); // chain -> порядок первого появления
+    const operationFirstSeen = new Map<string, number>(); // key -> порядок первого появления
+    let nextChainOrder = 0;
+    let nextOperationOrder = 0;
+    
     let maxAbsoluteHour = 0;
     let currentAbsoluteHour = 0;
 
@@ -85,10 +91,8 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         const operationName = operationStartMatch[1];
         let product = "";
         let chain = "";
-        let chainOrder = 999; // Значение по умолчанию для сортировки в конец, если не найдено
-        let operationOrder = 999; // Значение по умолчанию для сортировки в конец, если не найдено
         
-        // Ищем товар, цепочку и порядок в следующих строках
+        // Ищем товар и цепочку в следующих строках
         for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
           const nextLine = lines[j];
           
@@ -102,21 +106,8 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
             chain = chainMatch[1].trim();
           }
           
-          const chainOrderMatch = nextLine.match(/^\s*Порядок цепочки:\s*(\d+)/i);
-          if (chainOrderMatch) {
-            chainOrder = parseInt(chainOrderMatch[1]);
-          }
-          
-          const operationOrderMatch = nextLine.match(/^\s*Порядок операции:\s*(\d+)/i);
-          if (operationOrderMatch) {
-            operationOrder = parseInt(operationOrderMatch[1]);
-          }
-          
           // Если нашли и товар и цепочку, прекращаем поиск
-          if (product && chain) {
-            // Продолжаем поиск порядков, если еще не нашли
-            if (chainOrder !== 999 && operationOrder !== 999) break;
-          }
+          if (product && chain) break;
           
           // Если встретили новую операцию или новый час, прекращаем поиск
           if (nextLine.match(/^\s*🚀\s*НАЧАЛО ОПЕРАЦИИ/i) || nextLine.match(/^\s*⏰\s*Час/i)) break;
@@ -124,6 +115,20 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         
         if (product && chain) {
           const key = `${product}|${chain}|${operationName}`;
+          const chainKey = `${product}|${chain}`;
+          
+          // Присваиваем порядок цепочки при первом появлении
+          if (!chainFirstSeen.has(chainKey)) {
+            chainFirstSeen.set(chainKey, nextChainOrder++);
+          }
+          const chainOrder = chainFirstSeen.get(chainKey)!;
+          
+          // Присваиваем порядок операции при первом появлении
+          if (!operationFirstSeen.has(key)) {
+            operationFirstSeen.set(key, nextOperationOrder++);
+          }
+          const operationOrder = operationFirstSeen.get(key)!;
+          
           activeOperations.set(key, { startHour: currentAbsoluteHour, details: [line.trim()], chainOrder, operationOrder });
         }
         continue;
@@ -165,10 +170,21 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
         
         if (product && chain && quantity > 0) {
           const key = `${product}|${chain}|${operationName}`;
+          const chainKey = `${product}|${chain}`;
+          
+          // Получаем или создаем порядковые номера
+          if (!chainFirstSeen.has(chainKey)) {
+            chainFirstSeen.set(chainKey, nextChainOrder++);
+          }
+          const chainOrder = chainFirstSeen.get(chainKey)!;
+          
+          if (!operationFirstSeen.has(key)) {
+            operationFirstSeen.set(key, nextOperationOrder++);
+          }
+          const operationOrder = operationFirstSeen.get(key)!;
+          
           const startInfo = activeOperations.get(key);
           const startHour = startInfo ? startInfo.startHour : currentAbsoluteHour;
-          const chainOrder = startInfo ? startInfo.chainOrder : 999;
-          const operationOrder = startInfo ? startInfo.operationOrder : 999;
           
           if (!operationsMap.has(key)) {
             operationsMap.set(key, {
@@ -187,14 +203,6 @@ export default function TableLogViewer({ log }: TableLogViewerProps) {
           }
 
           const opData = operationsMap.get(key)!;
-          
-          // Обновляем порядок операции и цепочки, если они были найдены и отличаются от значения по умолчанию
-          if (chainOrder !== 999 && opData.chainOrder === 999) {
-            opData.chainOrder = chainOrder;
-          }
-          if (operationOrder !== 999 && opData.operationOrder === 999) {
-            opData.operationOrder = operationOrder;
-          }
           const existingQuantity = opData.hourlyProduction.get(currentAbsoluteHour) || 0;
           opData.hourlyProduction.set(currentAbsoluteHour, existingQuantity + quantity);
           
