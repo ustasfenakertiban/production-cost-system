@@ -191,23 +191,40 @@ export async function loadOperationChains(processId: string): Promise<OperationC
 }
 
 /**
- * Загрузить настройки симуляции
+ * Загрузить настройки симуляции v2 для заказа
  */
-export async function loadSimulationSettings() {
-  // Получить первую запись настроек или создать новую с дефолтными значениями
-  let settings = await prisma.simulationSettings.findFirst();
+export async function loadSimulationSettingsV2(orderId: string) {
+  // Получить настройки для конкретного заказа
+  let settings = await prisma.simulationSettingsV2.findUnique({
+    where: { orderId },
+  });
   
+  // Если настроек нет, создать с дефолтными значениями
   if (!settings) {
-    settings = await prisma.simulationSettings.create({
+    settings = await prisma.simulationSettingsV2.create({
       data: {
-        payIdleTime: true,
-        enablePartialWork: true,
+        orderId,
+        workingHoursPerDay: 8,
+        restMinutesPerHour: 0,
+        vatRate: 20,
+        profitTaxRate: 20,
+        includeRecurringExpenses: false,
+        waitForMaterialDelivery: true,
+        payEmployeesForIdleTime: false,
       },
     });
   }
   
   return {
-    payIdleTime: settings.payIdleTime,
-    enablePartialWork: settings.enablePartialWork,
+    workingHoursPerDay: settings.workingHoursPerDay,
+    restMinutesPerHour: settings.restMinutesPerHour,
+    sellingPriceWithVAT: settings.sellingPriceWithVAT || undefined,
+    vatRate: settings.vatRate,
+    profitTaxRate: settings.profitTaxRate,
+    includeRecurringExpenses: settings.includeRecurringExpenses,
+    waitForMaterialDelivery: settings.waitForMaterialDelivery,
+    payEmployeesForIdleTime: settings.payEmployeesForIdleTime,
+    minIdleMinutesForPayment: 10,  // Константа по требованию
+    simulationTimeoutDays: 30,      // Константа по требованию
   };
 }

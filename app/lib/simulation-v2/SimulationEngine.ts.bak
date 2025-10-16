@@ -109,21 +109,18 @@ export class SimulationEngine {
       
       if (!operation) {
         // Нет доступных операций - все ждут ресурсы
-        this.log("WARNING", "Все операции ожидают ресурсы");
+        this.log("WARNING", "Все операции ожидают ресурсы. Проверка возможности частичного выполнения...");
         
-        // Проверить, есть ли ожидающие партии материалов
-        if (this.resourceManager.hasPendingMaterialBatches()) {
-          // Переместить время к ближайшей дате поступления материалов
-          const nextDeliveryDate = this.resourceManager.getNextMaterialDeliveryDate();
-          if (nextDeliveryDate) {
-            this.log("INFO", `Ожидание поступления материалов до ${nextDeliveryDate.toLocaleString()}`);
-            this.currentTime = nextDeliveryDate;
-            this.resourceManager.processIncomingMaterials(this.currentTime);
+        // Попробовать выполнить частичную работу
+        if (this.parameters.settings.enablePartialWork) {
+          const partialOp = this.findPartialWorkOperation();
+          if (partialOp) {
+            await this.executeOperationPartial(partialOp);
             continue;
           }
         }
         
-        // Если материалов нет и не ожидается - завершаем
+        // Если нельзя выполнить частичную работу, завершаем
         this.log("ERROR", "Невозможно продолжить симуляцию - недостаточно ресурсов");
         break;
       }
@@ -329,9 +326,8 @@ export class SimulationEngine {
   /**
    * Закупить материалы для операции
    */
-  private async purchaseMaterials(operation: Operation, quantity: number): Promise<Date | null> {
+  private async purchaseMaterials(operation: Operation, quantity: number): Promise<void> {
     const materialReqs = operation.getMaterialRequirements(this.parameters.varianceMode);
-    let maxDeliveryDate: Date | null = null;
     
     for (const req of materialReqs) {
       const needed = req.quantityPerUnit * quantity;
@@ -339,18 +335,12 @@ export class SimulationEngine {
       
       if (stock && stock.quantity - stock.minStock < needed) {
         const toPurchase = needed - (stock.quantity - stock.minStock);
-        const deliveryDate = this.resourceManager.orderMaterial(req.materialId, toPurchase, this.currentTime);
-        
-        if (!maxDeliveryDate || deliveryDate > maxDeliveryDate) {
-          maxDeliveryDate = deliveryDate;
-        }
+        this.resourceManager.purchaseMaterial(req.materialId, toPurchase);
         
         const materialInfo = this.resourceManager.getMaterialInfo(req.materialId);
-        this.log("INFO", `Заказ материала: ${materialInfo?.name}, количество: ${toPurchase}, поступит: ${deliveryDate.toLocaleString()}`);
+        this.log("INFO", `Закупка материала: ${materialInfo?.name}, количество: ${toPurchase}`);
       }
     }
-    
-    return maxDeliveryDate;
   }
   
   /**
@@ -391,7 +381,6 @@ export class SimulationEngine {
       if (state) {
         this.resourceManager.occupyEmployee(
           state.employeeId,
-          req.roleId,
           operation.getId(),
           this.currentTime,
           duration
@@ -562,9 +551,8 @@ export class SimulationEngine {
       const employee = state ? this.resourceManager.getEmployeeInfo(state.employeeId) : undefined;
       
       const workHours = state?.workHours || 0;
-      const paidIdleHours = state?.paidIdleHours || 0;
-      const idleMinutes = state?.idleMinutes || 0;
-      const idleHours = idleMinutes / 60; // Преобразуем накопленные минуты простоя в часы для отчета
+      const idleHours = state?.idleHours || 0;
+      const paidIdleHours = this.parameters.settings.payIdleTime ? idleHours : 0;
       const hourlyRate = role?.hourlyRate || 0;
       
       return {
@@ -613,9 +601,8 @@ export class SimulationEngine {
     return this.resourceManager.getAllEmployeeStates().map((state) => {
       const employee = this.resourceManager.getEmployeeInfo(state.employeeId);
       const workHours = state.workHours;
-      const paidIdleHours = state.paidIdleHours;
-      const idleMinutes = state.idleMinutes;
-      const idleHours = idleMinutes / 60; // Преобразуем накопленные минуты простоя в часы для отчета
+      const idleHours = state.idleHours;
+      const paidIdleHours = this.parameters.settings.payIdleTime ? idleHours : 0;
       const utilizationPercent = totalDuration > 0 ? (workHours / totalDuration) * 100 : 0;
       
       return {

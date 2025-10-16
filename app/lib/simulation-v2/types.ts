@@ -12,9 +12,17 @@ export type VarianceMode = "NORMAL" | "MIN_PRODUCTIVITY_MAX_COSTS" | "RANDOM_ASY
 
 // ==================== Настройки симуляции ====================
 
-export interface SimulationSettings {
-  payIdleTime: boolean;           // Доплачивать за простой сотрудникам
-  enablePartialWork: boolean;     // Выполнять частичные операции при наличии свободных ресурсов
+export interface SimulationSettingsV2 {
+  workingHoursPerDay: number;              // Количество рабочих часов в день
+  restMinutesPerHour: number;              // Количество минут отдыха в час
+  sellingPriceWithVAT?: number;            // Продажная цена с НДС
+  vatRate: number;                         // Ставка НДС, %
+  profitTaxRate: number;                   // Ставка налога на прибыль, %
+  includeRecurringExpenses: boolean;       // Учитывать периодические расходы
+  waitForMaterialDelivery: boolean;        // Ждать поставку материалов
+  payEmployeesForIdleTime: boolean;        // Доплачивать сотрудникам за простой (округлять до часа)
+  minIdleMinutesForPayment: number;        // Минимальное количество минут простоя для оплаты (по умолчанию 10)
+  simulationTimeoutDays: number;           // Таймаут симуляции в днях (по умолчанию 30)
 }
 
 export interface SimulationParameters {
@@ -26,7 +34,7 @@ export interface SimulationParameters {
   processName: string;
   varianceMode: VarianceMode;
   startDate: Date;
-  settings: SimulationSettings;
+  settings: SimulationSettingsV2;
 }
 
 // ==================== Ресурсы ====================
@@ -122,20 +130,41 @@ export interface OperationChainConfig {
 
 // ==================== Состояние симуляции ====================
 
+export interface MaterialPurchaseBatch {
+  materialId: string;
+  quantity: number;                // Количество материала в партии
+  pricePerUnit: number;            // Цена за единицу
+  totalCost: number;               // Общая стоимость партии
+  prepaymentPercentage: number;    // % предоплаты для этой партии
+  prepaymentPaid: number;          // Сумма оплаченной предоплаты
+  remainingAmount: number;         // Остаток к оплате
+  manufacturingDay: number;        // День когда изготовится (0 = не указан/уже изготовлен)
+  deliveryDay: number;             // День поступления (от начала заказа)
+  status: "planned" | "manufacturing" | "in_transit" | "delivered";
+  orderedAt: Date;                 // Когда заказали
+  deliveryDate: Date;              // Когда поступит
+}
+
 export interface MaterialStock {
   materialId: string;
   quantity: number;               // Текущий остаток
   minStock: number;               // Минимальный неснижаемый остаток
   totalPurchased: number;         // Всего закуплено
   totalCost: number;              // Общая стоимость закупок
+  pendingBatches: MaterialPurchaseBatch[];  // Ожидаемые партии
 }
 
 export interface EmployeeState {
   employeeId: string;
+  name: string;
+  roles: string[];                // ID ролей, которые может выполнять
   currentOperationId?: string;    // ID операции, которую выполняет
+  currentRoleId?: string;         // ID роли, которую выполняет
   busyUntil: Date;                // Занят до
-  idleHours: number;              // Часы простоя
+  idleMinutes: number;            // Минуты простоя (накопленные)
   workHours: number;              // Часы работы
+  paidIdleHours: number;          // Оплаченные часы простоя
+  lastOperationEndTime?: Date;    // Время окончания последней операции (для доплаты оставшихся минут)
 }
 
 export interface EquipmentState {

@@ -4,7 +4,7 @@
  */
 
 import { SimulationParameters, SimulationResult } from "./types";
-import { loadSimulationData, loadSimulationSettings } from "./dataLoader";
+import { loadSimulationData, loadSimulationSettingsV2 } from "./dataLoader";
 import { SimulationEngine } from "./SimulationEngine";
 
 /**
@@ -19,8 +19,8 @@ export async function runSimulation(
   try {
     console.log("🚀 Запуск симуляции v2 (ООП)");
     
-    // Загрузить настройки v2 из БД
-    const settings = await loadSimulationSettings();
+    // Загрузить настройки v2 из БД для конкретного заказа
+    const settings = await loadSimulationSettingsV2(params.orderId);
     
     // Создать полные параметры
     const parameters: SimulationParameters = {
