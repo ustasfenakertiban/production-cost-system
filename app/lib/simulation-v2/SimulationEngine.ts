@@ -29,7 +29,13 @@ export class SimulationEngine {
   /**
    * Инициализировать симуляцию
    */
-  async initialize(parameters: SimulationParameters): Promise<void> {
+  async initialize(parameters: SimulationParameters, data: {
+    materials: any[];
+    equipment: any[];
+    roles: any[];
+    employees: any[];
+    chains: any[];
+  }): Promise<void> {
     this.parameters = parameters;
     this.currentTime = parameters.startDate;
     this.logs = [];
@@ -37,13 +43,33 @@ export class SimulationEngine {
     this.log("INFO", `Начало симуляции заказа ${parameters.orderId}`);
     this.log("INFO", `Продукт: ${parameters.productName}, Количество: ${parameters.orderQuantity}`);
     this.log("INFO", `Режим разброса: ${parameters.varianceMode}`);
+    this.log("INFO", `Настройки: оплата простоя = ${parameters.settings.payIdleTime}, частичная работа = ${parameters.settings.enablePartialWork}`);
     
-    // TODO: Загрузить данные из базы
-    // - Материалы
-    // - Оборудование
-    // - Роли
-    // - Сотрудники
-    // - Цепочки операций
+    // Загрузить данные в ResourceManager
+    this.resourceManager.loadMaterials(data.materials);
+    this.resourceManager.loadEquipment(data.equipment);
+    this.resourceManager.loadRoles(data.roles);
+    this.resourceManager.loadEmployees(data.employees);
+    
+    this.log("INFO", `Загружено ресурсов: материалов = ${data.materials.length}, оборудования = ${data.equipment.length}, ролей = ${data.roles.length}, сотрудников = ${data.employees.length}`);
+    
+    // Создать цепочки операций
+    this.chains = data.chains
+      .filter((c: any) => c.enabled)
+      .map((c: any) => new OperationChain(c, parameters.orderQuantity));
+    
+    this.log("INFO", `Загружено цепочек операций: ${this.chains.length}`);
+    
+    // Вывести информацию по каждой цепочке
+    for (const chain of this.chains) {
+      this.log("INFO", `Цепочка "${chain.getName()}" (${chain.getType()}): операций = ${chain.getOperations().length}`);
+      this.log("INFO", `  Порядок цепочки: ${chain.config.orderIndex}`);
+      
+      for (const op of chain.getOperations()) {
+        this.log("INFO", `    Операция "${op.getName()}": целевое количество = ${op.getTarget()}`);
+        this.log("INFO", `      Порядок операции: ${op.config.orderIndex}`);
+      }
+    }
   }
   
   /**
@@ -366,10 +392,33 @@ export class SimulationEngine {
    */
   private buildResult(startTime: Date): SimulationResult {
     const operations: OperationResult[] = [];
+    let totalMaterialCost = 0;
+    let totalEquipmentCost = 0;
+    let totalLaborCost = 0;
     
     // Собрать результаты по операциям
     for (const chain of this.chains) {
       for (const operation of chain.getOperations()) {
+        const opStartTime = operation.progress.startTime || startTime;
+        const opEndTime = operation.progress.endTime || this.currentTime;
+        const totalHours = (opEndTime.getTime() - opStartTime.getTime()) / (1000 * 60 * 60);
+        
+        // Рассчитать затраты на материалы
+        const materialCosts = this.calculateMaterialCosts(operation);
+        const materialTotal = materialCosts.reduce((sum, m) => sum + m.totalCost, 0);
+        
+        // Рассчитать затраты на оборудование
+        const equipmentCosts = this.calculateEquipmentCosts(operation);
+        const equipmentTotal = equipmentCosts.reduce((sum, e) => sum + e.totalCost, 0);
+        
+        // Рассчитать затраты на персонал
+        const laborCosts = this.calculateLaborCosts(operation);
+        const laborTotal = laborCosts.reduce((sum, l) => sum + l.totalCost, 0);
+        
+        totalMaterialCost += materialTotal;
+        totalEquipmentCost += equipmentTotal;
+        totalLaborCost += laborTotal;
+        
         operations.push({
           operationId: operation.getId(),
           operationName: operation.getName(),
@@ -379,16 +428,22 @@ export class SimulationEngine {
           operationOrder: operation.config.orderIndex,
           targetQuantity: operation.getTarget(),
           completedQuantity: operation.getCompleted(),
-          startTime: operation.progress.startTime || startTime,
-          endTime: operation.progress.endTime || this.currentTime,
-          totalHours: 0, // TODO: рассчитать
-          materialCosts: [],
-          equipmentCosts: [],
-          laborCosts: [],
-          totalCost: 0,
+          startTime: opStartTime,
+          endTime: opEndTime,
+          totalHours,
+          materialCosts,
+          equipmentCosts,
+          laborCosts,
+          totalCost: materialTotal + equipmentTotal + laborTotal,
         });
       }
     }
+    
+    // Собрать утилизацию оборудования
+    const equipmentUtilization = this.calculateEquipmentUtilization(startTime);
+    
+    // Собрать утилизацию сотрудников
+    const employeeUtilization = this.calculateEmployeeUtilization(startTime);
     
     return {
       orderId: this.parameters.orderId,
@@ -398,14 +453,148 @@ export class SimulationEngine {
       endTime: this.currentTime,
       totalDuration: (this.currentTime.getTime() - startTime.getTime()) / (1000 * 60 * 60),
       operations,
-      totalMaterialCost: 0, // TODO: рассчитать
-      totalEquipmentCost: 0,
-      totalLaborCost: 0,
-      totalCost: 0,
+      totalMaterialCost,
+      totalEquipmentCost,
+      totalLaborCost,
+      totalCost: totalMaterialCost + totalEquipmentCost + totalLaborCost,
       materialUsage: this.resourceManager.getAllMaterialStocks(),
-      equipmentUtilization: [],
-      employeeUtilization: [],
+      equipmentUtilization,
+      employeeUtilization,
     };
+  }
+  
+  /**
+   * Рассчитать затраты на материалы для операции
+   */
+  private calculateMaterialCosts(operation: Operation) {
+    const materialReqs = operation.getMaterialRequirements(this.parameters.varianceMode);
+    const completedQuantity = operation.getCompleted();
+    
+    return materialReqs.map((req) => {
+      const material = this.resourceManager.getMaterialInfo(req.materialId);
+      const quantity = req.quantityPerUnit * completedQuantity;
+      const unitCost = material?.cost || 0;
+      
+      return {
+        materialId: req.materialId,
+        materialName: material?.name || "Unknown",
+        quantity,
+        unitCost,
+        totalCost: quantity * unitCost,
+      };
+    });
+  }
+  
+  /**
+   * Рассчитать затраты на оборудование для операции
+   */
+  private calculateEquipmentCosts(operation: Operation) {
+    const equipmentReqs = operation.getEquipmentRequirements(this.parameters.varianceMode);
+    
+    return equipmentReqs.map((req) => {
+      const equipment = this.resourceManager.getEquipmentInfo(req.equipmentId);
+      const state = this.resourceManager.getEquipmentState(req.equipmentId);
+      
+      const workHours = state?.workHours || 0;
+      const idleHours = state?.idleHours || 0;
+      const hourlyRate = equipment?.hourlyDepreciation || 0;
+      
+      return {
+        equipmentId: req.equipmentId,
+        equipmentName: equipment?.name || "Unknown",
+        workHours,
+        idleHours,
+        hourlyRate,
+        totalCost: workHours * hourlyRate,
+      };
+    });
+  }
+  
+  /**
+   * Рассчитать затраты на персонал для операции
+   */
+  private calculateLaborCosts(operation: Operation) {
+    const roleReqs = operation.getRoleRequirements(this.parameters.varianceMode);
+    
+    return roleReqs.map((req) => {
+      const role = this.resourceManager.getRoleInfo(req.roleId);
+      
+      // Найти всех сотрудников с этой ролью, которые работали на операции
+      const employeeStates = this.resourceManager.getAllEmployeeStates()
+        .filter((state) => {
+          const employee = this.resourceManager.getEmployeeInfo(state.employeeId);
+          return employee?.roles.includes(req.roleId);
+        });
+      
+      // Для простоты берем первого (можно улучшить)
+      const state = employeeStates[0];
+      const employee = state ? this.resourceManager.getEmployeeInfo(state.employeeId) : undefined;
+      
+      const workHours = state?.workHours || 0;
+      const idleHours = state?.idleHours || 0;
+      const paidIdleHours = this.parameters.settings.payIdleTime ? idleHours : 0;
+      const hourlyRate = role?.hourlyRate || 0;
+      
+      return {
+        roleId: req.roleId,
+        roleName: role?.name || "Unknown",
+        employeeId: state?.employeeId || "unknown",
+        employeeName: employee?.name || "Unknown",
+        workHours,
+        idleHours,
+        paidIdleHours,
+        hourlyRate,
+        totalCost: (workHours + paidIdleHours) * hourlyRate,
+      };
+    });
+  }
+  
+  /**
+   * Рассчитать утилизацию оборудования
+   */
+  private calculateEquipmentUtilization(startTime: Date) {
+    const totalDuration = (this.currentTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    
+    return this.resourceManager.getAllEquipmentStates().map((state) => {
+      const equipment = this.resourceManager.getEquipmentInfo(state.equipmentId);
+      const workHours = state.workHours;
+      const idleHours = totalDuration - workHours;
+      const utilizationPercent = totalDuration > 0 ? (workHours / totalDuration) * 100 : 0;
+      
+      return {
+        equipmentId: state.equipmentId,
+        equipmentName: equipment?.name || "Unknown",
+        totalHours: totalDuration,
+        workHours,
+        idleHours,
+        utilizationPercent,
+      };
+    });
+  }
+  
+  /**
+   * Рассчитать утилизацию сотрудников
+   */
+  private calculateEmployeeUtilization(startTime: Date) {
+    const totalDuration = (this.currentTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    
+    return this.resourceManager.getAllEmployeeStates().map((state) => {
+      const employee = this.resourceManager.getEmployeeInfo(state.employeeId);
+      const workHours = state.workHours;
+      const idleHours = state.idleHours;
+      const paidIdleHours = this.parameters.settings.payIdleTime ? idleHours : 0;
+      const utilizationPercent = totalDuration > 0 ? (workHours / totalDuration) * 100 : 0;
+      
+      return {
+        employeeId: state.employeeId,
+        employeeName: employee?.name || "Unknown",
+        totalHours: totalDuration,
+        workHours,
+        idleHours,
+        paidIdleHours,
+        utilizationPercent,
+      };
+    });
   }
   
   /**

@@ -1,39 +1,65 @@
 /**
  * Точка входа для симуляции v2
- * Экспортирует главную функцию запуска симуляции
+ * Экспортирует главную функцию запуска симуляции с ООП архитектурой
  */
 
-import { SimulationParameters } from "./types";
-import { loadSimulationSettings } from "./dataLoader";
+import { SimulationParameters, SimulationResult } from "./types";
+import { loadSimulationData, loadSimulationSettings } from "./dataLoader";
+import { SimulationEngine } from "./SimulationEngine";
 
 /**
  * Запустить симуляцию производства (v2)
  * 
- * @param parameters - Параметры симуляции
+ * @param parameters - Параметры симуляции (без настроек)
  * @returns Результат симуляции
  */
-export async function runSimulation(parameters: SimulationParameters): Promise<any> {
+export async function runSimulation(
+  params: Omit<SimulationParameters, "settings">
+): Promise<SimulationResult> {
   try {
-    // Загрузить настройки v2
+    console.log("🚀 Запуск симуляции v2 (ООП)");
+    
+    // Загрузить настройки v2 из БД
     const settings = await loadSimulationSettings();
     
-    // TODO: Реализовать полную логику SimulationEngine v2 с:
-    // - Оптимизацией простоя ресурсов (enablePartialWork)
-    // - Гибкой оплатой простоя (payIdleTime)
-    // - Минимальным остатком материалов (minStockPercentage, batchSize)
-    // - Улучшенным расчетом производительности
+    // Создать полные параметры
+    const parameters: SimulationParameters = {
+      ...params,
+      settings,
+    };
     
-    console.log("⚠️ Симуляция v2 в разработке");
+    // Загрузить все данные из БД
+    console.log("📊 Загрузка данных из базы...");
+    const data = await loadSimulationData(parameters.processId);
     
-    // Временная заглушка - возвращаем уведомление о том, что v2 в разработке
-    throw new Error(
-      "Симуляция v2 находится в разработке. " +
-      "Инфраструктура готова: dataLoader, типы, API endpoints. " +
-      "Требуется завершить реализацию SimulationEngine. " +
-      "Пожалуйста, используйте v1 пока идет доработка v2."
-    );
+    console.log(`✅ Загружено:`);
+    console.log(`  - Материалов: ${data.materials.length}`);
+    console.log(`  - Оборудования: ${data.equipment.length}`);
+    console.log(`  - Ролей: ${data.roles.length}`);
+    console.log(`  - Сотрудников: ${data.employees.length}`);
+    console.log(`  - Цепочек операций: ${data.chains.length}`);
+    
+    // Создать движок симуляции
+    const engine = new SimulationEngine();
+    
+    // Инициализировать
+    console.log("⚙️ Инициализация движка симуляции...");
+    await engine.initialize(parameters, data);
+    
+    // Запустить симуляцию
+    console.log("▶️ Запуск симуляции...");
+    const result = await engine.run();
+    
+    console.log("✅ Симуляция v2 завершена успешно");
+    console.log(`  - Общее время: ${result.totalDuration.toFixed(2)} часов`);
+    console.log(`  - Общая стоимость: ${result.totalCost.toFixed(2)}`);
+    console.log(`  - Материалы: ${result.totalMaterialCost.toFixed(2)}`);
+    console.log(`  - Оборудование: ${result.totalEquipmentCost.toFixed(2)}`);
+    console.log(`  - Персонал: ${result.totalLaborCost.toFixed(2)}`);
+    
+    return result;
   } catch (error) {
-    console.error("Ошибка в симуляции v2:", error);
+    console.error("❌ Ошибка в симуляции v2:", error);
     throw error;
   }
 }

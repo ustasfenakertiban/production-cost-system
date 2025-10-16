@@ -123,6 +123,101 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     }
   };
 
+  const handleSimulateV2 = async () => {
+    setIsSimulating(true);
+    setSimulationLog("");
+    setValidationErrors([]);
+    setOperationBreakdown([]);
+    setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
+
+    try {
+      // Сначала получим данные заказа
+      const orderResponse = await fetch(`/api/orders/${orderId}`);
+      if (!orderResponse.ok) {
+        throw new Error("Не удалось загрузить данные заказа");
+      }
+      const orderData = await orderResponse.json();
+
+      // Запустим симуляцию v2
+      const response = await fetch(`/api/simulation-v2/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: orderId,
+          orderQuantity: orderData.quantity || 1000,
+          productId: orderData.productId,
+          productName: orderData.product?.name || "Unknown",
+          processId: orderData.product?.processId,
+          processName: orderData.product?.process?.name || "Unknown",
+          varianceMode: params.varianceMode === "NONE" ? "NORMAL" : 
+                       params.varianceMode === "MAX" ? "MIN_PRODUCTIVITY_MAX_COSTS" :
+                       params.varianceMode === "MIN" ? "NORMAL" :
+                       params.varianceMode === "RANDOM_FULL" ? "RANDOM_ASYMMETRIC" :
+                       "NORMAL",
+          startDate: new Date().toISOString(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Ошибка симуляции v2");
+      }
+
+      // Преобразуем результат v2 в формат v1 для отображения
+      const logLines: string[] = [];
+      logLines.push("=== СИМУЛЯЦИЯ v2 (ООП) ===");
+      logLines.push(`Заказ: ${data.orderId}`);
+      logLines.push(`Количество: ${data.orderQuantity}`);
+      logLines.push(`Общее время: ${data.totalDuration.toFixed(2)} часов`);
+      logLines.push(`Общая стоимость: ${data.totalCost.toFixed(2)}`);
+      logLines.push("");
+      
+      logLines.push("=== ОПЕРАЦИИ ===");
+      for (const op of data.operations) {
+        logLines.push(`\n[${op.chainName}] ${op.operationName}`);
+        logLines.push(`  Порядок цепочки: ${op.chainOrder}`);
+        logLines.push(`  Порядок операции: ${op.operationOrder}`);
+        logLines.push(`  Целевое количество: ${op.targetQuantity}`);
+        logLines.push(`  Выполнено: ${op.completedQuantity}`);
+        logLines.push(`  Время: ${op.totalHours.toFixed(2)} часов`);
+        logLines.push(`  Стоимость: ${op.totalCost.toFixed(2)}`);
+      }
+
+      setSimulationLog(logLines.join("\n"));
+      
+      // Преобразуем в формат для графиков
+      const breakdown = data.operations.map((op: any) => ({
+        operationName: op.operationName,
+        materials: op.materialCosts.reduce((sum: number, m: any) => sum + m.totalCost, 0),
+        equipment: op.equipmentCosts.reduce((sum: number, e: any) => sum + e.totalCost, 0),
+        labor: op.laborCosts.reduce((sum: number, l: any) => sum + l.totalCost, 0),
+      }));
+      
+      setOperationBreakdown(breakdown);
+      setTotalCosts({
+        materials: data.totalMaterialCost,
+        equipment: data.totalEquipmentCost,
+        labor: data.totalLaborCost,
+        total: data.totalCost,
+      });
+      
+      toast({
+        title: "Симуляция v2 завершена",
+        description: "Результаты отображены ниже",
+      });
+    } catch (error) {
+      console.error("Ошибка симуляции v2:", error);
+      toast({
+        title: "Ошибка",
+        description: error instanceof Error ? error.message : "Не удалось выполнить симуляцию v2",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
   const handleDownloadLog = () => {
     if (!simulationLog) return;
     
@@ -256,6 +351,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
               onClick={handleSimulate}
               disabled={isSimulating}
               className="flex-1"
+              variant="outline"
             >
               {isSimulating ? (
                 <>
@@ -265,7 +361,24 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
               ) : (
                 <>
                   <Play className="w-4 h-4 mr-2" />
-                  Запустить симуляцию
+                  Запустить v1
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={handleSimulateV2}
+              disabled={isSimulating}
+              className="flex-1"
+            >
+              {isSimulating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Выполняется симуляция...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 mr-2" />
+                  Запустить v2 (ООП) 🆕
                 </>
               )}
             </Button>
