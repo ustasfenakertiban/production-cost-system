@@ -30,7 +30,10 @@ export async function runSimulation(
     
     // Загрузить все данные из БД
     console.log("📊 Загрузка данных из базы...");
-    const data = await loadSimulationData(parameters.processId);
+    if (parameters.selectedEmployeeIds && parameters.selectedEmployeeIds.length > 0) {
+      console.log(`  👥 Выбрано сотрудников: ${parameters.selectedEmployeeIds.length}`);
+    }
+    const data = await loadSimulationData(parameters.processId, parameters.selectedEmployeeIds);
     
     console.log(`✅ Загружено:`);
     console.log(`  - Материалов: ${data.materials.length}`);

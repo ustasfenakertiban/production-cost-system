@@ -17,12 +17,12 @@ const prisma = new PrismaClient();
 /**
  * Загрузить все данные для симуляции
  */
-export async function loadSimulationData(processId: string) {
+export async function loadSimulationData(processId: string, selectedEmployeeIds?: string[]) {
   const [materials, equipment, roles, employees, chains] = await Promise.all([
     loadMaterials(),
     loadEquipment(),
     loadRoles(),
-    loadEmployees(),
+    loadEmployees(selectedEmployeeIds),
     loadOperationChains(processId),
   ]);
   
@@ -89,9 +89,16 @@ export async function loadRoles(): Promise<EmployeeRoleInfo[]> {
 
 /**
  * Загрузить сотрудников
+ * @param selectedEmployeeIds - Список ID выбранных сотрудников (если не указано - загружаются все активные)
  */
-export async function loadEmployees(): Promise<EmployeeInfo[]> {
+export async function loadEmployees(selectedEmployeeIds?: string[]): Promise<EmployeeInfo[]> {
+  // Если список сотрудников не указан, загружаем всех активных
+  const where = selectedEmployeeIds && selectedEmployeeIds.length > 0
+    ? { id: { in: selectedEmployeeIds }, isActive: true }
+    : { isActive: true };
+  
   const employees = await prisma.employee.findMany({
+    where,
     include: {
       roles: {
         include: {

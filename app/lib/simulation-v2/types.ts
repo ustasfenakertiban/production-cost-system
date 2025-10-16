@@ -35,6 +35,7 @@ export interface SimulationParameters {
   varianceMode: VarianceMode;
   startDate: Date;
   settings: SimulationSettingsV2;
+  selectedEmployeeIds?: string[];  // Список ID выбранных сотрудников (если не указано - все активные)
 }
 
 // ==================== Ресурсы ====================

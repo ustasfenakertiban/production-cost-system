@@ -148,17 +148,29 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       }
       const orderData = await orderResponse.json();
 
+      // Проверяем, что в заказе есть позиции
+      if (!orderData.orderItems || orderData.orderItems.length === 0) {
+        throw new Error("В заказе нет позиций. Добавьте хотя бы один товар.");
+      }
+
+      // Для MVP берем первую позицию заказа
+      const firstItem = orderData.orderItems[0];
+      
+      if (!firstItem.productionProcess?.id) {
+        throw new Error(`Для товара "${firstItem.product?.name || 'Unknown'}" не указан технологический процесс`);
+      }
+
       // Запустим симуляцию v2
       const response = await fetch(`/api/simulation-v2/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: orderId,
-          orderQuantity: orderData.quantity || 1000,
-          productId: orderData.productId,
-          productName: orderData.product?.name || "Unknown",
-          processId: orderData.product?.processId,
-          processName: orderData.product?.process?.name || "Unknown",
+          orderQuantity: firstItem.quantity || 1000,
+          productId: firstItem.product?.id || "unknown",
+          productName: firstItem.product?.name || "Unknown",
+          processId: firstItem.productionProcess.id,
+          processName: firstItem.productionProcess.name || "Unknown",
           varianceMode: params.varianceMode === "NONE" ? "NORMAL" : 
                        params.varianceMode === "MAX" ? "MIN_PRODUCTIVITY_MAX_COSTS" :
                        params.varianceMode === "MIN" ? "NORMAL" :
@@ -208,7 +220,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           operationId: op.operationId || 'unknown',
           operationName: op.operationName || 'N/A',
           chainName: op.chainName || 'N/A',
-          productName: orderData.product?.name || 'N/A',
+          productName: firstItem.product?.name || 'N/A',
           materialCost: materials || 0,
           equipmentCost: equipment || 0,
           laborCost: labor || 0,

@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       processName: body.processName,
       varianceMode: body.varianceMode || "NORMAL",
       startDate: body.startDate ? new Date(body.startDate) : new Date(),
+      selectedEmployeeIds: body.selectedEmployeeIds, // Список выбранных сотрудников
     };
     
     console.log("Запуск симуляции v2 с параметрами:", parameters);
