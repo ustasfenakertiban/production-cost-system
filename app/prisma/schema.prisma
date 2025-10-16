@@ -17,6 +17,7 @@ model Equipment {
   maxProductivity    Float?
   productivityUnits  String?
   comment            String?
+  trackInOccupancy   Boolean                      @default(true) // Учитывать в загрузке оборудования (v2)
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
   operationEquipment OperationEquipment[]
@@ -88,20 +89,21 @@ model MaterialCategory {
 }
 
 model Material {
-  id                 String                      @id @default(cuid())
-  name               String
-  categoryId         String
-  unit               String
-  cost               Float
-  vatPercentage      Float                       @default(0)
-  minStockPercentage Float?                      @default(0) // Минимальный неснижаемый остаток от партии закупки (в %)
-  batchSize          Float?                      // Размер партии закупки
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
-  comment            String?
-  category           MaterialCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  operationMaterials OperationMaterial[]
-  templateMaterials  OperationTemplateMaterial[]
+  id                      String                      @id @default(cuid())
+  name                    String
+  categoryId              String
+  unit                    String
+  cost                    Float
+  vatPercentage           Float                       @default(0)
+  minStockPercentage      Float?                      @default(0) // Минимальный неснижаемый остаток от партии закупки (в %)
+  batchSize               Float?                      // Размер партии закупки
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+  comment                 String?
+  category                MaterialCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  operationMaterials      OperationMaterial[]
+  templateMaterials       OperationTemplateMaterial[]
+  materialPurchaseBatches MaterialPurchaseBatch[]     // Партии закупки (v2)
 
   @@map("materials")
 }
@@ -309,12 +311,15 @@ enum ChainType {
 }
 
 model Order {
-  id         String      @id @default(cuid())
-  name       String
-  orderDate  DateTime
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  orderItems OrderItem[]
+  id                      String                  @id @default(cuid())
+  name                    String
+  orderDate               DateTime
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  orderItems              OrderItem[]
+  simulationSettingsV2    SimulationSettingsV2?   // Настройки симуляции v2 (один к одному)
+  paymentSchedules        PaymentSchedule[]       // График платежей
+  materialPurchaseBatches MaterialPurchaseBatch[] // Партии закупки материалов
 
   @@map("orders")
 }
@@ -438,4 +443,57 @@ model Backup {
   createdAt  DateTime @default(now())
 
   @@map("backups")
+}
+
+// ===============================================
+// SIMULATION V2 MODELS
+// ===============================================
+
+model SimulationSettingsV2 {
+  id                              String   @id @default(cuid())
+  orderId                         String   @unique // Связь с заказом
+  workingHoursPerDay              Float    @default(8)    // Количество рабочих часов в день
+  restMinutesPerHour              Float    @default(0)    // Количество минут отдыха в час
+  sellingPriceWithVAT             Float?                  // Продажная цена с НДС
+  vatRate                         Float    @default(20)   // Ставка НДС, %
+  profitTaxRate                   Float    @default(20)   // Ставка налога на прибыль, %
+  includeRecurringExpenses        Boolean  @default(false) // Учитывать периодические расходы
+  waitForMaterialDelivery         Boolean  @default(true)  // Ждать поставку материалов
+  payEmployeesForIdleTime         Boolean  @default(false) // Доплачивать сотрудникам за простой (округлять до часа)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+  order                           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("simulation_settings_v2")
+}
+
+model PaymentSchedule {
+  id              String   @id @default(cuid())
+  orderId         String   // Связь с заказом
+  dayNumber       Int      // День от начала заказа (1, 2, 3...)
+  percentageOfTotal Float  // Процент от общей суммы заказа
+  amount          Float?   // Сумма платежа (может быть рассчитана автоматически)
+  description     String?  // Описание платежа
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payment_schedules")
+}
+
+model MaterialPurchaseBatch {
+  id              String   @id @default(cuid())
+  orderId         String   // Связь с заказом
+  materialId      String   // Связь с материалом
+  quantity        Float    // Количество материала в партии
+  pricePerUnit    Float    // Цена за единицу
+  totalCost       Float    // Общая стоимость партии
+  deliveryDay     Int      // День поступления (от начала заказа)
+  status          String   @default("planned") // planned, delivered
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  material        Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("material_purchase_batches")
 }

@@ -29,6 +29,7 @@ import CostBreakdownChart, { OperationCostBreakdown } from "@/components/cost-br
 import OperationsTotalCostChart from "@/components/operations-total-cost-chart";
 import OperationsLaborCostChart from "@/components/operations-labor-cost-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmployeeSelectionDialog } from "@/components/orders/EmployeeSelectionDialog";
 
 interface SimulationPanelProps {
   orderId: string;
@@ -71,6 +72,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     total: number;
   }>({ materials: 0, equipment: 0, labor: 0, total: 0 });
   const [isSimulating, setIsSimulating] = useState(false);
+  const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const handleSimulate = async () => {
@@ -123,7 +125,12 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     }
   };
 
-  const handleSimulateV2 = async () => {
+  const handleSimulateV2 = () => {
+    // Открываем диалог выбора сотрудников
+    setEmployeeDialogOpen(true);
+  };
+
+  const runSimulationV2WithEmployees = async (selectedEmployeeIds: string[]) => {
     setIsSimulating(true);
     setSimulationLog("");
     setValidationErrors([]);
@@ -155,6 +162,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                        params.varianceMode === "RANDOM_FULL" ? "RANDOM_ASYMMETRIC" :
                        "NORMAL",
           startDate: new Date().toISOString(),
+          selectedEmployeeIds, // Список выбранных сотрудников
         }),
       });
 
@@ -506,6 +514,12 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </CardContent>
         </Card>
       )}
+
+      <EmployeeSelectionDialog
+        open={employeeDialogOpen}
+        onOpenChange={setEmployeeDialogOpen}
+        onConfirm={runSimulationV2WithEmployees}
+      />
     </div>
   );
 }

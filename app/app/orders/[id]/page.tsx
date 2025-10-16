@@ -23,6 +23,9 @@ import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { OrderItemDialog } from "./order-item-dialog";
 import SimulationPanel from "./simulation-panel";
+import { SimulationSettingsV2Form } from "@/components/orders/SimulationSettingsV2Form";
+import { PaymentScheduleTable } from "@/components/orders/PaymentScheduleTable";
+import { MaterialPurchaseBatchTable } from "@/components/orders/MaterialPurchaseBatchTable";
 
 interface OrderItem {
   id: string;
@@ -224,6 +227,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
       <div className="mt-8">
         <SimulationPanel orderId={params.id} />
+      </div>
+
+      <div className="mt-8 space-y-8">
+        <SimulationSettingsV2Form orderId={params.id} />
+        <PaymentScheduleTable orderId={params.id} />
+        <MaterialPurchaseBatchTable orderId={params.id} />
       </div>
     </div>
   );
