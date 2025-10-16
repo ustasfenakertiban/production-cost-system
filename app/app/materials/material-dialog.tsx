@@ -51,6 +51,8 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     unit: "",
     cost: "",
     vatPercentage: "",
+    minStockPercentage: "0",
+    batchSize: "",
     comment: "",
   });
   
@@ -78,6 +80,8 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: material.unit,
         cost: material.cost.toString(),
         vatPercentage: material.vatPercentage?.toString() || "0",
+        minStockPercentage: (material as any).minStockPercentage?.toString() || "0",
+        batchSize: (material as any).batchSize?.toString() || "",
         comment: material.comment || "",
       });
     } else {
@@ -87,6 +91,8 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: "",
         cost: "",
         vatPercentage: "0",
+        minStockPercentage: "0",
+        batchSize: "",
         comment: "",
       });
     }
@@ -115,6 +121,8 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: formData.unit,
         cost: parseFloat(formData.cost),
         vatPercentage: parseFloat(formData.vatPercentage) || 0,
+        minStockPercentage: parseFloat(formData.minStockPercentage) || 0,
+        batchSize: formData.batchSize ? parseFloat(formData.batchSize) : null,
         comment: formData.comment || null,
       };
 
@@ -434,6 +442,36 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                   за {formData.unit || "ед"}
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="batchSize">Размер партии закупки</Label>
+              <Input
+                id="batchSize"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.batchSize}
+                onChange={(e) => handleChange('batchSize', e.target.value)}
+                placeholder="100"
+              />
+              <p className="text-xs text-gray-500 mt-1">В единицах материала</p>
+            </div>
+            <div>
+              <Label htmlFor="minStock">Минимальный остаток (%)</Label>
+              <Input
+                id="minStock"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={formData.minStockPercentage}
+                onChange={(e) => handleChange('minStockPercentage', e.target.value)}
+                placeholder="0"
+              />
+              <p className="text-xs text-gray-500 mt-1">% от партии закупки</p>
             </div>
           </div>
 

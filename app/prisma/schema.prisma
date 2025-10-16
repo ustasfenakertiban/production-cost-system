@@ -94,6 +94,8 @@ model Material {
   unit               String
   cost               Float
   vatPercentage      Float                       @default(0)
+  minStockPercentage Float?                      @default(0) // Минимальный неснижаемый остаток от партии закупки (в %)
+  batchSize          Float?                      // Размер партии закупки
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
   comment            String?
@@ -414,6 +416,16 @@ model OperationTemplateRole {
   role                       EmployeeRole      @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@map("operation_template_roles")
+}
+
+model SimulationSettings {
+  id                    String   @id @default(cuid())
+  payIdleTime           Boolean  @default(true)  // Доплачивать за простой сотрудникам
+  enablePartialWork     Boolean  @default(true)  // Выполнять частичные операции при наличии свободных ресурсов
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("simulation_settings")
 }
 
 model Backup {
