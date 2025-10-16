@@ -46,6 +46,8 @@ export type VarianceMode =
 
 export type ProductivityAlgorithm = "BOTTLENECK" | "NOMINAL";
 
+export type SimulationVersion = "v1" | "v2";
+
 export interface SimulationParams {
   hoursPerDay: number;
   physicalWorkers: number;
@@ -55,6 +57,7 @@ export interface SimulationParams {
 }
 
 export default function SimulationPanel({ orderId }: SimulationPanelProps) {
+  const [simulationVersion, setSimulationVersion] = useState<SimulationVersion>("v2");
   const [params, setParams] = useState<SimulationParams>({
     hoursPerDay: 8,
     physicalWorkers: 5,
@@ -269,6 +272,28 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Переключатель версий симуляции */}
+          <div className="space-y-2">
+            <Label>Версия симуляции</Label>
+            <Select
+              value={simulationVersion}
+              onValueChange={(value: SimulationVersion) => setSimulationVersion(value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="v1">Версия 1 (классическая)</SelectItem>
+                <SelectItem value="v2">Версия 2 (ООП, с выбором сотрудников) 🆕</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {simulationVersion === "v1" 
+                ? "Классический алгоритм с настройками производительности и количества работников"
+                : "Новый объектно-ориентированный алгоритм с выбором конкретных сотрудников"}
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="hoursPerDay">Количество часов в рабочем дне</Label>
@@ -284,18 +309,21 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="physicalWorkers">Количество физических работников</Label>
-              <Input
-                id="physicalWorkers"
-                type="number"
-                min="1"
-                value={params.physicalWorkers}
-                onChange={(e) =>
-                  setParams({ ...params, physicalWorkers: Number(e.target.value) })
-                }
-              />
-            </div>
+            {/* Параметр "Количество физических работников" только для v1 */}
+            {simulationVersion === "v1" && (
+              <div className="space-y-2">
+                <Label htmlFor="physicalWorkers">Количество физических работников</Label>
+                <Input
+                  id="physicalWorkers"
+                  type="number"
+                  min="1"
+                  value={params.physicalWorkers}
+                  onChange={(e) =>
+                    setParams({ ...params, physicalWorkers: Number(e.target.value) })
+                  }
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="breakMinutes">Отдых (минут в час)</Label>
@@ -345,70 +373,75 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="productivityAlgorithm">Алгоритм расчета производительности</Label>
-              <Select
-                value={params.productivityAlgorithm}
-                onValueChange={(value: ProductivityAlgorithm) =>
-                  setParams({ ...params, productivityAlgorithm: value })
-                }
-              >
-                <SelectTrigger id="productivityAlgorithm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BOTTLENECK">
-                    Бутылочное горлышко
-                  </SelectItem>
-                  <SelectItem value="NOMINAL">
-                    По номиналу
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {params.productivityAlgorithm === "BOTTLENECK" 
-                  ? "Производительность ограничивается самым медленным ресурсом (оборудование, работники, номинал)"
-                  : "Используется только номинальная производительность операции. Производительность оборудования учитывается только для амортизации, работников - только для зарплаты"}
-              </p>
-            </div>
+            {/* Алгоритм расчета производительности только для v1 */}
+            {simulationVersion === "v1" && (
+              <div className="space-y-2">
+                <Label htmlFor="productivityAlgorithm">Алгоритм расчета производительности</Label>
+                <Select
+                  value={params.productivityAlgorithm}
+                  onValueChange={(value: ProductivityAlgorithm) =>
+                    setParams({ ...params, productivityAlgorithm: value })
+                  }
+                >
+                  <SelectTrigger id="productivityAlgorithm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BOTTLENECK">
+                      Бутылочное горлышко
+                    </SelectItem>
+                    <SelectItem value="NOMINAL">
+                      По номиналу
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {params.productivityAlgorithm === "BOTTLENECK" 
+                    ? "Производительность ограничивается самым медленным ресурсом (оборудование, работники, номинал)"
+                    : "Используется только номинальная производительность операции. Производительность оборудования учитывается только для амортизации, работников - только для зарплаты"}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
-            <Button
-              onClick={handleSimulate}
-              disabled={isSimulating}
-              className="flex-1"
-              variant="outline"
-            >
-              {isSimulating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Выполняется симуляция...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 mr-2" />
-                  Запустить v1
-                </>
-              )}
-            </Button>
-            <Button
-              onClick={handleSimulateV2}
-              disabled={isSimulating}
-              className="flex-1"
-            >
-              {isSimulating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Выполняется симуляция...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4 mr-2" />
-                  Запустить v2 (ООП) 🆕
-                </>
-              )}
-            </Button>
+            {simulationVersion === "v1" ? (
+              <Button
+                onClick={handleSimulate}
+                disabled={isSimulating}
+                className="flex-1"
+              >
+                {isSimulating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Выполняется симуляция...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Запустить симуляцию
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSimulateV2}
+                disabled={isSimulating}
+                className="flex-1"
+              >
+                {isSimulating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Выполняется симуляция...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Запустить симуляцию
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
