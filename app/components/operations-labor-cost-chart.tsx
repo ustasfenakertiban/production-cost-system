@@ -61,7 +61,7 @@ export default function OperationsLaborCostChart({
 
   const colors = generateColors(chartData.length);
 
-  const formatCurrency = (value: number) => `${value.toFixed(2)} ₽`;
+  const formatCurrency = (value: number) => `${(value || 0).toFixed(2)} ₽`;
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {

@@ -187,12 +187,31 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       setSimulationLog(logLines.join("\n"));
       
       // Преобразуем в формат для графиков
-      const breakdown = (data.operations || []).map((op: any) => ({
-        operationName: op.operationName || 'N/A',
-        materials: (op.materialCosts || []).reduce((sum: number, m: any) => sum + (m.totalCost || 0), 0),
-        equipment: (op.equipmentCosts || []).reduce((sum: number, e: any) => sum + (e.totalCost || 0), 0),
-        labor: (op.laborCosts || []).reduce((sum: number, l: any) => sum + (l.totalCost || 0), 0),
-      }));
+      const breakdown = (data.operations || []).map((op: any) => {
+        const materials = (op.materialCosts || []).reduce((sum: number, m: any) => sum + (m.totalCost || 0), 0);
+        const equipment = (op.equipmentCosts || []).reduce((sum: number, e: any) => sum + (e.totalCost || 0), 0);
+        const labor = (op.laborCosts || []).reduce((sum: number, l: any) => sum + (l.totalCost || 0), 0);
+        const totalCost = materials + equipment + labor;
+        
+        return {
+          operationId: op.operationId || 'unknown',
+          operationName: op.operationName || 'N/A',
+          chainName: op.chainName || 'N/A',
+          productName: orderData.product?.name || 'N/A',
+          materialCost: materials || 0,
+          equipmentCost: equipment || 0,
+          laborCost: labor || 0,
+          totalCost: totalCost || 0,
+          materialPercentage: totalCost > 0 ? (materials / totalCost) * 100 : 0,
+          equipmentPercentage: totalCost > 0 ? (equipment / totalCost) * 100 : 0,
+          laborPercentage: totalCost > 0 ? (labor / totalCost) * 100 : 0,
+          percentageOfTotal: data.totalCost > 0 ? (totalCost / data.totalCost) * 100 : 0,
+          // Для обратной совместимости с v1
+          materials,
+          equipment,
+          labor,
+        };
+      });
       
       setOperationBreakdown(breakdown);
       setTotalCosts({

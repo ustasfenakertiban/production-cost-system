@@ -69,16 +69,18 @@ export default function CostBreakdownChart({ operations, totalCosts }: CostBreak
     { name: "Сотрудники", value: selectedOperation.laborCost, color: COLORS.labor },
   ].filter(item => item.value > 0) : [];
 
-  const formatCurrency = (value: number) => `${value.toFixed(2)} ₽`;
+  const formatCurrency = (value: number) => `${(value || 0).toFixed(2)} ₽`;
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0];
+      const value = data.value || 0;
+      const percent = data.payload.percent ?? 0;
       return (
         <div className="bg-background border rounded-lg p-3 shadow-lg">
           <p className="font-medium">{data.name}</p>
           <p className="text-sm text-muted-foreground">
-            {formatCurrency(data.value)} ({data.payload.percent?.toFixed(1)}%)
+            {formatCurrency(value)} ({percent.toFixed(1)}%)
           </p>
         </div>
       );
@@ -167,7 +169,7 @@ export default function CostBreakdownChart({ operations, totalCosts }: CostBreak
                         {formatCurrency(op.totalCost)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className="font-medium">{op.percentageOfTotal.toFixed(1)}%</span>
+                        <span className="font-medium">{(op.percentageOfTotal || 0).toFixed(1)}%</span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -240,15 +242,15 @@ export default function CostBreakdownChart({ operations, totalCosts }: CostBreak
                 <div className="mt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-blue-600">Материалы:</span>
-                    <span className="font-mono">{formatCurrency(selectedOperation.materialCost)} ({selectedOperation.materialPercentage.toFixed(1)}%)</span>
+                    <span className="font-mono">{formatCurrency(selectedOperation.materialCost)} ({(selectedOperation.materialPercentage || 0).toFixed(1)}%)</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-purple-600">Оборудование:</span>
-                    <span className="font-mono">{formatCurrency(selectedOperation.equipmentCost)} ({selectedOperation.equipmentPercentage.toFixed(1)}%)</span>
+                    <span className="font-mono">{formatCurrency(selectedOperation.equipmentCost)} ({(selectedOperation.equipmentPercentage || 0).toFixed(1)}%)</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-green-600">Сотрудники:</span>
-                    <span className="font-mono">{formatCurrency(selectedOperation.laborCost)} ({selectedOperation.laborPercentage.toFixed(1)}%)</span>
+                    <span className="font-mono">{formatCurrency(selectedOperation.laborCost)} ({(selectedOperation.laborPercentage || 0).toFixed(1)}%)</span>
                   </div>
                 </div>
               </CardContent>
