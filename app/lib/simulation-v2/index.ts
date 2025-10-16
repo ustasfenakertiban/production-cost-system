@@ -51,11 +51,11 @@ export async function runSimulation(
     const result = await engine.run();
     
     console.log("✅ Симуляция v2 завершена успешно");
-    console.log(`  - Общее время: ${result.totalDuration.toFixed(2)} часов`);
-    console.log(`  - Общая стоимость: ${result.totalCost.toFixed(2)}`);
-    console.log(`  - Материалы: ${result.totalMaterialCost.toFixed(2)}`);
-    console.log(`  - Оборудование: ${result.totalEquipmentCost.toFixed(2)}`);
-    console.log(`  - Персонал: ${result.totalLaborCost.toFixed(2)}`);
+    console.log(`  - Общее время: ${(result.totalDuration ?? 0).toFixed(2)} часов`);
+    console.log(`  - Общая стоимость: ${(result.totalCost ?? 0).toFixed(2)}`);
+    console.log(`  - Материалы: ${(result.totalMaterialCost ?? 0).toFixed(2)}`);
+    console.log(`  - Оборудование: ${(result.totalEquipmentCost ?? 0).toFixed(2)}`);
+    console.log(`  - Персонал: ${(result.totalLaborCost ?? 0).toFixed(2)}`);
     
     return result;
   } catch (error) {

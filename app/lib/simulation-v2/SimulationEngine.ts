@@ -391,33 +391,40 @@ export class SimulationEngine {
    * Собрать результаты симуляции
    */
   private buildResult(startTime: Date): SimulationResult {
+    console.log("📊 Сборка результатов симуляции...");
+    
     const operations: OperationResult[] = [];
     let totalMaterialCost = 0;
     let totalEquipmentCost = 0;
     let totalLaborCost = 0;
     
+    console.log(`  Цепочек операций: ${this.chains?.length || 0}`);
+    
     // Собрать результаты по операциям
-    for (const chain of this.chains) {
-      for (const operation of chain.getOperations()) {
+    for (const chain of this.chains || []) {
+      const chainOps = chain.getOperations();
+      console.log(`  Цепочка "${chain.getName()}": операций ${chainOps?.length || 0}`);
+      
+      for (const operation of chainOps || []) {
         const opStartTime = operation.progress.startTime || startTime;
         const opEndTime = operation.progress.endTime || this.currentTime;
         const totalHours = (opEndTime.getTime() - opStartTime.getTime()) / (1000 * 60 * 60);
         
         // Рассчитать затраты на материалы
-        const materialCosts = this.calculateMaterialCosts(operation);
-        const materialTotal = materialCosts.reduce((sum, m) => sum + m.totalCost, 0);
+        const materialCosts = this.calculateMaterialCosts(operation) || [];
+        const materialTotal = materialCosts.reduce((sum, m) => sum + (m.totalCost || 0), 0);
         
         // Рассчитать затраты на оборудование
-        const equipmentCosts = this.calculateEquipmentCosts(operation);
-        const equipmentTotal = equipmentCosts.reduce((sum, e) => sum + e.totalCost, 0);
+        const equipmentCosts = this.calculateEquipmentCosts(operation) || [];
+        const equipmentTotal = equipmentCosts.reduce((sum, e) => sum + (e.totalCost || 0), 0);
         
         // Рассчитать затраты на персонал
-        const laborCosts = this.calculateLaborCosts(operation);
-        const laborTotal = laborCosts.reduce((sum, l) => sum + l.totalCost, 0);
+        const laborCosts = this.calculateLaborCosts(operation) || [];
+        const laborTotal = laborCosts.reduce((sum, l) => sum + (l.totalCost || 0), 0);
         
-        totalMaterialCost += materialTotal;
-        totalEquipmentCost += equipmentTotal;
-        totalLaborCost += laborTotal;
+        totalMaterialCost += materialTotal || 0;
+        totalEquipmentCost += equipmentTotal || 0;
+        totalLaborCost += laborTotal || 0;
         
         operations.push({
           operationId: operation.getId(),
@@ -430,20 +437,31 @@ export class SimulationEngine {
           completedQuantity: operation.getCompleted(),
           startTime: opStartTime,
           endTime: opEndTime,
-          totalHours,
+          totalHours: totalHours || 0,
           materialCosts,
           equipmentCosts,
           laborCosts,
-          totalCost: materialTotal + equipmentTotal + laborTotal,
+          totalCost: (materialTotal || 0) + (equipmentTotal || 0) + (laborTotal || 0),
         });
       }
     }
     
+    console.log(`  Собрано операций: ${operations.length}`);
+    console.log(`  Материалы: ${totalMaterialCost}`);
+    console.log(`  Оборудование: ${totalEquipmentCost}`);
+    console.log(`  Персонал: ${totalLaborCost}`);
+    
     // Собрать утилизацию оборудования
-    const equipmentUtilization = this.calculateEquipmentUtilization(startTime);
+    const equipmentUtilization = this.calculateEquipmentUtilization(startTime) || [];
     
     // Собрать утилизацию сотрудников
-    const employeeUtilization = this.calculateEmployeeUtilization(startTime);
+    const employeeUtilization = this.calculateEmployeeUtilization(startTime) || [];
+    
+    const totalDuration = (this.currentTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    const totalCost = (totalMaterialCost || 0) + (totalEquipmentCost || 0) + (totalLaborCost || 0);
+    
+    console.log(`  Общая длительность: ${totalDuration} часов`);
+    console.log(`  Общая стоимость: ${totalCost}`);
     
     return {
       orderId: this.parameters.orderId,
@@ -451,15 +469,15 @@ export class SimulationEngine {
       parameters: this.parameters,
       startTime,
       endTime: this.currentTime,
-      totalDuration: (this.currentTime.getTime() - startTime.getTime()) / (1000 * 60 * 60),
-      operations,
-      totalMaterialCost,
-      totalEquipmentCost,
-      totalLaborCost,
-      totalCost: totalMaterialCost + totalEquipmentCost + totalLaborCost,
-      materialUsage: this.resourceManager.getAllMaterialStocks(),
-      equipmentUtilization,
-      employeeUtilization,
+      totalDuration: totalDuration || 0,
+      operations: operations || [],
+      totalMaterialCost: totalMaterialCost || 0,
+      totalEquipmentCost: totalEquipmentCost || 0,
+      totalLaborCost: totalLaborCost || 0,
+      totalCost: totalCost || 0,
+      materialUsage: this.resourceManager.getAllMaterialStocks() || [],
+      equipmentUtilization: equipmentUtilization || [],
+      employeeUtilization: employeeUtilization || [],
     };
   }
   
