@@ -38,6 +38,9 @@ export interface MaterialInfo {
   cost: number;
   minStockPercentage: number;     // Минимальный неснижаемый остаток (%)
   batchSize: number;              // Размер партии закупки
+  prepaymentPercentage: number;   // % предоплаты при закупке
+  manufacturingDays: number;      // Срок изготовления в днях
+  deliveryDays: number;           // Срок доставки в днях
 }
 
 export interface EquipmentInfo {

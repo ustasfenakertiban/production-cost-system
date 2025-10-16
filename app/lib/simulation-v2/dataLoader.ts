@@ -52,6 +52,9 @@ export async function loadMaterials(): Promise<MaterialInfo[]> {
     cost: m.cost,
     minStockPercentage: m.minStockPercentage || 0,
     batchSize: m.batchSize || 0,
+    prepaymentPercentage: m.prepaymentPercentage || 0,
+    manufacturingDays: m.manufacturingDays || 0,
+    deliveryDays: m.deliveryDays || 0,
   }));
 }
 

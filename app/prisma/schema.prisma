@@ -97,6 +97,9 @@ model Material {
   vatPercentage           Float                       @default(0)
   minStockPercentage      Float?                      @default(0) // Минимальный неснижаемый остаток от партии закупки (в %)
   batchSize               Float?                      // Размер партии закупки
+  prepaymentPercentage    Float?                      @default(0) // % предоплаты при закупке
+  manufacturingDays       Int?                        @default(0) // Срок изготовления в днях
+  deliveryDays            Int?                        @default(0) // Срок доставки в днях
   createdAt               DateTime                    @default(now())
   updatedAt               DateTime                    @updatedAt
   comment                 String?
@@ -490,18 +493,22 @@ model PaymentSchedule {
 }
 
 model MaterialPurchaseBatch {
-  id              String   @id @default(cuid())
-  orderId         String   // Связь с заказом
-  materialId      String   // Связь с материалом
-  quantity        Float    // Количество материала в партии
-  pricePerUnit    Float    // Цена за единицу
-  totalCost       Float    // Общая стоимость партии
-  deliveryDay     Int      // День поступления (от начала заказа)
-  status          String   @default("planned") // planned, delivered
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  material        Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(cuid())
+  orderId              String   // Связь с заказом
+  materialId           String   // Связь с материалом
+  quantity             Float    // Количество материала в партии
+  pricePerUnit         Float    // Цена за единицу
+  totalCost            Float    // Общая стоимость партии
+  prepaymentPercentage Float    @default(0) // % предоплаты для этой партии
+  prepaymentPaid       Float    @default(0) // Сумма оплаченной предоплаты
+  remainingAmount      Float    @default(0) // Остаток к оплате
+  manufacturingDay     Int      @default(0) // День когда изготовится (0 = не указан/уже изготовлен)
+  deliveryDay          Int      // День поступления (от начала заказа)
+  status               String   @default("planned") // planned, manufacturing, in_transit, delivered
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  material             Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@map("material_purchase_batches")
 }

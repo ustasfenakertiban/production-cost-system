@@ -53,6 +53,9 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     vatPercentage: "",
     minStockPercentage: "0",
     batchSize: "",
+    prepaymentPercentage: "0",
+    manufacturingDays: "0",
+    deliveryDays: "0",
     comment: "",
   });
   
@@ -82,6 +85,9 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         vatPercentage: material.vatPercentage?.toString() || "0",
         minStockPercentage: (material as any).minStockPercentage?.toString() || "0",
         batchSize: (material as any).batchSize?.toString() || "",
+        prepaymentPercentage: (material as any).prepaymentPercentage?.toString() || "0",
+        manufacturingDays: (material as any).manufacturingDays?.toString() || "0",
+        deliveryDays: (material as any).deliveryDays?.toString() || "0",
         comment: material.comment || "",
       });
     } else {
@@ -93,6 +99,9 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         vatPercentage: "0",
         minStockPercentage: "0",
         batchSize: "",
+        prepaymentPercentage: "0",
+        manufacturingDays: "0",
+        deliveryDays: "0",
         comment: "",
       });
     }
@@ -123,6 +132,9 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         vatPercentage: parseFloat(formData.vatPercentage) || 0,
         minStockPercentage: parseFloat(formData.minStockPercentage) || 0,
         batchSize: formData.batchSize ? parseFloat(formData.batchSize) : null,
+        prepaymentPercentage: parseFloat(formData.prepaymentPercentage) || 0,
+        manufacturingDays: parseInt(formData.manufacturingDays) || 0,
+        deliveryDays: parseInt(formData.deliveryDays) || 0,
         comment: formData.comment || null,
       };
 
@@ -472,6 +484,52 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                 placeholder="0"
               />
               <p className="text-xs text-gray-500 mt-1">% от партии закупки</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-gray-700 border-b pb-1">
+              Параметры закупки (для симуляции v2)
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="prepaymentPercentage">% предоплаты</Label>
+                <Input
+                  id="prepaymentPercentage"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={formData.prepaymentPercentage}
+                  onChange={(e) => handleChange('prepaymentPercentage', e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">% от суммы</p>
+              </div>
+              <div>
+                <Label htmlFor="manufacturingDays">Изготовление (дн)</Label>
+                <Input
+                  id="manufacturingDays"
+                  type="number"
+                  min="0"
+                  value={formData.manufacturingDays}
+                  onChange={(e) => handleChange('manufacturingDays', e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">Срок изготовления</p>
+              </div>
+              <div>
+                <Label htmlFor="deliveryDays">Доставка (дн)</Label>
+                <Input
+                  id="deliveryDays"
+                  type="number"
+                  min="0"
+                  value={formData.deliveryDays}
+                  onChange={(e) => handleChange('deliveryDays', e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">Срок доставки</p>
+              </div>
             </div>
           </div>
 

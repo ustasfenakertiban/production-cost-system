@@ -37,6 +37,11 @@ export async function POST(request: NextRequest) {
         unit: data.unit,
         cost: data.cost,
         vatPercentage: data.vatPercentage || 0,
+        minStockPercentage: data.minStockPercentage || 0,
+        batchSize: data.batchSize || null,
+        prepaymentPercentage: data.prepaymentPercentage || 0,
+        manufacturingDays: data.manufacturingDays || 0,
+        deliveryDays: data.deliveryDays || 0,
         comment: data.comment,
       },
       include: {
