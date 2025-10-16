@@ -10,10 +10,6 @@ import {
   EmployeeInfo,
   EmployeeRoleInfo,
   OperationChainConfig,
-  OperationConfig,
-  OperationMaterialRequirement,
-  OperationEquipmentRequirement,
-  OperationRoleRequirement,
 } from "./types";
 
 const prisma = new PrismaClient();
@@ -49,13 +45,13 @@ export async function loadMaterials(): Promise<MaterialInfo[]> {
     },
   });
   
-  return materials.map(m => ({
+  return materials.map((m) => ({
     id: m.id,
     name: m.name,
     unit: m.unit,
     cost: m.cost,
     minStockPercentage: m.minStockPercentage || 0,
-    batchSize: m.batchSize || 1,
+    batchSize: m.batchSize || 0,
   }));
 }
 
@@ -65,7 +61,7 @@ export async function loadMaterials(): Promise<MaterialInfo[]> {
 export async function loadEquipment(): Promise<EquipmentInfo[]> {
   const equipment = await prisma.equipment.findMany();
   
-  return equipment.map(e => ({
+  return equipment.map((e) => ({
     id: e.id,
     name: e.name,
     hourlyDepreciation: e.hourlyDepreciation,
@@ -80,7 +76,7 @@ export async function loadEquipment(): Promise<EquipmentInfo[]> {
 export async function loadRoles(): Promise<EmployeeRoleInfo[]> {
   const roles = await prisma.employeeRole.findMany();
   
-  return roles.map(r => ({
+  return roles.map((r) => ({
     id: r.id,
     name: r.name,
     paymentType: r.paymentType as "HOURLY" | "PIECE_RATE",
@@ -93,9 +89,6 @@ export async function loadRoles(): Promise<EmployeeRoleInfo[]> {
  */
 export async function loadEmployees(): Promise<EmployeeInfo[]> {
   const employees = await prisma.employee.findMany({
-    where: {
-      isActive: true,
-    },
     include: {
       roles: {
         include: {
@@ -105,48 +98,37 @@ export async function loadEmployees(): Promise<EmployeeInfo[]> {
     },
   });
   
-  return employees.map(e => ({
+  return employees.map((e) => ({
     id: e.id,
     name: e.name,
-    roles: e.roles.map(r => r.roleId),
+    roles: e.roles.map((r) => r.roleId),
   }));
 }
 
 /**
- * Загрузить цепочки операций
+ * Загрузить цепочки операций для процесса
  */
 export async function loadOperationChains(processId: string): Promise<OperationChainConfig[]> {
   const chains = await prisma.operationChain.findMany({
-    where: {
-      processId,
-      enabled: true,
-    },
+    where: { processId },
     include: {
       operations: {
-        where: {
-          enabled: true,
-        },
+        where: { enabled: true },
         include: {
           operationMaterials: {
-            where: {
-              enabled: true,
-            },
+            where: { enabled: true },
             include: {
               material: true,
             },
           },
           operationEquipment: {
-            where: {
-              enabled: true,
-            },
+            where: { enabled: true },
             include: {
               equipment: true,
             },
           },
           operationRoles: {
-            where: {
-              enabled: true,
-            },
+            where: { enabled: true },
             include: {
               role: true,
             },
@@ -162,14 +144,13 @@ export async function loadOperationChains(processId: string): Promise<OperationC
     },
   });
   
-  return chains.map(chain => ({
+  return chains.map((chain) => ({
     id: chain.id,
     name: chain.name,
     chainType: chain.chainType as "ONE_TIME" | "PER_UNIT",
     orderIndex: chain.orderIndex,
     enabled: chain.enabled,
-    estimatedQuantity: chain.estimatedQuantity || undefined,
-    operations: chain.operations.map(op => ({
+    operations: chain.operations.map((op) => ({
       id: op.id,
       name: op.name,
       chainId: chain.id,
@@ -179,27 +160,28 @@ export async function loadOperationChains(processId: string): Promise<OperationC
       cycleHours: op.cycleHours || undefined,
       operationDuration: op.operationDuration || undefined,
       minimumBatchSize: op.minimumBatchSize || 1,
-      materials: op.operationMaterials.map(m => ({
+      requiresContinuousOperation: false, // Можно добавить в схему позже
+      materials: op.operationMaterials.map((m) => ({
         materialId: m.materialId,
         quantityPerUnit: m.quantity,
         variance: m.variance || 0,
         enabled: m.enabled,
       })),
-      equipment: op.operationEquipment.map(e => ({
+      equipment: op.operationEquipment.map((e) => ({
         equipmentId: e.equipmentId,
         timePerUnit: e.machineTime,
         productivityPerHour: e.piecesPerHour || undefined,
         variance: e.variance || 0,
         enabled: e.enabled,
-        requiresContinuousOperation: e.requiresContinuousOperation,
+        requiresContinuousOperation: e.requiresContinuousOperation || false,
       })),
-      roles: op.operationRoles.map(r => ({
+      roles: op.operationRoles.map((r) => ({
         roleId: r.roleId,
         timePerUnit: r.timeSpent,
         productivityPerHour: r.piecesPerHour || undefined,
         variance: r.variance || 0,
         enabled: r.enabled,
-        requiresContinuousPresence: r.requiresContinuousPresence,
+        requiresContinuousPresence: r.requiresContinuousPresence || false,
       })),
     })),
   }));
