@@ -167,39 +167,39 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       // Преобразуем результат v2 в формат v1 для отображения
       const logLines: string[] = [];
       logLines.push("=== СИМУЛЯЦИЯ v2 (ООП) ===");
-      logLines.push(`Заказ: ${data.orderId}`);
-      logLines.push(`Количество: ${data.orderQuantity}`);
-      logLines.push(`Общее время: ${data.totalDuration.toFixed(2)} часов`);
-      logLines.push(`Общая стоимость: ${data.totalCost.toFixed(2)}`);
+      logLines.push(`Заказ: ${data.orderId || 'N/A'}`);
+      logLines.push(`Количество: ${data.orderQuantity || 0}`);
+      logLines.push(`Общее время: ${(data.totalDuration ?? 0).toFixed(2)} часов`);
+      logLines.push(`Общая стоимость: ${(data.totalCost ?? 0).toFixed(2)}`);
       logLines.push("");
       
       logLines.push("=== ОПЕРАЦИИ ===");
-      for (const op of data.operations) {
-        logLines.push(`\n[${op.chainName}] ${op.operationName}`);
-        logLines.push(`  Порядок цепочки: ${op.chainOrder}`);
-        logLines.push(`  Порядок операции: ${op.operationOrder}`);
-        logLines.push(`  Целевое количество: ${op.targetQuantity}`);
-        logLines.push(`  Выполнено: ${op.completedQuantity}`);
-        logLines.push(`  Время: ${op.totalHours.toFixed(2)} часов`);
-        logLines.push(`  Стоимость: ${op.totalCost.toFixed(2)}`);
+      for (const op of data.operations || []) {
+        logLines.push(`\n[${op.chainName || 'N/A'}] ${op.operationName || 'N/A'}`);
+        logLines.push(`  Порядок цепочки: ${op.chainOrder ?? 'N/A'}`);
+        logLines.push(`  Порядок операции: ${op.operationOrder ?? 'N/A'}`);
+        logLines.push(`  Целевое количество: ${op.targetQuantity ?? 0}`);
+        logLines.push(`  Выполнено: ${op.completedQuantity ?? 0}`);
+        logLines.push(`  Время: ${(op.totalHours ?? 0).toFixed(2)} часов`);
+        logLines.push(`  Стоимость: ${(op.totalCost ?? 0).toFixed(2)}`);
       }
 
       setSimulationLog(logLines.join("\n"));
       
       // Преобразуем в формат для графиков
-      const breakdown = data.operations.map((op: any) => ({
-        operationName: op.operationName,
-        materials: op.materialCosts.reduce((sum: number, m: any) => sum + m.totalCost, 0),
-        equipment: op.equipmentCosts.reduce((sum: number, e: any) => sum + e.totalCost, 0),
-        labor: op.laborCosts.reduce((sum: number, l: any) => sum + l.totalCost, 0),
+      const breakdown = (data.operations || []).map((op: any) => ({
+        operationName: op.operationName || 'N/A',
+        materials: (op.materialCosts || []).reduce((sum: number, m: any) => sum + (m.totalCost || 0), 0),
+        equipment: (op.equipmentCosts || []).reduce((sum: number, e: any) => sum + (e.totalCost || 0), 0),
+        labor: (op.laborCosts || []).reduce((sum: number, l: any) => sum + (l.totalCost || 0), 0),
       }));
       
       setOperationBreakdown(breakdown);
       setTotalCosts({
-        materials: data.totalMaterialCost,
-        equipment: data.totalEquipmentCost,
-        labor: data.totalLaborCost,
-        total: data.totalCost,
+        materials: data.totalMaterialCost ?? 0,
+        equipment: data.totalEquipmentCost ?? 0,
+        labor: data.totalLaborCost ?? 0,
+        total: data.totalCost ?? 0,
       });
       
       toast({
