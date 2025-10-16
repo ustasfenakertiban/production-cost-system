@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 interface RecurringExpense {
@@ -15,6 +17,9 @@ interface RecurringExpense {
   name: string;
   period: 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
   amount: number;
+  distributionType: 'FIXED' | 'PROPORTIONAL';
+  active: boolean;
+  notes?: string;
 }
 
 interface RecurringExpenseDialogProps {
@@ -28,7 +33,11 @@ const PERIOD_OPTIONS = [
   { value: 'WEEK', label: 'Неделя' },
   { value: 'MONTH', label: 'Месяц' },
   { value: 'QUARTER', label: 'Квартал' },
-  { value: 'YEAR', label: 'Год' },
+];
+
+const DISTRIBUTION_OPTIONS = [
+  { value: 'PROPORTIONAL', label: 'Равномерно распределить' },
+  { value: 'FIXED', label: 'Фиксированные (в конце заказа)' },
 ];
 
 export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpenseDialogProps) {
@@ -36,6 +45,9 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
     name: "",
     period: "",
     amount: "",
+    distributionType: "PROPORTIONAL",
+    active: true,
+    notes: "",
   });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -46,15 +58,21 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
         name: expense.name,
         period: expense.period,
         amount: expense.amount.toString(),
+        distributionType: expense.distributionType,
+        active: expense.active,
+        notes: expense.notes || "",
       });
     } else {
       setFormData({
         name: "",
         period: "",
         amount: "",
+        distributionType: "PROPORTIONAL",
+        active: true,
+        notes: "",
       });
     }
-  }, [expense]);
+  }, [expense, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +83,9 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
         name: formData.name,
         period: formData.period as 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR',
         amount: parseFloat(formData.amount),
+        distributionType: formData.distributionType as 'FIXED' | 'PROPORTIONAL',
+        active: formData.active,
+        notes: formData.notes || null,
       };
 
       const url = expense ? `/api/recurring-expenses/${expense.id}` : '/api/recurring-expenses';
@@ -99,7 +120,7 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -152,6 +173,44 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="distributionType">Тип распределения *</Label>
+            <Select value={formData.distributionType} onValueChange={(value) => handleChange('distributionType', value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите тип" />
+              </SelectTrigger>
+              <SelectContent>
+                {DISTRIBUTION_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-3 py-2">
+            <Switch
+              id="active"
+              checked={formData.active}
+              onCheckedChange={(checked) => handleChange('active', checked)}
+            />
+            <Label htmlFor="active" className="cursor-pointer">
+              Активен (учитывается в симуляции)
+            </Label>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Примечания</Label>
+            <Textarea
+              id="notes"
+              value={formData.notes}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              placeholder="Дополнительная информация о расходе"
+              rows={3}
+            />
           </div>
 
           <div className="flex gap-2 justify-end pt-4">

@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
         name: data.name,
         period: data.period,
         amount: data.amount,
+        distributionType: data.distributionType || 'PROPORTIONAL',
+        active: data.active !== undefined ? data.active : true,
+        notes: data.notes || null,
       },
     });
     

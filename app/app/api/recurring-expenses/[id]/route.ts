@@ -19,6 +19,9 @@ export async function PUT(
         name: data.name,
         period: data.period,
         amount: data.amount,
+        distributionType: data.distributionType,
+        active: data.active,
+        notes: data.notes || null,
       },
     });
     
