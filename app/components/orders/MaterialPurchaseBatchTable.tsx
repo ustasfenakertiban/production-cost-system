@@ -28,6 +28,11 @@ interface Material {
   name: string;
   unit: string;
   cost: number;
+  batchSize?: number;
+  minStockPercentage?: number;
+  prepaymentPercentage?: number;
+  manufacturingDays?: number;
+  deliveryDays?: number;
 }
 
 interface MaterialPurchaseBatch {
@@ -38,6 +43,8 @@ interface MaterialPurchaseBatch {
   quantity: number;
   pricePerUnit: number;
   totalCost: number;
+  prepaymentPercentage: number;
+  manufacturingDay: number;
   deliveryDay: number;
   status: string;
 }
@@ -54,10 +61,13 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
   const [newBatch, setNewBatch] = useState<Partial<MaterialPurchaseBatch>>({
     orderId,
     deliveryDay: 1,
+    manufacturingDay: 0,
     quantity: 0,
     pricePerUnit: 0,
+    prepaymentPercentage: 0,
     status: "planned",
   });
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
 
   useEffect(() => {
     loadBatches();
@@ -89,21 +99,27 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
   };
 
   const handleAdd = async () => {
-    if (!newBatch.materialId || !newBatch.quantity || !newBatch.pricePerUnit || !newBatch.deliveryDay) {
+    if (!newBatch.materialId || !newBatch.quantity || !newBatch.deliveryDay) {
       toast({
         title: "Ошибка",
-        description: "Заполните все обязательные поля",
+        description: "Заполните материал, количество и дни поставки",
         variant: "destructive",
       });
       return;
     }
+
+    // Вычисляем итоговую стоимость
+    const totalCost = (newBatch.quantity || 0) * (newBatch.pricePerUnit || 0);
 
     setLoading(true);
     try {
       const response = await fetch("/api/material-purchase-batches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newBatch),
+        body: JSON.stringify({
+          ...newBatch,
+          totalCost,
+        }),
       });
 
       if (response.ok) {
@@ -111,7 +127,16 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
           title: "Успешно",
           description: "Партия добавлена",
         });
-        setNewBatch({ orderId, deliveryDay: 1, quantity: 0, pricePerUnit: 0, status: "planned" });
+        setNewBatch({
+          orderId,
+          deliveryDay: 1,
+          manufacturingDay: 0,
+          quantity: 0,
+          pricePerUnit: 0,
+          prepaymentPercentage: 0,
+          status: "planned",
+        });
+        setSelectedMaterial(null);
         loadBatches();
       } else {
         throw new Error("Ошибка добавления");
@@ -153,10 +178,17 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
 
   const handleMaterialChange = (materialId: string) => {
     const material = materials.find((m) => m.id === materialId);
+    setSelectedMaterial(material || null);
+    
+    // Автоматически заполняем поля из справочника материалов
     setNewBatch({
       ...newBatch,
       materialId,
-      pricePerUnit: material?.cost || 0,
+      quantity: material?.batchSize || 0, // Минимальная партия
+      pricePerUnit: material?.cost || 0, // Цена берется из справочника
+      prepaymentPercentage: material?.prepaymentPercentage || 0,
+      manufacturingDay: material?.manufacturingDays || 0,
+      deliveryDay: material?.deliveryDays || 1,
     });
   };
 
@@ -165,128 +197,155 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
       <CardHeader>
         <CardTitle>Партии закупки материалов</CardTitle>
         <CardDescription>
-          Укажите, в какой день какой материал и в каком количестве поступит
+          Для каждого материала заполняется минимальная партия закупки, % предоплаты, сроки изготовления и доставки.
+          {selectedMaterial && (
+            <div className="mt-2 text-sm">
+              <span className="font-semibold">Выбран: {selectedMaterial.name}</span> 
+              {selectedMaterial.minStockPercentage && 
+                <span className="ml-2">| Неснижаемый остаток: {selectedMaterial.minStockPercentage}%</span>
+              }
+            </div>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Материал</TableHead>
-              <TableHead>Количество</TableHead>
-              <TableHead>Цена/ед.</TableHead>
-              <TableHead>Итого</TableHead>
-              <TableHead>День поступления</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead className="w-[100px]">Действия</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {batches.map((batch) => (
-              <TableRow key={batch.id}>
-                <TableCell>{batch.material?.name || "—"}</TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[150px]">Материал</TableHead>
+                <TableHead className="min-w-[100px]">Мин. партия</TableHead>
+                <TableHead className="min-w-[80px]">% предоплаты</TableHead>
+                <TableHead className="min-w-[100px]">Срок изготовления (дн)</TableHead>
+                <TableHead className="min-w-[100px]">Срок доставки (дн)</TableHead>
+                <TableHead className="min-w-[80px]">Цена/ед. (₽)</TableHead>
+                <TableHead className="min-w-[100px]">Сумма (₽)</TableHead>
+                <TableHead className="w-[80px]">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {batches.map((batch) => (
+                <TableRow key={batch.id}>
+                  <TableCell>
+                    <div className="font-medium">{batch.material?.name || "—"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {batch.material?.unit || ""}
+                      {batch.material?.minStockPercentage && 
+                        ` • Неснижаемый: ${batch.material.minStockPercentage}%`
+                      }
+                    </div>
+                  </TableCell>
+                  <TableCell>{batch.quantity} {batch.material?.unit || ""}</TableCell>
+                  <TableCell>{batch.prepaymentPercentage}%</TableCell>
+                  <TableCell>{batch.manufacturingDay || "—"}</TableCell>
+                  <TableCell>{batch.deliveryDay}</TableCell>
+                  <TableCell>{batch.pricePerUnit.toFixed(2)}</TableCell>
+                  <TableCell className="font-medium">{batch.totalCost.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => batch.id && handleDelete(batch.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className="bg-muted/50">
                 <TableCell>
-                  {batch.quantity} {batch.material?.unit || ""}
+                  <Select value={newBatch.materialId || ""} onValueChange={handleMaterialChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Выберите материал" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {materials.map((material) => (
+                        <SelectItem key={material.id} value={material.id}>
+                          {material.name} ({material.unit})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </TableCell>
-                <TableCell>{batch.pricePerUnit.toFixed(2)} ₽</TableCell>
-                <TableCell>{batch.totalCost.toFixed(2)} ₽</TableCell>
-                <TableCell>{batch.deliveryDay}</TableCell>
                 <TableCell>
-                  <span className={batch.status === "delivered" ? "text-green-600" : "text-orange-600"}>
-                    {batch.status === "delivered" ? "Поступил" : "Запланирован"}
-                  </span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={newBatch.quantity || ""}
+                    onChange={(e) =>
+                      setNewBatch({ ...newBatch, quantity: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="Партия"
+                    className="w-24"
+                    disabled={!selectedMaterial}
+                  />
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => batch.id && handleDelete(batch.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={newBatch.prepaymentPercentage || ""}
+                    onChange={(e) =>
+                      setNewBatch({ ...newBatch, prepaymentPercentage: parseFloat(e.target.value) || 0 })
+                    }
+                    placeholder="%"
+                    className="w-20"
+                    disabled={!selectedMaterial}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={newBatch.manufacturingDay || ""}
+                    onChange={(e) =>
+                      setNewBatch({ ...newBatch, manufacturingDay: parseInt(e.target.value) || 0 })
+                    }
+                    placeholder="Дн."
+                    className="w-20"
+                    disabled={!selectedMaterial}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={newBatch.deliveryDay || ""}
+                    onChange={(e) =>
+                      setNewBatch({ ...newBatch, deliveryDay: parseInt(e.target.value) || 1 })
+                    }
+                    placeholder="Дн."
+                    className="w-20"
+                    disabled={!selectedMaterial}
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm font-medium">
+                    {newBatch.pricePerUnit ? newBatch.pricePerUnit.toFixed(2) : "—"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    (из справ.)
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm font-medium">
+                    {newBatch.quantity && newBatch.pricePerUnit
+                      ? (newBatch.quantity * newBatch.pricePerUnit).toFixed(2)
+                      : "—"}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Button size="sm" onClick={handleAdd} disabled={loading || !selectedMaterial}>
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </TableCell>
               </TableRow>
-            ))}
-            <TableRow>
-              <TableCell>
-                <Select value={newBatch.materialId || ""} onValueChange={handleMaterialChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите материал" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {materials.map((material) => (
-                      <SelectItem key={material.id} value={material.id}>
-                        {material.name} ({material.unit})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </TableCell>
-              <TableCell>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newBatch.quantity || ""}
-                  onChange={(e) =>
-                    setNewBatch({ ...newBatch, quantity: parseFloat(e.target.value) || 0 })
-                  }
-                  placeholder="Кол-во"
-                  className="w-32"
-                />
-              </TableCell>
-              <TableCell>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newBatch.pricePerUnit || ""}
-                  onChange={(e) =>
-                    setNewBatch({ ...newBatch, pricePerUnit: parseFloat(e.target.value) || 0 })
-                  }
-                  placeholder="Цена"
-                  className="w-32"
-                />
-              </TableCell>
-              <TableCell>
-                {newBatch.quantity && newBatch.pricePerUnit
-                  ? (newBatch.quantity * newBatch.pricePerUnit).toFixed(2)
-                  : "—"}
-              </TableCell>
-              <TableCell>
-                <Input
-                  type="number"
-                  min="1"
-                  value={newBatch.deliveryDay || ""}
-                  onChange={(e) =>
-                    setNewBatch({ ...newBatch, deliveryDay: parseInt(e.target.value) || 1 })
-                  }
-                  placeholder="День"
-                  className="w-24"
-                />
-              </TableCell>
-              <TableCell>
-                <Select
-                  value={newBatch.status || "planned"}
-                  onValueChange={(value) => setNewBatch({ ...newBatch, status: value })}
-                >
-                  <SelectTrigger className="w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="planned">Запланирован</SelectItem>
-                    <SelectItem value="delivered">Поступил</SelectItem>
-                  </SelectContent>
-                </Select>
-              </TableCell>
-              <TableCell>
-                <Button size="sm" onClick={handleAdd} disabled={loading}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

@@ -25,6 +25,12 @@ interface PaymentSchedule {
   description?: string;
 }
 
+interface OrderInfo {
+  quantity: number;
+  sellingPrice: number;
+  totalOrderAmount: number;
+}
+
 interface Props {
   orderId: string;
 }
@@ -32,6 +38,7 @@ interface Props {
 export function PaymentScheduleTable({ orderId }: Props) {
   const { toast } = useToast();
   const [schedules, setSchedules] = useState<PaymentSchedule[]>([]);
+  const [orderInfo, setOrderInfo] = useState<OrderInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [newSchedule, setNewSchedule] = useState<Partial<PaymentSchedule>>({
     orderId,
@@ -41,6 +48,7 @@ export function PaymentScheduleTable({ orderId }: Props) {
 
   useEffect(() => {
     loadSchedules();
+    loadOrderInfo();
   }, [orderId]);
 
   const loadSchedules = async () => {
@@ -55,11 +63,60 @@ export function PaymentScheduleTable({ orderId }: Props) {
     }
   };
 
+  const loadOrderInfo = async () => {
+    try {
+      const response = await fetch(`/api/orders/${orderId}`);
+      if (response.ok) {
+        const order = await response.json();
+        const totalOrderAmount = (order.quantity || 0) * (order.sellingPrice || 0);
+        setOrderInfo({
+          quantity: order.quantity || 0,
+          sellingPrice: order.sellingPrice || 0,
+          totalOrderAmount,
+        });
+      }
+    } catch (error) {
+      console.error("Ошибка загрузки информации о заказе:", error);
+    }
+  };
+
+  // Пересчет суммы из процента
+  const calculateAmountFromPercentage = (percentage: number): number => {
+    if (!orderInfo) return 0;
+    return (orderInfo.totalOrderAmount * percentage) / 100;
+  };
+
+  // Пересчет процента из суммы
+  const calculatePercentageFromAmount = (amount: number): number => {
+    if (!orderInfo || orderInfo.totalOrderAmount === 0) return 0;
+    return (amount / orderInfo.totalOrderAmount) * 100;
+  };
+
+  // Обработчик изменения процента
+  const handlePercentageChange = (value: number) => {
+    const amount = calculateAmountFromPercentage(value);
+    setNewSchedule({
+      ...newSchedule,
+      percentageOfTotal: value,
+      amount,
+    });
+  };
+
+  // Обработчик изменения суммы
+  const handleAmountChange = (value: number) => {
+    const percentage = calculatePercentageFromAmount(value);
+    setNewSchedule({
+      ...newSchedule,
+      amount: value,
+      percentageOfTotal: percentage,
+    });
+  };
+
   const handleAdd = async () => {
-    if (!newSchedule.dayNumber || !newSchedule.percentageOfTotal) {
+    if (!newSchedule.dayNumber || (!newSchedule.percentageOfTotal && !newSchedule.amount)) {
       toast({
         title: "Ошибка",
-        description: "Заполните день и процент",
+        description: "Заполните день и процент или сумму",
         variant: "destructive",
       });
       return;
@@ -125,6 +182,12 @@ export function PaymentScheduleTable({ orderId }: Props) {
       <CardHeader>
         <CardTitle>График платежей</CardTitle>
         <CardDescription>
+          {orderInfo && (
+            <div className="mb-2">
+              Тираж: {orderInfo.quantity} шт. × Продажная цена: {orderInfo.sellingPrice.toFixed(2)} ₽ = 
+              <span className="font-semibold ml-1">Сумма заказа: {orderInfo.totalOrderAmount.toFixed(2)} ₽</span>
+            </div>
+          )}
           Укажите, в какой день и какой процент от суммы заказа должен поступить.
           {totalPercentage > 0 && (
             <span className={`ml-2 font-semibold ${totalPercentage > 100 ? "text-red-500" : "text-green-600"}`}>
@@ -139,7 +202,7 @@ export function PaymentScheduleTable({ orderId }: Props) {
             <TableRow>
               <TableHead>День</TableHead>
               <TableHead>Процент от суммы</TableHead>
-              <TableHead>Сумма</TableHead>
+              <TableHead>Сумма (₽)</TableHead>
               <TableHead>Описание</TableHead>
               <TableHead className="w-[100px]">Действия</TableHead>
             </TableRow>
@@ -148,8 +211,14 @@ export function PaymentScheduleTable({ orderId }: Props) {
             {schedules.map((schedule) => (
               <TableRow key={schedule.id}>
                 <TableCell>{schedule.dayNumber}</TableCell>
-                <TableCell>{schedule.percentageOfTotal}%</TableCell>
-                <TableCell>{schedule.amount ? schedule.amount.toFixed(2) : "—"}</TableCell>
+                <TableCell>{schedule.percentageOfTotal.toFixed(2)}%</TableCell>
+                <TableCell>
+                  {schedule.amount 
+                    ? schedule.amount.toFixed(2) 
+                    : orderInfo 
+                      ? calculateAmountFromPercentage(schedule.percentageOfTotal).toFixed(2)
+                      : "—"}
+                </TableCell>
                 <TableCell>{schedule.description || "—"}</TableCell>
                 <TableCell>
                   <Button
@@ -181,10 +250,8 @@ export function PaymentScheduleTable({ orderId }: Props) {
                   step="0.1"
                   min="0"
                   max="100"
-                  value={newSchedule.percentageOfTotal || ""}
-                  onChange={(e) =>
-                    setNewSchedule({ ...newSchedule, percentageOfTotal: parseFloat(e.target.value) || 0 })
-                  }
+                  value={newSchedule.percentageOfTotal?.toFixed(2) || ""}
+                  onChange={(e) => handlePercentageChange(parseFloat(e.target.value) || 0)}
                   placeholder="Процент"
                   className="w-32"
                 />
@@ -193,10 +260,8 @@ export function PaymentScheduleTable({ orderId }: Props) {
                 <Input
                   type="number"
                   step="0.01"
-                  value={newSchedule.amount || ""}
-                  onChange={(e) =>
-                    setNewSchedule({ ...newSchedule, amount: parseFloat(e.target.value) || undefined })
-                  }
+                  value={newSchedule.amount?.toFixed(2) || ""}
+                  onChange={(e) => handleAmountChange(parseFloat(e.target.value) || 0)}
                   placeholder="Сумма"
                   className="w-32"
                 />
@@ -212,7 +277,7 @@ export function PaymentScheduleTable({ orderId }: Props) {
                 />
               </TableCell>
               <TableCell>
-                <Button size="sm" onClick={handleAdd} disabled={loading}>
+                <Button size="sm" onClick={handleAdd} disabled={loading || !orderInfo}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </TableCell>
