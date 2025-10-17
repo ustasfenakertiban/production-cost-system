@@ -15,7 +15,15 @@ export async function PUT(
   try {
     const { id } = params;
     const body = await request.json();
-    const { materialId, quantity, pricePerUnit, deliveryDay, status } = body;
+    const { 
+      materialId, 
+      quantity, 
+      pricePerUnit, 
+      prepaymentPercentage,
+      manufacturingDay,
+      deliveryDay, 
+      status 
+    } = body;
 
     const totalCost = quantity !== undefined && pricePerUnit !== undefined 
       ? quantity * pricePerUnit 
@@ -28,6 +36,8 @@ export async function PUT(
         quantity,
         pricePerUnit,
         totalCost,
+        prepaymentPercentage,
+        manufacturingDay,
         deliveryDay,
         status,
       },

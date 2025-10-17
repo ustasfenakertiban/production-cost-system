@@ -65,16 +65,31 @@ export function PaymentScheduleTable({ orderId }: Props) {
 
   const loadOrderInfo = async () => {
     try {
-      const response = await fetch(`/api/orders/${orderId}`);
-      if (response.ok) {
-        const order = await response.json();
-        const totalOrderAmount = (order.quantity || 0) * (order.sellingPrice || 0);
-        setOrderInfo({
-          quantity: order.quantity || 0,
-          sellingPrice: order.sellingPrice || 0,
-          totalOrderAmount,
-        });
+      // Загружаем заказ с позициями
+      const orderResponse = await fetch(`/api/orders/${orderId}`);
+      if (!orderResponse.ok) {
+        console.error("Ошибка загрузки заказа");
+        return;
       }
+      const order = await orderResponse.json();
+      
+      // Загружаем настройки симуляции v2 с ценой продажи
+      const settingsResponse = await fetch(`/api/simulation-settings-v2?orderId=${orderId}`);
+      let sellingPrice = 0;
+      if (settingsResponse.ok) {
+        const settings = await settingsResponse.json();
+        sellingPrice = settings?.sellingPriceWithVAT || 0;
+      }
+      
+      // Считаем общее количество из всех позиций заказа
+      const totalQuantity = (order.orderItems || []).reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+      
+      const totalOrderAmount = totalQuantity * sellingPrice;
+      setOrderInfo({
+        quantity: totalQuantity,
+        sellingPrice: sellingPrice,
+        totalOrderAmount,
+      });
     } catch (error) {
       console.error("Ошибка загрузки информации о заказе:", error);
     }

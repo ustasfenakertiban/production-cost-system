@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil, Save, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table,
@@ -58,6 +58,8 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
   const [batches, setBatches] = useState<MaterialPurchaseBatch[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingBatch, setEditingBatch] = useState<Partial<MaterialPurchaseBatch> | null>(null);
   const [newBatch, setNewBatch] = useState<Partial<MaterialPurchaseBatch>>({
     orderId,
     deliveryDay: 1,
@@ -176,6 +178,54 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
     }
   };
 
+  const handleEdit = (batch: MaterialPurchaseBatch) => {
+    setEditingId(batch.id || null);
+    setEditingBatch({ ...batch });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingBatch(null);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editingBatch) return;
+
+    const totalCost = (editingBatch.quantity || 0) * (editingBatch.pricePerUnit || 0);
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/material-purchase-batches/${editingId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...editingBatch,
+          totalCost,
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Успешно",
+          description: "Партия обновлена",
+        });
+        setEditingId(null);
+        setEditingBatch(null);
+        loadBatches();
+      } else {
+        throw new Error("Ошибка обновления");
+      }
+    } catch (error) {
+      toast({
+        title: "Ошибка",
+        description: "Не удалось обновить партию",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleMaterialChange = (materialId: string) => {
     const material = materials.find((m) => m.id === materialId);
     setSelectedMaterial(material || null);
@@ -224,34 +274,149 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {batches.map((batch) => (
-                <TableRow key={batch.id}>
-                  <TableCell>
-                    <div className="font-medium">{batch.material?.name || "—"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {batch.material?.unit || ""}
-                      {batch.material?.minStockPercentage && 
-                        ` • Неснижаемый: ${batch.material.minStockPercentage}%`
-                      }
-                    </div>
-                  </TableCell>
-                  <TableCell>{batch.quantity} {batch.material?.unit || ""}</TableCell>
-                  <TableCell>{batch.prepaymentPercentage}%</TableCell>
-                  <TableCell>{batch.manufacturingDay || "—"}</TableCell>
-                  <TableCell>{batch.deliveryDay}</TableCell>
-                  <TableCell>{batch.pricePerUnit.toFixed(2)}</TableCell>
-                  <TableCell className="font-medium">{batch.totalCost.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => batch.id && handleDelete(batch.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {batches.map((batch) => {
+                const isEditing = editingId === batch.id;
+                const displayBatch = isEditing ? editingBatch : batch;
+                
+                return (
+                  <TableRow key={batch.id}>
+                    <TableCell>
+                      <div className="font-medium">{batch.material?.name || "—"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {batch.material?.unit || ""}
+                        {batch.material?.minStockPercentage && 
+                          ` • Неснижаемый: ${batch.material.minStockPercentage}%`
+                        }
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={displayBatch?.quantity || ""}
+                          onChange={(e) =>
+                            setEditingBatch({ ...editingBatch, quantity: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-24"
+                        />
+                      ) : (
+                        `${batch.quantity} ${batch.material?.unit || ""}`
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="100"
+                          value={displayBatch?.prepaymentPercentage || ""}
+                          onChange={(e) =>
+                            setEditingBatch({ ...editingBatch, prepaymentPercentage: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-20"
+                        />
+                      ) : (
+                        `${batch.prepaymentPercentage}%`
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          min="0"
+                          value={displayBatch?.manufacturingDay || ""}
+                          onChange={(e) =>
+                            setEditingBatch({ ...editingBatch, manufacturingDay: parseInt(e.target.value) || 0 })
+                          }
+                          className="w-20"
+                        />
+                      ) : (
+                        batch.manufacturingDay || "—"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          min="1"
+                          value={displayBatch?.deliveryDay || ""}
+                          onChange={(e) =>
+                            setEditingBatch({ ...editingBatch, deliveryDay: parseInt(e.target.value) || 1 })
+                          }
+                          className="w-20"
+                        />
+                      ) : (
+                        batch.deliveryDay
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={displayBatch?.pricePerUnit || ""}
+                          onChange={(e) =>
+                            setEditingBatch({ ...editingBatch, pricePerUnit: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-24"
+                        />
+                      ) : (
+                        batch.pricePerUnit.toFixed(2)
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {isEditing && displayBatch
+                        ? ((displayBatch.quantity || 0) * (displayBatch.pricePerUnit || 0)).toFixed(2)
+                        : batch.totalCost.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {isEditing ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleSaveEdit}
+                              disabled={loading}
+                            >
+                              <Save className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleCancelEdit}
+                              disabled={loading}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(batch)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => batch.id && handleDelete(batch.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               <TableRow className="bg-muted/50">
                 <TableCell>
                   <Select value={newBatch.materialId || ""} onValueChange={handleMaterialChange}>
