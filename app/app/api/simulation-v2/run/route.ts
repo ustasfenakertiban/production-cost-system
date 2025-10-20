@@ -114,8 +114,145 @@ export async function POST(req: NextRequest) {
     console.log('[SIM-V2] Starting simulation engine...');
     const result = await engine.run();
     console.log('[SIM-V2] Simulation completed successfully');
+    console.log('[SIM-V2] Result:', JSON.stringify(result, null, 2));
     
-    return NextResponse.json(result);
+    // Преобразуем результат в формат для фронтенда
+    const operations = [];
+    
+    // Проходим по всем дням и часам, собирая данные по операциям
+    const operationStats = new Map<string, {
+      chainId: string;
+      chainName: string;
+      chainOrder: number;
+      operationId: string;
+      operationName: string;
+      operationOrder: number;
+      targetQuantity: number;
+      completedQuantity: number;
+      totalHours: number;
+      materialCosts: any[];
+      equipmentCosts: any[];
+      laborCosts: any[];
+      totalCost: number;
+    }>();
+    
+    for (const day of result.days) {
+      for (const hour of day.hours) {
+        for (const chain of hour.chains) {
+          for (const op of chain.ops) {
+            const key = `${chain.chainId}-${op.opId}`;
+            
+            if (!operationStats.has(key)) {
+              // Находим цепочку и операцию для получения имен
+              const chainSpec = processSpec.chains.find(c => c.id === chain.chainId);
+              const opSpec = chainSpec?.operations.find(o => o.id === op.opId);
+              
+              operationStats.set(key, {
+                chainId: chain.chainId,
+                chainName: chainSpec?.name || 'Unknown',
+                chainOrder: chainSpec?.orderIndex || 0,
+                operationId: op.opId,
+                operationName: opSpec?.name || 'Unknown',
+                operationOrder: opSpec?.orderIndex || 0,
+                targetQuantity: 0,
+                completedQuantity: 0,
+                totalHours: 0,
+                materialCosts: [],
+                equipmentCosts: [],
+                laborCosts: [],
+                totalCost: 0,
+              });
+            }
+            
+            const stats = operationStats.get(key)!;
+            stats.completedQuantity += op.produced || 0;
+            stats.totalHours += 1; // Каждый час работы
+            stats.totalCost += (op.materialsConsumed?.reduce((sum, m) => sum + (m.net || 0) + (m.vat || 0), 0) || 0);
+            stats.totalCost += (op.laborCost || 0);
+            stats.totalCost += (op.depreciation || 0);
+            
+            // Материалы
+            for (const mat of op.materialsConsumed || []) {
+              const existing = stats.materialCosts.find(m => m.materialId === mat.materialId);
+              if (existing) {
+                existing.quantity += mat.qty || 0;
+                existing.totalCost += (mat.net || 0) + (mat.vat || 0);
+              } else {
+                const matSpec = materials.find(m => m.id === mat.materialId);
+                stats.materialCosts.push({
+                  materialId: mat.materialId,
+                  materialName: matSpec?.name || 'Unknown',
+                  quantity: mat.qty || 0,
+                  totalCost: (mat.net || 0) + (mat.vat || 0),
+                });
+              }
+            }
+            
+            // Оборудование (depreciation)
+            if (op.depreciation > 0) {
+              stats.equipmentCosts.push({
+                equipmentName: 'Equipment',
+                totalCost: op.depreciation,
+              });
+            }
+            
+            // Труд
+            if (op.laborCost > 0) {
+              stats.laborCosts.push({
+                totalCost: op.laborCost,
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    // Устанавливаем целевое количество из targets
+    for (const [key, stats] of operationStats.entries()) {
+      const target = targets.get(stats.chainId) || 0;
+      stats.targetQuantity = target;
+    }
+    
+    // Преобразуем в массив
+    for (const stats of operationStats.values()) {
+      operations.push(stats);
+    }
+    
+    // Сортируем операции по порядку цепочки и операции
+    operations.sort((a, b) => {
+      if (a.chainOrder !== b.chainOrder) return a.chainOrder - b.chainOrder;
+      return a.operationOrder - b.operationOrder;
+    });
+    
+    const response = {
+      orderId: orderId || null,
+      orderQuantity: orderQuantity || 0,
+      productId: productId || null,
+      productName: productName || null,
+      processId: processId || null,
+      processName: processName || null,
+      totalDuration: result.daysTaken * settings.workingHoursPerDay,
+      totalDays: result.daysTaken,
+      totalMaterialCost: result.totals.materialNet + result.totals.materialVAT,
+      totalEquipmentCost: result.totals.depreciation,
+      totalLaborCost: result.totals.labor,
+      totalPeriodicCost: result.totals.periodicNet + result.totals.periodicVAT,
+      totalCost: (result.totals.materialNet + result.totals.materialVAT) + 
+                 result.totals.depreciation + 
+                 result.totals.labor + 
+                 (result.totals.periodicNet + result.totals.periodicVAT),
+      revenue: result.totals.revenue,
+      grossMargin: result.totals.grossMargin,
+      cashEnding: result.totals.cashEnding,
+      operations,
+      warnings: result.warnings,
+      // Добавляем исходный результат для отладки
+      _raw: result,
+    };
+    
+    console.log('[SIM-V2] Formatted response:', JSON.stringify(response, null, 2));
+    
+    return NextResponse.json(response);
   } catch (e: any) {
     console.error('[SIM-V2] Simulation error:', e);
     console.error('[SIM-V2] Stack trace:', e?.stack);
