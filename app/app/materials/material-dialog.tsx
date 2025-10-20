@@ -176,6 +176,13 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleNumberChange = (field: string, value: string) => {
+    // Разрешаем пустую строку и любые числа (включая 0)
+    if (value === '' || !isNaN(Number(value))) {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
+  };
+
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) return;
 
@@ -512,11 +519,10 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                 <Label htmlFor="manufacturingDays">Изготовление (дн)</Label>
                 <Input
                   id="manufacturingDays"
-                  type="number"
-                  min="0"
-                  step="1"
+                  type="text"
+                  inputMode="numeric"
                   value={formData.manufacturingDays}
-                  onChange={(e) => handleChange('manufacturingDays', e.target.value)}
+                  onChange={(e) => handleNumberChange('manufacturingDays', e.target.value)}
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1">Срок изготовления (0 = на складе)</p>
@@ -525,11 +531,10 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                 <Label htmlFor="deliveryDays">Доставка (дн)</Label>
                 <Input
                   id="deliveryDays"
-                  type="number"
-                  min="0"
-                  step="1"
+                  type="text"
+                  inputMode="numeric"
                   value={formData.deliveryDays}
-                  onChange={(e) => handleChange('deliveryDays', e.target.value)}
+                  onChange={(e) => handleNumberChange('deliveryDays', e.target.value)}
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1">Срок доставки (0 = мгновенно)</p>
