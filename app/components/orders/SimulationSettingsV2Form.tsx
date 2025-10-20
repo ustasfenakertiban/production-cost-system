@@ -104,9 +104,10 @@ export function SimulationSettingsV2Form({ orderId }: Props) {
               type="number"
               step="0.1"
               value={settings.workingHoursPerDay}
-              onChange={(e) =>
-                setSettings({ ...settings, workingHoursPerDay: parseFloat(e.target.value) || 0 })
-              }
+              onChange={(e) => {
+                const val = e.target.value;
+                setSettings({ ...settings, workingHoursPerDay: val === "" ? 0 : parseFloat(val) });
+              }}
             />
           </div>
 
@@ -117,9 +118,10 @@ export function SimulationSettingsV2Form({ orderId }: Props) {
               type="number"
               step="1"
               value={settings.restMinutesPerHour}
-              onChange={(e) =>
-                setSettings({ ...settings, restMinutesPerHour: parseFloat(e.target.value) || 0 })
-              }
+              onChange={(e) => {
+                const val = e.target.value;
+                setSettings({ ...settings, restMinutesPerHour: val === "" ? 0 : parseFloat(val) });
+              }}
             />
           </div>
 
@@ -129,10 +131,11 @@ export function SimulationSettingsV2Form({ orderId }: Props) {
               id="sellingPriceWithVAT"
               type="number"
               step="0.01"
-              value={settings.sellingPriceWithVAT || ""}
-              onChange={(e) =>
-                setSettings({ ...settings, sellingPriceWithVAT: parseFloat(e.target.value) || undefined })
-              }
+              value={settings.sellingPriceWithVAT ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSettings({ ...settings, sellingPriceWithVAT: val === "" ? undefined : parseFloat(val) });
+              }}
               placeholder="Не указана"
             />
           </div>
@@ -144,9 +147,10 @@ export function SimulationSettingsV2Form({ orderId }: Props) {
               type="number"
               step="0.1"
               value={settings.vatRate}
-              onChange={(e) =>
-                setSettings({ ...settings, vatRate: parseFloat(e.target.value) || 0 })
-              }
+              onChange={(e) => {
+                const val = e.target.value;
+                setSettings({ ...settings, vatRate: val === "" ? 0 : parseFloat(val) });
+              }}
             />
           </div>
 
@@ -157,9 +161,10 @@ export function SimulationSettingsV2Form({ orderId }: Props) {
               type="number"
               step="0.1"
               value={settings.profitTaxRate}
-              onChange={(e) =>
-                setSettings({ ...settings, profitTaxRate: parseFloat(e.target.value) || 0 })
-              }
+              onChange={(e) => {
+                const val = e.target.value;
+                setSettings({ ...settings, profitTaxRate: val === "" ? 0 : parseFloat(val) });
+              }}
             />
           </div>
 

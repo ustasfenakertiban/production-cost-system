@@ -101,7 +101,7 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
   };
 
   const handleAdd = async () => {
-    if (!newBatch.materialId || !newBatch.quantity || !newBatch.deliveryDay) {
+    if (!newBatch.materialId || newBatch.quantity === undefined || newBatch.deliveryDay === undefined) {
       toast({
         title: "Ошибка",
         description: "Заполните материал, количество и дни поставки",
@@ -294,11 +294,11 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                         <Input
                           type="number"
                           step="0.01"
-                          min="0"
-                          value={displayBatch?.quantity || ""}
-                          onChange={(e) =>
-                            setEditingBatch({ ...editingBatch, quantity: parseFloat(e.target.value) || 0 })
-                          }
+                          value={displayBatch?.quantity ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingBatch({ ...editingBatch, quantity: val === "" ? 0 : parseFloat(val) });
+                          }}
                           className="w-24"
                         />
                       ) : (
@@ -310,12 +310,12 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                         <Input
                           type="number"
                           step="0.1"
-                          min="0"
                           max="100"
-                          value={displayBatch?.prepaymentPercentage || ""}
-                          onChange={(e) =>
-                            setEditingBatch({ ...editingBatch, prepaymentPercentage: parseFloat(e.target.value) || 0 })
-                          }
+                          value={displayBatch?.prepaymentPercentage ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingBatch({ ...editingBatch, prepaymentPercentage: val === "" ? 0 : parseFloat(val) });
+                          }}
                           className="w-20"
                         />
                       ) : (
@@ -326,26 +326,26 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                       {isEditing ? (
                         <Input
                           type="number"
-                          min="0"
-                          value={displayBatch?.manufacturingDay || ""}
-                          onChange={(e) =>
-                            setEditingBatch({ ...editingBatch, manufacturingDay: parseInt(e.target.value) || 0 })
-                          }
+                          value={displayBatch?.manufacturingDay ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingBatch({ ...editingBatch, manufacturingDay: val === "" ? 0 : parseInt(val) });
+                          }}
                           className="w-20"
                         />
                       ) : (
-                        batch.manufacturingDay || "—"
+                        batch.manufacturingDay ?? "—"
                       )}
                     </TableCell>
                     <TableCell>
                       {isEditing ? (
                         <Input
                           type="number"
-                          min="1"
-                          value={displayBatch?.deliveryDay || ""}
-                          onChange={(e) =>
-                            setEditingBatch({ ...editingBatch, deliveryDay: parseInt(e.target.value) || 1 })
-                          }
+                          value={displayBatch?.deliveryDay ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingBatch({ ...editingBatch, deliveryDay: val === "" ? 0 : parseInt(val) });
+                          }}
                           className="w-20"
                         />
                       ) : (
@@ -357,11 +357,11 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                         <Input
                           type="number"
                           step="0.01"
-                          min="0"
-                          value={displayBatch?.pricePerUnit || ""}
-                          onChange={(e) =>
-                            setEditingBatch({ ...editingBatch, pricePerUnit: parseFloat(e.target.value) || 0 })
-                          }
+                          value={displayBatch?.pricePerUnit ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingBatch({ ...editingBatch, pricePerUnit: val === "" ? 0 : parseFloat(val) });
+                          }}
                           className="w-24"
                         />
                       ) : (
@@ -436,11 +436,11 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                   <Input
                     type="number"
                     step="0.01"
-                    min="0"
-                    value={newBatch.quantity || ""}
-                    onChange={(e) =>
-                      setNewBatch({ ...newBatch, quantity: parseFloat(e.target.value) || 0 })
-                    }
+                    value={newBatch.quantity ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewBatch({ ...newBatch, quantity: val === "" ? 0 : parseFloat(val) });
+                    }}
                     placeholder="Партия"
                     className="w-24"
                     disabled={!selectedMaterial}
@@ -450,12 +450,12 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                   <Input
                     type="number"
                     step="0.1"
-                    min="0"
                     max="100"
-                    value={newBatch.prepaymentPercentage || ""}
-                    onChange={(e) =>
-                      setNewBatch({ ...newBatch, prepaymentPercentage: parseFloat(e.target.value) || 0 })
-                    }
+                    value={newBatch.prepaymentPercentage ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewBatch({ ...newBatch, prepaymentPercentage: val === "" ? 0 : parseFloat(val) });
+                    }}
                     placeholder="%"
                     className="w-20"
                     disabled={!selectedMaterial}
@@ -464,11 +464,11 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                 <TableCell>
                   <Input
                     type="number"
-                    min="0"
-                    value={newBatch.manufacturingDay || ""}
-                    onChange={(e) =>
-                      setNewBatch({ ...newBatch, manufacturingDay: parseInt(e.target.value) || 0 })
-                    }
+                    value={newBatch.manufacturingDay ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewBatch({ ...newBatch, manufacturingDay: val === "" ? 0 : parseInt(val) });
+                    }}
                     placeholder="Дн."
                     className="w-20"
                     disabled={!selectedMaterial}
@@ -477,11 +477,11 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                 <TableCell>
                   <Input
                     type="number"
-                    min="1"
-                    value={newBatch.deliveryDay || ""}
-                    onChange={(e) =>
-                      setNewBatch({ ...newBatch, deliveryDay: parseInt(e.target.value) || 1 })
-                    }
+                    value={newBatch.deliveryDay ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewBatch({ ...newBatch, deliveryDay: val === "" ? 0 : parseInt(val) });
+                    }}
                     placeholder="Дн."
                     className="w-20"
                     disabled={!selectedMaterial}
