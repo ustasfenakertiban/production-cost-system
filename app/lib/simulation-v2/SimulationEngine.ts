@@ -59,8 +59,22 @@ export class SimulationEngine {
 
   async run(): Promise<SimulationResult> {
     const warnings = this.validatePaymentSchedule();
+    const MAX_SIMULATION_DAYS = 365; // Защита от бесконечного цикла
 
-    while (!this.allCompleted()) {
+    console.log('[SimEngine] Starting simulation. Initial state:');
+    for (const chain of this.chains) {
+      console.log(`[SimEngine] Chain "${chain.spec.name}": target=${chain.target}, completed=${chain.isCompleted()}`);
+    }
+
+    while (!this.allCompleted() && this.currentDay <= MAX_SIMULATION_DAYS) {
+      if (this.currentDay % 10 === 0) {
+        console.log(`[SimEngine] Day ${this.currentDay}: Progress check...`);
+        for (const chain of this.chains) {
+          const progress = chain.target > 0 ? `${((1 - chain.remaining / chain.target) * 100).toFixed(1)}%` : 'N/A';
+          console.log(`[SimEngine]   Chain "${chain.spec.name}": ${chain.target - chain.remaining}/${chain.target} (${progress})`);
+        }
+      }
+
       // Утро: поступления от клиента
       const inflow = this.inflows.filter(p => p.dayNumber === this.currentDay).reduce((a, b) => a + (b.amount ?? 0), 0);
       if (inflow > 0) {
@@ -180,6 +194,13 @@ export class SimulationEngine {
       this.resources.flushDayLogsToDaily(this.currentDay);
 
       this.currentDay += 1;
+    }
+
+    console.log(`[SimEngine] Simulation loop ended. Day: ${this.currentDay}, All completed: ${this.allCompleted()}`);
+    if (this.currentDay > 365) {
+      console.warn('[SimEngine] ⚠️ WARNING: Simulation reached maximum day limit (365 days)!');
+      warnings.simulationIncomplete = true;
+      warnings.simulationDaysLimit = 365;
     }
 
     // Периодические расходы при policy=end_of_simulation — списать последним днём

@@ -100,22 +100,46 @@ export async function loadOperationChains(): Promise<ProcessSpec> {
 }
 
 export async function loadSimulationSettingsV2(): Promise<SimulationSettings> {
-  const s = await prisma.simulationSettingsV2.findFirst();
+  // Пытаемся получить глобальные настройки, если их нет - создаем с дефолтными значениями
+  let s = await prisma.globalSimulationSettingsV2.findFirst();
+  
+  if (!s) {
+    console.log('[DataLoader] GlobalSimulationSettingsV2 not found, creating default...');
+    s = await prisma.globalSimulationSettingsV2.create({
+      data: {
+        workingHoursPerDay: 8,
+        restMinutesPerHour: 0,
+        waitForMaterialDelivery: true,
+        includeRecurringExpenses: true,
+        varianceMode: 'NO_VARIANCE',
+        variancePercent: 0,
+        thresholdRatio: 0.5,
+        initialCashBalance: 0,
+        materialPrepayPercent: 30,
+        depreciationCashPolicy: 'END_OF_SIMULATION',
+        periodicExpensePaymentPolicy: 'DAILY',
+        monthDivisor: 30,
+        payrollPaymentPolicy: 'DAILY',
+        materialTwoPhasePayment: true,
+      }
+    });
+  }
+  
   return {
-    workingHoursPerDay: Number(s?.workingHoursPerDay ?? 8),
-    restMinutesPerHour: Number(s?.restMinutesPerHour ?? 0),
-    waitForMaterialDelivery: Boolean(s?.waitForMaterialDelivery ?? true),
-    considerPeriodicExpenses: Boolean(s?.includeRecurringExpenses ?? true),
-    varianceMode: (s?.varianceMode as any) ?? 'no_variance',
-    variancePercent: Number(s?.variancePercent ?? 0),
-    thresholdRatio: Number(s?.thresholdRatio ?? 0.5),
-    initialCashBalance: Number(s?.initialCashBalance ?? 0),
-    materialPrepayPercent: Number(s?.materialPrepayPercent ?? 0.3),
-    depreciationCashPolicy: (s?.depreciationCashPolicy as any) ?? 'end_of_simulation',
-    periodicExpensePaymentPolicy: (s?.periodicExpensePaymentPolicy as any) ?? 'daily',
-    monthDivisor: Number(s?.monthDivisor ?? 30),
-    payrollPaymentPolicy: (s?.payrollPaymentPolicy as any) ?? 'daily',
-    materialTwoPhasePayment: Boolean(s?.materialTwoPhasePayment ?? true),
+    workingHoursPerDay: Number(s.workingHoursPerDay),
+    restMinutesPerHour: Number(s.restMinutesPerHour),
+    waitForMaterialDelivery: Boolean(s.waitForMaterialDelivery),
+    considerPeriodicExpenses: Boolean(s.includeRecurringExpenses),
+    varianceMode: s.varianceMode.toLowerCase() as any,
+    variancePercent: Number(s.variancePercent),
+    thresholdRatio: Number(s.thresholdRatio),
+    initialCashBalance: Number(s.initialCashBalance),
+    materialPrepayPercent: Number(s.materialPrepayPercent) / 100, // Конвертируем проценты в десятичную дробь
+    depreciationCashPolicy: s.depreciationCashPolicy.toLowerCase() as any,
+    periodicExpensePaymentPolicy: s.periodicExpensePaymentPolicy.toLowerCase() as any,
+    monthDivisor: Number(s.monthDivisor),
+    payrollPaymentPolicy: s.payrollPaymentPolicy.toLowerCase() as any,
+    materialTwoPhasePayment: Boolean(s.materialTwoPhasePayment),
   };
 }
 

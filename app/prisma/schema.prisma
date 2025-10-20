@@ -455,6 +455,30 @@ model Backup {
 // SIMULATION V2 MODELS
 // ===============================================
 
+// Глобальные настройки для симуляции v2 (не привязаны к заказу)
+model GlobalSimulationSettingsV2 {
+  id                              String   @id @default(cuid())
+  workingHoursPerDay              Float    @default(8)    // Количество рабочих часов в день
+  restMinutesPerHour              Float    @default(0)    // Количество минут отдыха в час
+  waitForMaterialDelivery         Boolean  @default(true)  // Ждать поставку материалов
+  includeRecurringExpenses        Boolean  @default(false) // Учитывать периодические расходы
+  varianceMode                    String   @default("NO_VARIANCE") // Режим вариативности
+  variancePercent                 Float    @default(0)    // Процент вариативности
+  thresholdRatio                  Float    @default(0.5)  // Порог автозаказа материалов (0..1)
+  initialCashBalance              Float    @default(0)    // Начальный остаток денежных средств
+  materialPrepayPercent           Float    @default(30)   // Доля предоплаты материалов (%)
+  depreciationCashPolicy          String   @default("END_OF_SIMULATION") // 'DAILY' | 'END_OF_SIMULATION'
+  periodicExpensePaymentPolicy    String   @default("DAILY") // 'DAILY' | 'END_OF_SIMULATION'
+  monthDivisor                    Float    @default(30)   // Делитель для месяца (влияет на квартал и год)
+  payrollPaymentPolicy            String   @default("DAILY") // 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+  materialTwoPhasePayment         Boolean  @default(true)  // true: двухфазная оплата (предоплата+постоплата)
+  
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  @@map("global_simulation_settings_v2")
+}
+
 model SimulationSettingsV2 {
   id                              String   @id @default(cuid())
   orderId                         String   @unique // Связь с заказом
