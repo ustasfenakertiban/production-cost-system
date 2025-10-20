@@ -1,477 +1,298 @@
+import { EmployeeSpec, EquipmentSpec, MaterialSpec, PeriodicExpenseSpec, SimulationSettings } from './types';
 
-/**
- * Менеджер ресурсов - управляет материалами, оборудованием и сотрудниками
- * Версия 2 с поддержкой закупки материалов, управления сотрудниками и параллельного выполнения
- */
-
-import {
-  MaterialInfo,
-  EquipmentInfo,
-  EmployeeInfo,
-  EmployeeRoleInfo,
-  MaterialStock,
-  EmployeeState,
-  EquipmentState,
-  MaterialPurchaseBatch,
-  SimulationSettingsV2,
-} from "./types";
+type MaterialBatch = {
+  materialId: string;
+  qty: number;
+  unitCost: number;
+  vatRate: number;
+  orderDay: number;
+  etaProductionDay: number;
+  etaArrivalDay: number;
+  prepayNet: number;
+  prepayVat: number;
+  postpayNet: number;
+  postpayVat: number;
+};
 
 export class ResourceManager {
-  // Справочники ресурсов
-  private materials: Map<string, MaterialInfo> = new Map();
-  private equipment: Map<string, EquipmentInfo> = new Map();
-  private roles: Map<string, EmployeeRoleInfo> = new Map();
-  private employees: Map<string, EmployeeInfo> = new Map();
-  
-  // Состояние ресурсов
-  private materialStocks: Map<string, MaterialStock> = new Map();
-  private employeeStates: Map<string, EmployeeState> = new Map();
-  private equipmentStates: Map<string, EquipmentState> = new Map();
-  
-  // Настройки симуляции
-  private settings?: SimulationSettingsV2;
-  
-  constructor() {}
-  
-  // ==================== Инициализация ====================
-  
-  /**
-   * Установить настройки симуляции
-   */
-  setSettings(settings: SimulationSettingsV2): void {
-    this.settings = settings;
+  readonly materials: Map<string, MaterialSpec>;
+  readonly equipment: Map<string, EquipmentSpec>;
+  readonly employees: Map<string, EmployeeSpec>;
+  private materialStock: Map<string, number>;
+  private plannedBatches: MaterialBatch[];
+  private employeeMinuteAllocated: Map<string, number>;
+  private equipmentMinuteAllocated: Map<string, number>;
+
+  public materialCostAccrued = 0;
+  public materialVatAccrued = 0;
+  public laborCostAccrued = 0;
+  public equipmentDepreciationAccrued = 0;
+  public periodicNetAccrued = 0;
+  public periodicVatAccrued = 0;
+
+  public cashBalance = 0;
+
+  public daily = new Map<number, {
+    cashIn: number;
+    cashOut: { materials: number; materialsVat: number; labor: number; periodic: number; periodicVat: number };
+    nonCash: { depreciation: number };
+  }>();
+
+  constructor(materials: MaterialSpec[], equipment: EquipmentSpec[], employees: EmployeeSpec[], initialCash: number) {
+    this.materials = new Map(materials.map(m => [m.id, m]));
+    this.equipment = new Map(equipment.map(e => [e.id, e]));
+    this.employees = new Map(employees.map(emp => [emp.id, emp]));
+    this.materialStock = new Map(materials.map(m => [m.id, 0]));
+    this.plannedBatches = [];
+    this.employeeMinuteAllocated = new Map();
+    this.equipmentMinuteAllocated = new Map();
+    this.cashBalance = initialCash;
   }
-  
-  /**
-   * Загрузить информацию о материалах
-   */
-  loadMaterials(materials: MaterialInfo[]): void {
-    materials.forEach(m => {
-      this.materials.set(m.id, m);
-      // Инициализировать запас материала
-      this.materialStocks.set(m.id, {
-        materialId: m.id,
-        quantity: 0,
-        minStock: (m.batchSize || 0) * (m.minStockPercentage || 0) / 100,
-        totalPurchased: 0,
-        totalCost: 0,
-        pendingBatches: [],
+
+  private ensureDay(day: number) {
+    if (!this.daily.has(day)) {
+      this.daily.set(day, {
+        cashIn: 0,
+        cashOut: { materials: 0, materialsVat: 0, labor: 0, periodic: 0, periodicVat: 0 },
+        nonCash: { depreciation: 0 },
       });
-    });
-  }
-  
-  /**
-   * Загрузить информацию об оборудовании
-   */
-  loadEquipment(equipment: EquipmentInfo[]): void {
-    equipment.forEach(e => {
-      this.equipment.set(e.id, e);
-      // Инициализировать состояние оборудования
-      this.equipmentStates.set(e.id, {
-        equipmentId: e.id,
-        busyUntil: new Date(0),
-        idleHours: 0,
-        workHours: 0,
-      });
-    });
-  }
-  
-  /**
-   * Загрузить информацию о ролях
-   */
-  loadRoles(roles: EmployeeRoleInfo[]): void {
-    roles.forEach(r => this.roles.set(r.id, r));
-  }
-  
-  /**
-   * Загрузить информацию о сотрудниках
-   */
-  loadEmployees(employees: EmployeeInfo[]): void {
-    employees.forEach(e => {
-      this.employees.set(e.id, e);
-      // Инициализировать состояние сотрудника
-      this.employeeStates.set(e.id, {
-        employeeId: e.id,
-        name: e.name,
-        roles: e.roles,
-        busyUntil: new Date(0),
-        idleMinutes: 0,
-        workHours: 0,
-        paidIdleHours: 0,
-      });
-    });
-  }
-  
-  // ==================== Материалы ====================
-  
-  /**
-   * Проверить доступность материала
-   */
-  checkMaterialAvailability(materialId: string, required: number): boolean {
-    const stock = this.materialStocks.get(materialId);
-    if (!stock) return false;
-    
-    const available = stock.quantity - stock.minStock;
-    return available >= required;
-  }
-  
-  /**
-   * Заказать материал (создать партию закупки)
-   * Возвращает дату поступления материала
-   */
-  orderMaterial(materialId: string, quantity: number, currentTime: Date): Date {
-    const material = this.materials.get(materialId);
-    const stock = this.materialStocks.get(materialId);
-    
-    if (!material || !stock) {
-      throw new Error(`Material ${materialId} not found`);
     }
-    
-    // Округлить количество до целых партий
-    const batchSize = material.batchSize || 1;
-    const batches = Math.ceil(quantity / batchSize);
-    const actualQuantity = batches * batchSize;
-    
-    // Рассчитать стоимость
-    const pricePerUnit = material.cost;
-    const totalCost = actualQuantity * pricePerUnit;
-    const prepaymentPercentage = material.prepaymentPercentage || 0;
-    const prepaymentPaid = totalCost * prepaymentPercentage / 100;
-    const remainingAmount = totalCost - prepaymentPaid;
-    
-    // Рассчитать даты
-    const manufacturingDays = material.manufacturingDays || 0;
-    const deliveryDays = material.deliveryDays || 0;
-    const totalDays = manufacturingDays + deliveryDays;
-    
-    const deliveryDate = new Date(currentTime);
-    deliveryDate.setDate(deliveryDate.getDate() + totalDays);
-    
-    // Создать партию закупки
-    const batch: MaterialPurchaseBatch = {
-      materialId,
-      quantity: actualQuantity,
-      pricePerUnit,
-      totalCost,
-      prepaymentPercentage,
-      prepaymentPaid,
-      remainingAmount,
-      manufacturingDay: manufacturingDays,
-      deliveryDay: Math.ceil((deliveryDate.getTime() - currentTime.getTime()) / (1000 * 60 * 60 * 24)),
-      status: manufacturingDays > 0 ? "manufacturing" : "in_transit",
-      orderedAt: currentTime,
-      deliveryDate,
-    };
-    
-    stock.pendingBatches.push(batch);
-    
-    return deliveryDate;
+    return this.daily.get(day)!;
   }
-  
-  /**
-   * Проверить и обработать поступившие партии материалов
-   */
-  processIncomingMaterials(currentTime: Date): void {
-    for (const stock of this.materialStocks.values()) {
-      // Найти партии, которые уже должны поступить
-      const deliveredBatches = stock.pendingBatches.filter(
-        batch => batch.deliveryDate <= currentTime && batch.status !== "delivered"
-      );
-      
-      for (const batch of deliveredBatches) {
-        // Добавить материал на склад
-        stock.quantity += batch.quantity;
-        stock.totalPurchased += batch.quantity;
-        stock.totalCost += batch.totalCost;
-        
-        // Обновить статус
-        batch.status = "delivered";
-      }
-      
-      // Удалить доставленные партии из списка ожидающих
-      stock.pendingBatches = stock.pendingBatches.filter(
-        batch => batch.status !== "delivered"
-      );
-    }
-  }
-  
-  /**
-   * Использовать материал
-   */
-  consumeMaterial(materialId: string, quantity: number): void {
-    const stock = this.materialStocks.get(materialId);
-    
-    if (!stock) {
-      throw new Error(`Material ${materialId} not found`);
-    }
-    
-    if (stock.quantity - quantity < stock.minStock) {
-      throw new Error(
-        `Insufficient material ${materialId}: available ${stock.quantity - stock.minStock}, required ${quantity}`
-      );
-    }
-    
-    stock.quantity -= quantity;
-  }
-  
-  /**
-   * Получить текущий запас материала
-   */
-  getMaterialStock(materialId: string): MaterialStock | undefined {
-    return this.materialStocks.get(materialId);
-  }
-  
-  /**
-   * Получить все запасы материалов
-   */
-  getAllMaterialStocks(): MaterialStock[] {
-    return Array.from(this.materialStocks.values());
-  }
-  
-  /**
-   * Проверить, есть ли ожидающие партии материалов
-   */
-  hasPendingMaterialBatches(): boolean {
-    for (const stock of this.materialStocks.values()) {
-      if (stock.pendingBatches.length > 0) {
-        return true;
+
+  getStock(materialId: string): number { return this.materialStock.get(materialId) ?? 0; }
+  setStock(materialId: string, qty: number) { this.materialStock.set(materialId, qty); }
+
+  // Автозаказ материалов утром
+  dailyMaterialReplenishment(currentDay: number, s: SimulationSettings) {
+    for (const m of this.materials.values()) {
+      const stock = this.getStock(m.id);
+      const threshold = s.thresholdRatio * m.minStock;
+      const hasIncoming = this.plannedBatches.some(b => b.materialId === m.id && b.etaArrivalDay >= currentDay);
+      if (stock <= threshold && !hasIncoming) {
+        const leadProd = s.waitForMaterialDelivery ? m.leadTimeProductionDays : 0;
+        const leadShip = s.waitForMaterialDelivery ? m.leadTimeShippingDays : 0;
+        const etaProdDay = currentDay + leadProd;
+        const etaArrivalDay = currentDay + leadProd + leadShip;
+        const qty = m.minOrderQty;
+        const net = m.unitCost * qty;
+        const vat = net * (m.vatRate / 100);
+        const prepayNet = net * s.materialPrepayPercent;
+        const prepayVat = vat * s.materialPrepayPercent;
+        const postpayNet = net - prepayNet;
+        const postpayVat = vat - prepayVat;
+
+        const day = this.ensureDay(currentDay);
+        day.cashOut.materials += prepayNet;
+        day.cashOut.materialsVat += prepayVat;
+        this.cashBalance -= (prepayNet + prepayVat);
+
+        this.plannedBatches.push({
+          materialId: m.id,
+          qty,
+          unitCost: m.unitCost,
+          vatRate: m.vatRate,
+          orderDay: currentDay,
+          etaProductionDay: etaProdDay,
+          etaArrivalDay,
+          prepayNet, prepayVat, postpayNet, postpayVat
+        });
       }
     }
-    return false;
   }
-  
-  /**
-   * Получить ближайшую дату поступления материалов
-   */
-  getNextMaterialDeliveryDate(): Date | null {
-    let nextDate: Date | null = null;
-    
-    for (const stock of this.materialStocks.values()) {
-      for (const batch of stock.pendingBatches) {
-        if (!nextDate || batch.deliveryDate < nextDate) {
-          nextDate = batch.deliveryDate;
+
+  processMaterialPostpay(currentDay: number) {
+    for (const b of this.plannedBatches) {
+      if (b.etaProductionDay === currentDay) {
+        const day = this.ensureDay(currentDay);
+        day.cashOut.materials += b.postpayNet;
+        day.cashOut.materialsVat += b.postpayVat;
+        this.cashBalance -= (b.postpayNet + b.postpayVat);
+      }
+    }
+  }
+
+  processIncomingMaterials(currentDay: number) {
+    const arrived: MaterialBatch[] = [];
+    this.plannedBatches = this.plannedBatches.filter(b => {
+      if (b.etaArrivalDay === currentDay) { arrived.push(b); return false; }
+      return true;
+    });
+    for (const b of arrived) {
+      const prev = this.getStock(b.materialId);
+      this.setStock(b.materialId, prev + b.qty);
+    }
+  }
+
+  reserveAndConsumeMaterials(consumption: Array<{ materialId: string; qty: number }>): boolean {
+    for (const c of consumption) {
+      const stock = this.getStock(c.materialId);
+      if (stock < c.qty) return false;
+    }
+    for (const c of consumption) {
+      const stock = this.getStock(c.materialId);
+      this.setStock(c.materialId, stock - c.qty);
+      const m = this.materials.get(c.materialId)!;
+      const net = m.unitCost * c.qty;
+      const vat = net * (m.vatRate / 100);
+      this.materialCostAccrued += net;
+      this.materialVatAccrued += vat;
+    }
+    return true;
+  }
+
+  resetHourAllocations() { this.employeeMinuteAllocated.clear(); this.equipmentMinuteAllocated.clear(); }
+
+  allocateForOperation(
+    requiredRoleIds: string[],
+    requiredEquipmentIds: string[],
+    minutesLeftInHour: number,
+    opts?: { requireFullForStaff?: boolean; requireFullForEquipment?: boolean }
+  ): { capacityFactor: number; employeesUsed: { id: string; minutes: number }[]; equipmentUsed: { id: string; minutes: number }[] } {
+    const requireFullForStaff = !!opts?.requireFullForStaff;
+    const requireFullForEquipment = !!opts?.requireFullForEquipment;
+
+    const employeesUsed: { id: string; minutes: number }[] = [];
+    let minEmployeeFraction = 1;
+    for (const roleId of requiredRoleIds) {
+      const emp = [...this.employees.values()].find(e => e.roleIds.includes(roleId));
+      if (!emp) return { capacityFactor: 0, employeesUsed: [], equipmentUsed: [] };
+      const allocated = this.employeeMinuteAllocated.get(emp.id) ?? 0;
+      const available = Math.max(0, minutesLeftInHour - allocated);
+      if (requireFullForStaff) {
+        if (available < minutesLeftInHour) return { capacityFactor: 0, employeesUsed: [], equipmentUsed: [] };
+        employeesUsed.push({ id: emp.id, minutes: minutesLeftInHour });
+      } else {
+        if (available <= 0) {
+          minEmployeeFraction = Math.min(minEmployeeFraction, 0);
+        } else {
+          const frac = Math.min(1, available / minutesLeftInHour);
+          minEmployeeFraction = Math.min(minEmployeeFraction, frac);
+          employeesUsed.push({ id: emp.id, minutes: Math.min(available, minutesLeftInHour) });
         }
       }
     }
-    
-    return nextDate;
-  }
-  
-  // ==================== Оборудование ====================
-  
-  /**
-   * Найти свободное оборудование
-   */
-  findAvailableEquipment(equipmentId: string, fromTime: Date): EquipmentState | null {
-    const state = this.equipmentStates.get(equipmentId);
-    
-    if (!state) return null;
-    if (state.busyUntil <= fromTime) return state;
-    
-    return null;
-  }
-  
-  /**
-   * Занять оборудование
-   */
-  occupyEquipment(
-    equipmentId: string,
-    operationId: string,
-    fromTime: Date,
-    duration: number
-  ): Date {
-    const state = this.equipmentStates.get(equipmentId);
-    
-    if (!state) {
-      throw new Error(`Equipment ${equipmentId} not found`);
-    }
-    
-    const startTime = state.busyUntil > fromTime ? state.busyUntil : fromTime;
-    const endTime = new Date(startTime.getTime() + duration * 60 * 60 * 1000);
-    
-    state.currentOperationId = operationId;
-    state.busyUntil = endTime;
-    state.workHours += duration;
-    
-    return endTime;
-  }
-  
-  /**
-   * Освободить оборудование
-   */
-  releaseEquipment(equipmentId: string): void {
-    const state = this.equipmentStates.get(equipmentId);
-    if (state) {
-      state.currentOperationId = undefined;
-    }
-  }
-  
-  /**
-   * Получить состояние оборудования
-   */
-  getEquipmentState(equipmentId: string): EquipmentState | undefined {
-    return this.equipmentStates.get(equipmentId);
-  }
-  
-  /**
-   * Получить все состояния оборудования
-   */
-  getAllEquipmentStates(): EquipmentState[] {
-    return Array.from(this.equipmentStates.values());
-  }
-  
-  // ==================== Сотрудники ====================
-  
-  /**
-   * Найти свободного сотрудника с нужной ролью
-   * Берем первого попавшегося, если он занят то второго и т.д.
-   */
-  findAvailableEmployee(roleId: string, fromTime: Date): EmployeeState | null {
-    // Найти всех сотрудников с нужной ролью
-    const availableEmployees: EmployeeState[] = [];
-    
-    for (const [empId, empInfo] of this.employees.entries()) {
-      if (empInfo.roles.includes(roleId)) {
-        const state = this.employeeStates.get(empId);
-        if (state && state.busyUntil <= fromTime) {
-          availableEmployees.push(state);
+
+    const equipmentUsed: { id: string; minutes: number }[] = [];
+    let minEquipmentFraction = 1;
+    for (const eqId of requiredEquipmentIds) {
+      const eq = this.equipment.get(eqId);
+      if (!eq) return { capacityFactor: 0, employeesUsed: [], equipmentUsed: [] };
+      if (eq.considerInUtilization === false) continue;
+      const allocated = this.equipmentMinuteAllocated.get(eq.id) ?? 0;
+      const available = Math.max(0, minutesLeftInHour - allocated);
+      if (requireFullForEquipment) {
+        if (available < minutesLeftInHour) return { capacityFactor: 0, employeesUsed: [], equipmentUsed: [] };
+        equipmentUsed.push({ id: eq.id, minutes: minutesLeftInHour });
+      } else {
+        if (available <= 0) {
+          minEquipmentFraction = Math.min(minEquipmentFraction, 0);
+        } else {
+          const frac = Math.min(1, available / minutesLeftInHour);
+          minEquipmentFraction = Math.min(minEquipmentFraction, frac);
+          equipmentUsed.push({ id: eq.id, minutes: Math.min(available, minutesLeftInHour) });
         }
       }
     }
-    
-    // Вернуть первого свободного
-    return availableEmployees.length > 0 ? availableEmployees[0] : null;
+
+    const capacityFactor = Math.min(minEmployeeFraction, minEquipmentFraction);
+    return { capacityFactor, employeesUsed, equipmentUsed };
   }
-  
-  /**
-   * Проверить, есть ли хотя бы один сотрудник с нужной ролью
-   */
-  hasEmployeeWithRole(roleId: string): boolean {
-    for (const empInfo of this.employees.values()) {
-      if (empInfo.roles.includes(roleId)) {
-        return true;
-      }
+
+  commitHourWork(
+    employeesUsed: { id: string; minutes: number }[],
+    equipmentUsed: { id: string; minutes: number }[],
+    laborVarianceMultiplier: number,
+    equipmentVarianceMultiplier: number,
+    employeeHourlyWageById: (id: string) => number,
+    equipmentHourlyDepById: (id: string) => number,
+    currentDay?: number
+  ) {
+    for (const e of employeesUsed) {
+      const prev = this.employeeMinuteAllocated.get(e.id) ?? 0;
+      this.employeeMinuteAllocated.set(e.id, prev + e.minutes);
+      const wage = employeeHourlyWageById(e.id) * (e.minutes / 60);
+      this.laborCostAccrued += wage * laborVarianceMultiplier;
     }
-    return false;
-  }
-  
-  /**
-   * Занять сотрудника
-   * Если оплата простоя включена, накапливаем минуты простоя
-   */
-  occupyEmployee(
-    employeeId: string,
-    roleId: string,
-    operationId: string,
-    fromTime: Date,
-    durationHours: number
-  ): Date {
-    const state = this.employeeStates.get(employeeId);
-    
-    if (!state) {
-      throw new Error(`Employee ${employeeId} not found`);
-    }
-    
-    const startTime = state.busyUntil > fromTime ? state.busyUntil : fromTime;
-    
-    // Если сотрудник был занят и есть пробел во времени, это простой
-    if (state.busyUntil < fromTime && this.settings?.payEmployeesForIdleTime) {
-      const idleMinutes = (fromTime.getTime() - state.busyUntil.getTime()) / (1000 * 60);
-      state.idleMinutes += idleMinutes;
-      
-      // Проверить, нужно ли оплатить простой (> 10 минут)
-      if (state.idleMinutes >= (this.settings.minIdleMinutesForPayment || 10)) {
-        // Округлить до часа и добавить к оплаченным часам простоя
-        const idleHours = Math.ceil(state.idleMinutes / 60);
-        state.paidIdleHours += idleHours;
-        state.idleMinutes = 0; // Сбросить накопленные минуты
-      }
-    }
-    
-    const endTime = new Date(startTime.getTime() + durationHours * 60 * 60 * 1000);
-    
-    state.currentOperationId = operationId;
-    state.currentRoleId = roleId;
-    state.busyUntil = endTime;
-    state.workHours += durationHours;
-    state.lastOperationEndTime = endTime;
-    
-    return endTime;
-  }
-  
-  /**
-   * Освободить сотрудника
-   * При смене операции - доплачиваем оставшиеся минуты до часа (если уже оплатили 40 минут)
-   */
-  releaseEmployee(employeeId: string, newOperationStart?: Date): void {
-    const state = this.employeeStates.get(employeeId);
-    if (!state) return;
-    
-    // Если сотрудник меняет операцию и включена оплата простоя
-    if (newOperationStart && state.lastOperationEndTime && this.settings?.payEmployeesForIdleTime) {
-      const lastOpEndMinutes = state.lastOperationEndTime.getMinutes();
-      
-      // Если последняя операция закончилась не на ровном часе
-      if (lastOpEndMinutes > 0) {
-        // Доплатить оставшиеся минуты до часа
-        const remainingMinutes = 60 - lastOpEndMinutes;
-        const additionalHours = remainingMinutes / 60;
-        state.paidIdleHours += additionalHours;
-      }
-    }
-    
-    state.currentOperationId = undefined;
-    state.currentRoleId = undefined;
-  }
-  
-  /**
-   * Добавить время простоя сотруднику (минуты)
-   */
-  addEmployeeIdleTime(employeeId: string, minutes: number): void {
-    const state = this.employeeStates.get(employeeId);
-    if (state) {
-      state.idleMinutes += minutes;
-      
-      // Проверить, нужно ли оплатить простой (> 10 минут)
-      if (this.settings?.payEmployeesForIdleTime && 
-          state.idleMinutes >= (this.settings.minIdleMinutesForPayment || 10)) {
-        // Округлить до часа и добавить к оплаченным часам простоя
-        const idleHours = Math.ceil(state.idleMinutes / 60);
-        state.paidIdleHours += idleHours;
-        state.idleMinutes = 0; // Сбросить накопленные минуты
+    for (const eq of equipmentUsed) {
+      this.equipmentMinuteAllocated.set(eq.id, (this.equipmentMinuteAllocated.get(eq.id) ?? 0) + eq.minutes);
+      const dep = equipmentHourlyDepById(eq.id) * (eq.minutes / 60);
+      this.equipmentDepreciationAccrued += dep * equipmentVarianceMultiplier;
+      if (currentDay != null) {
+        this.ensureDay(currentDay).nonCash.depreciation += dep * equipmentVarianceMultiplier;
       }
     }
   }
-  
-  /**
-   * Получить состояние сотрудника
-   */
-  getEmployeeState(employeeId: string): EmployeeState | undefined {
-    return this.employeeStates.get(employeeId);
+
+  // PERIODIC EXPENSES
+
+  private periodToDivisor(period: PeriodicExpenseSpec['period'], s: SimulationSettings): number {
+    switch (period) {
+      case 'DAY': return 1;
+      case 'WEEK': return 7;
+      case 'MONTH': return s.monthDivisor;
+      case 'QUARTER': return 3 * s.monthDivisor;
+      case 'YEAR': return 12 * s.monthDivisor;
+    }
   }
-  
-  /**
-   * Получить все состояния сотрудников
-   */
-  getAllEmployeeStates(): EmployeeState[] {
-    return Array.from(this.employeeStates.values());
+
+  // Возвращает дневную сумму gross и её разложение на net/VAT
+  getDailyPeriodicExpenseShare(exp: PeriodicExpenseSpec, s: SimulationSettings) {
+    const divisor = this.periodToDivisor(exp.period, s);
+    const dailyGross = exp.amount / divisor;
+    const net = dailyGross / (1 + (exp.vatRate / 100));
+    const vat = dailyGross - net;
+    return { dailyGross, net, vat };
   }
-  
-  // ==================== Справочная информация ====================
-  
-  getMaterialInfo(materialId: string): MaterialInfo | undefined {
-    return this.materials.get(materialId);
+
+  applyPeriodicExpensesForDay(currentDay: number, expenses: PeriodicExpenseSpec[], s: SimulationSettings) {
+    if (!expenses?.length) return;
+    const d = this.ensureDay(currentDay);
+    for (const exp of expenses) {
+      if (!exp.isActive) continue;
+      const { net, vat } = this.getDailyPeriodicExpenseShare(exp, s);
+      d.cashOut.periodic += net;
+      d.cashOut.periodicVat += vat;
+      this.cashBalance -= (net + vat);
+      this.periodicNetAccrued += net;
+      this.periodicVatAccrued += vat;
+    }
   }
-  
-  getEquipmentInfo(equipmentId: string): EquipmentInfo | undefined {
-    return this.equipment.get(equipmentId);
+
+  accruePeriodicExpensesForDayOnly(expenses: PeriodicExpenseSpec[], s: SimulationSettings) {
+    for (const exp of expenses) {
+      if (!exp.isActive) continue;
+      const { net, vat } = this.getDailyPeriodicExpenseShare(exp, s);
+      this.periodicNetAccrued += net;
+      this.periodicVatAccrued += vat;
+    }
   }
-  
-  getRoleInfo(roleId: string): EmployeeRoleInfo | undefined {
-    return this.roles.get(roleId);
+
+  bookEndOfSimulationPeriodicCashOut(currentDay: number) {
+    const d = this.ensureDay(currentDay);
+    d.cashOut.periodic += this.periodicNetAccrued;
+    d.cashOut.periodicVat += this.periodicVatAccrued;
+    this.cashBalance -= (this.periodicNetAccrued + this.periodicVatAccrued);
+    // не обнуляем accrued — они нужны для totals
   }
-  
-  getEmployeeInfo(employeeId: string): EmployeeInfo | undefined {
-    return this.employees.get(employeeId);
+
+  bookEndOfDayPayments(dayIndex: number, s: SimulationSettings) {
+    const d = this.ensureDay(dayIndex);
+    // Зарплата — cash out
+    d.cashOut.labor += this.laborCostAccrued;
+    this.cashBalance -= this.laborCostAccrued;
+    this.laborCostAccrued = 0;
+
+    // Амортизация как cash (если policy=daily)
+    if (s.depreciationCashPolicy === 'daily') {
+      const dep = this.ensureDay(dayIndex).nonCash.depreciation;
+      this.cashBalance -= dep;
+    }
+  }
+
+  creditClientInflow(currentDay: number, amount: number) {
+    const d = this.ensureDay(currentDay);
+    d.cashIn += amount;
+    this.cashBalance += amount;
   }
 }

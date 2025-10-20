@@ -466,6 +466,17 @@ model SimulationSettingsV2 {
   includeRecurringExpenses        Boolean  @default(false) // Учитывать периодические расходы
   waitForMaterialDelivery         Boolean  @default(true)  // Ждать поставку материалов
   payEmployeesForIdleTime         Boolean  @default(false) // Доплачивать сотрудникам за простой (округлять до часа)
+  
+  // Новые поля для Simulation v2
+  thresholdRatio                  Float    @default(0.5)  // Порог автозаказа материалов (0..1)
+  initialCashBalance              Float    @default(0)    // Начальный остаток денежных средств
+  materialPrepayPercent           Float    @default(0.3)  // Доля предоплаты материалов (0..1)
+  depreciationCashPolicy          String   @default("end_of_simulation") // 'daily' | 'end_of_simulation'
+  periodicExpensePaymentPolicy    String   @default("daily") // 'daily' | 'end_of_simulation'
+  monthDivisor                    Float    @default(30)   // Делитель для месяца (влияет на квартал и год)
+  varianceMode                    String   @default("no_variance") // Режим вариативности
+  variancePercent                 Float    @default(0)    // Процент вариативности
+  
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
   order                           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)

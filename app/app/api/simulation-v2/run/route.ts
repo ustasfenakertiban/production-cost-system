@@ -1,43 +1,44 @@
 
-import { NextRequest, NextResponse } from "next/server";
-import { runSimulation } from "@/lib/simulation-v2";
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  loadMaterials, loadEquipment, loadEmployees, loadOperationChains, loadSimulationSettingsV2,
+  loadPaymentSchedule, loadPeriodicExpenses
+} from '@/lib/simulation-v2/dataLoader';
+import { ResourceManager } from '@/lib/simulation-v2/ResourceManager';
+import { SimulationEngine } from '@/lib/simulation-v2/SimulationEngine';
 
-/**
- * API endpoint для запуска симуляции v2 (ООП)
- * POST /api/simulation-v2/run
- * 
- * Настройки симуляции (payIdleTime, enablePartialWork) загружаются из БД автоматически
- */
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await req.json();
+    const { orderId, initialTargetPerChain = {}, salePricePerUnit, orderQty } = body ?? {};
     
-    // Параметры без settings - они загрузятся из БД
-    const parameters = {
-      orderId: body.orderId,
-      orderQuantity: body.orderQuantity,
-      productId: body.productId,
-      productName: body.productName,
-      processId: body.processId,
-      processName: body.processName,
-      varianceMode: body.varianceMode || "NORMAL",
-      startDate: body.startDate ? new Date(body.startDate) : new Date(),
-      selectedEmployeeIds: body.selectedEmployeeIds, // Список выбранных сотрудников
-    };
-    
-    console.log("Запуск симуляции v2 с параметрами:", parameters);
-    
-    const result = await runSimulation(parameters);
-    
+    const [materials, equipment, employees, processSpec, settings, periodicExpenses] = await Promise.all([
+      loadMaterials(), 
+      loadEquipment(), 
+      loadEmployees(), 
+      loadOperationChains(), 
+      loadSimulationSettingsV2(), 
+      loadPeriodicExpenses()
+    ]);
+
+    const resources = new ResourceManager(materials, equipment, employees, settings.initialCashBalance);
+    const targets = new Map<string, number>(Object.entries(initialTargetPerChain));
+    const engine = new SimulationEngine(processSpec, resources, settings, targets);
+
+    const payments = orderId ? await loadPaymentSchedule(orderId) : [];
+    const totalOrderAmount = (salePricePerUnit && orderQty) ? (Number(salePricePerUnit) * Number(orderQty)) : undefined;
+    const inflows = payments.map(p => ({
+      dayNumber: p.dayNumber,
+      amount: p.amount ?? ((p.percentageOfTotal / 100) * (totalOrderAmount ?? 0))
+    }));
+
+    engine.setPaymentInflows(inflows);
+    engine.setPeriodicExpenses(periodicExpenses);
+
+    const result = await engine.run();
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error("Ошибка при запуске симуляции v2:", error);
-    return NextResponse.json(
-      { 
-        error: error.message || "Ошибка при запуске симуляции",
-        details: error.stack,
-      },
-      { status: 500 }
-    );
+  } catch (e: any) {
+    console.error('Simulation v2 error:', e);
+    return NextResponse.json({ error: e?.message ?? 'Simulation error', stack: e?.stack }, { status: 500 });
   }
 }
