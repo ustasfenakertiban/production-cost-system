@@ -159,6 +159,8 @@ export interface SimulationWarnings {
   paymentSchedulePercentTotal?: number;
   paymentScheduleOver100?: boolean;
   paymentScheduleHasEmptyAmount?: boolean;
+  simulationIncomplete?: boolean;
+  simulationDaysLimit?: number;
 }
 
 export interface SimulationResult {

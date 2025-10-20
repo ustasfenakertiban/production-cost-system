@@ -63,15 +63,22 @@ export class SimulationEngine {
 
     console.log('[SimEngine] Starting simulation. Initial state:');
     for (const chain of this.chains) {
-      console.log(`[SimEngine] Chain "${chain.spec.name}": target=${chain.target}, completed=${chain.isCompleted()}`);
+      const lastOp = chain.operations[chain.operations.length - 1];
+      const target = lastOp ? (lastOp.remaining + lastOp.transferredCount) : 0;
+      console.log(`[SimEngine] Chain "${chain.spec.name}": target=${target}, completed=${chain.isCompleted()}`);
     }
 
     while (!this.allCompleted() && this.currentDay <= MAX_SIMULATION_DAYS) {
       if (this.currentDay % 10 === 0) {
         console.log(`[SimEngine] Day ${this.currentDay}: Progress check...`);
         for (const chain of this.chains) {
-          const progress = chain.target > 0 ? `${((1 - chain.remaining / chain.target) * 100).toFixed(1)}%` : 'N/A';
-          console.log(`[SimEngine]   Chain "${chain.spec.name}": ${chain.target - chain.remaining}/${chain.target} (${progress})`);
+          const lastOp = chain.operations[chain.operations.length - 1];
+          if (lastOp) {
+            const target = lastOp.remaining + lastOp.transferredCount;
+            const completed = lastOp.transferredCount;
+            const progress = target > 0 ? `${((completed / target) * 100).toFixed(1)}%` : 'N/A';
+            console.log(`[SimEngine]   Chain "${chain.spec.name}": ${completed}/${target} (${progress})`);
+          }
         }
       }
 
