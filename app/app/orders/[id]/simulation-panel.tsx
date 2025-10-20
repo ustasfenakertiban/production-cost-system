@@ -141,12 +141,18 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
 
     try {
+      console.log('[FRONTEND] Starting simulation v2 with employees:', selectedEmployeeIds);
+      
       // Сначала получим данные заказа
+      console.log('[FRONTEND] Fetching order data for:', orderId);
       const orderResponse = await fetch(`/api/orders/${orderId}`);
       if (!orderResponse.ok) {
+        const errorText = await orderResponse.text();
+        console.error('[FRONTEND] Failed to load order:', errorText);
         throw new Error("Не удалось загрузить данные заказа");
       }
       const orderData = await orderResponse.json();
+      console.log('[FRONTEND] Order data:', orderData);
 
       // Проверяем, что в заказе есть позиции
       if (!orderData.orderItems || orderData.orderItems.length === 0) {
@@ -155,35 +161,43 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
 
       // Для MVP берем первую позицию заказа
       const firstItem = orderData.orderItems[0];
+      console.log('[FRONTEND] First item:', firstItem);
       
       if (!firstItem.productionProcess?.id) {
         throw new Error(`Для товара "${firstItem.product?.name || 'Unknown'}" не указан технологический процесс`);
       }
 
+      const requestBody = {
+        orderId: orderId,
+        orderQuantity: firstItem.quantity || 1000,
+        productId: firstItem.product?.id || "unknown",
+        productName: firstItem.product?.name || "Unknown",
+        processId: firstItem.productionProcess.id,
+        processName: firstItem.productionProcess.name || "Unknown",
+        varianceMode: params.varianceMode === "NONE" ? "NORMAL" : 
+                     params.varianceMode === "MAX" ? "MIN_PRODUCTIVITY_MAX_COSTS" :
+                     params.varianceMode === "MIN" ? "NORMAL" :
+                     params.varianceMode === "RANDOM_FULL" ? "RANDOM_ASYMMETRIC" :
+                     "NORMAL",
+        startDate: new Date().toISOString(),
+        selectedEmployeeIds, // Список выбранных сотрудников
+      };
+
+      console.log('[FRONTEND] Sending simulation request:', requestBody);
+
       // Запустим симуляцию v2
       const response = await fetch(`/api/simulation-v2/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: orderId,
-          orderQuantity: firstItem.quantity || 1000,
-          productId: firstItem.product?.id || "unknown",
-          productName: firstItem.product?.name || "Unknown",
-          processId: firstItem.productionProcess.id,
-          processName: firstItem.productionProcess.name || "Unknown",
-          varianceMode: params.varianceMode === "NONE" ? "NORMAL" : 
-                       params.varianceMode === "MAX" ? "MIN_PRODUCTIVITY_MAX_COSTS" :
-                       params.varianceMode === "MIN" ? "NORMAL" :
-                       params.varianceMode === "RANDOM_FULL" ? "RANDOM_ASYMMETRIC" :
-                       "NORMAL",
-          startDate: new Date().toISOString(),
-          selectedEmployeeIds, // Список выбранных сотрудников
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('[FRONTEND] Response status:', response.status);
       const data = await response.json();
+      console.log('[FRONTEND] Response data:', data);
 
       if (!response.ok) {
+        console.error('[FRONTEND] Simulation failed:', data);
         throw new Error(data.error || "Ошибка симуляции v2");
       }
 
