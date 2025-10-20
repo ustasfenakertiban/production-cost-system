@@ -114,7 +114,9 @@ export async function POST(req: NextRequest) {
     console.log('[SIM-V2] Starting simulation engine...');
     const result = await engine.run();
     console.log('[SIM-V2] Simulation completed successfully');
-    console.log('[SIM-V2] Result:', JSON.stringify(result, null, 2));
+    console.log('[SIM-V2] Days taken:', result.daysTaken);
+    console.log('[SIM-V2] Number of days in result:', result.days?.length || 0);
+    console.log('[SIM-V2] First day sample:', result.days?.[0] ? JSON.stringify(result.days[0], null, 2) : 'No days');
     
     // Преобразуем результат в формат для фронтенда
     const operations = [];
@@ -207,6 +209,8 @@ export async function POST(req: NextRequest) {
       }
     }
     
+    console.log('[SIM-V2] Operation stats collected:', operationStats.size);
+    
     // Устанавливаем целевое количество из targets
     for (const [key, stats] of operationStats.entries()) {
       const target = targets.get(stats.chainId) || 0;
@@ -216,6 +220,11 @@ export async function POST(req: NextRequest) {
     // Преобразуем в массив
     for (const stats of operationStats.values()) {
       operations.push(stats);
+    }
+    
+    console.log('[SIM-V2] Operations array length:', operations.length);
+    if (operations.length > 0) {
+      console.log('[SIM-V2] First operation:', JSON.stringify(operations[0], null, 2));
     }
     
     // Сортируем операции по порядку цепочки и операции
