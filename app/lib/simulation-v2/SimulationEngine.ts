@@ -229,11 +229,24 @@ export class SimulationEngine {
     const costCore = (rm.materialCostAccrued ?? 0) + (rm.laborCostAccrued ?? 0) + (rm.equipmentDepreciationAccrued ?? 0) + (rm.periodicNetAccrued ?? 0);
     const grossMargin = revenue - costCore;
 
+    console.log('[SimEngine] Building result. daily.size:', rm.daily?.size ?? 0);
+    if (rm.daily?.size > 0) {
+      const firstDay = Array.from(rm.daily.entries())[0];
+      console.log('[SimEngine] First day sample:', JSON.stringify(firstDay, null, 2));
+    }
+
     const daysArr: DayLog[] = Array.from((rm.daily?.entries?.() ?? [])).map(([day, v]: any) => {
       // Совместимость: если в v нет hours — подставить []
-      if (!v.hours) v.hours = [];
+      if (!v.hours) {
+        console.log(`[SimEngine] Day ${day}: missing hours field, adding empty array`);
+        v.hours = [];
+      } else {
+        console.log(`[SimEngine] Day ${day}: has ${v.hours?.length ?? 0} hours`);
+      }
       return { day, ...v };
     });
+
+    console.log('[SimEngine] Final daysArr.length:', daysArr.length);
 
     const result: SimulationResult = {
       daysTaken: this.currentDay - 1,
