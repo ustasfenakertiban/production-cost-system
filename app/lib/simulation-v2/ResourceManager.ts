@@ -1,4 +1,8 @@
-import { EmployeeSpec, EquipmentSpec, MaterialSpec, PeriodicExpenseSpec, SimulationSettings } from './types';
+
+import { 
+  EmployeeSpec, EquipmentSpec, MaterialSpec, PeriodicExpenseSpec, SimulationSettings,
+  DayLog, HourLog, ChainHourLog, OperationHourLog, MaterialBatchDebug, DayCashOut, DayNonCash
+} from './types';
 
 type MaterialBatch = {
   materialId: string;
@@ -37,6 +41,12 @@ export class ResourceManager {
     cashOut: { materials: number; materialsVat: number; labor: number; periodic: number; periodicVat: number };
     nonCash: { depreciation: number };
   }>();
+
+  // New fields for v2
+  public materialBatchesDebug: MaterialBatchDebug[] = [];
+  private hourLogs: Map<number, HourLog[]> = new Map();
+  private employeeWorkedThisHour: Set<string> = new Set();
+  private laborAccrualDaily: Map<number, number> = new Map();
 
   constructor(materials: MaterialSpec[], equipment: EquipmentSpec[], employees: EmployeeSpec[], initialCash: number) {
     this.materials = new Map(materials.map(m => [m.id, m]));
@@ -77,17 +87,41 @@ export class ResourceManager {
         const qty = m.minOrderQty;
         const net = m.unitCost * qty;
         const vat = net * (m.vatRate / 100);
-        const prepayNet = net * s.materialPrepayPercent;
-        const prepayVat = vat * s.materialPrepayPercent;
-        const postpayNet = net - prepayNet;
-        const postpayVat = vat - prepayVat;
 
-        const day = this.ensureDay(currentDay);
-        day.cashOut.materials += prepayNet;
-        day.cashOut.materialsVat += prepayVat;
-        this.cashBalance -= (prepayNet + prepayVat);
+        let prepayNet = 0, prepayVat = 0, postpayNet = 0, postpayVat = 0;
+
+        if (s.materialTwoPhasePayment) {
+          // Двухфазная оплата: предоплата сейчас, постоплата при готовности
+          prepayNet = net * s.materialPrepayPercent;
+          prepayVat = vat * s.materialPrepayPercent;
+          postpayNet = net - prepayNet;
+          postpayVat = vat - prepayVat;
+
+          const day = this.ensureDay(currentDay);
+          day.cashOut.materials += prepayNet;
+          day.cashOut.materialsVat += prepayVat;
+          this.cashBalance -= (prepayNet + prepayVat);
+        } else {
+          // Вся оплата сразу в день заказа
+          const day = this.ensureDay(currentDay);
+          day.cashOut.materials += net;
+          day.cashOut.materialsVat += vat;
+          this.cashBalance -= (net + vat);
+        }
 
         this.plannedBatches.push({
+          materialId: m.id,
+          qty,
+          unitCost: m.unitCost,
+          vatRate: m.vatRate,
+          orderDay: currentDay,
+          etaProductionDay: etaProdDay,
+          etaArrivalDay,
+          prepayNet, prepayVat, postpayNet, postpayVat
+        });
+
+        // Запись в materialBatchesDebug
+        this.materialBatchesDebug.push({
           materialId: m.id,
           qty,
           unitCost: m.unitCost,
@@ -103,7 +137,7 @@ export class ResourceManager {
 
   processMaterialPostpay(currentDay: number) {
     for (const b of this.plannedBatches) {
-      if (b.etaProductionDay === currentDay) {
+      if (b.etaProductionDay === currentDay && b.postpayNet > 0) {
         const day = this.ensureDay(currentDay);
         day.cashOut.materials += b.postpayNet;
         day.cashOut.materialsVat += b.postpayVat;
@@ -124,11 +158,15 @@ export class ResourceManager {
     }
   }
 
-  reserveAndConsumeMaterials(consumption: Array<{ materialId: string; qty: number }>): boolean {
+  reserveAndConsumeMaterials(consumption: Array<{ materialId: string; qty: number }>): { ok: boolean; details: Array<{ materialId: string; qty: number; net: number; vat: number }> } {
+    // Check availability
     for (const c of consumption) {
       const stock = this.getStock(c.materialId);
-      if (stock < c.qty) return false;
+      if (stock < c.qty) return { ok: false, details: [] };
     }
+    
+    // Consume and record details
+    const details: Array<{ materialId: string; qty: number; net: number; vat: number }> = [];
     for (const c of consumption) {
       const stock = this.getStock(c.materialId);
       this.setStock(c.materialId, stock - c.qty);
@@ -137,11 +175,15 @@ export class ResourceManager {
       const vat = net * (m.vatRate / 100);
       this.materialCostAccrued += net;
       this.materialVatAccrued += vat;
+      details.push({ materialId: c.materialId, qty: c.qty, net, vat });
     }
-    return true;
+    return { ok: true, details };
   }
 
-  resetHourAllocations() { this.employeeMinuteAllocated.clear(); this.equipmentMinuteAllocated.clear(); }
+  resetHourAllocations() { 
+    this.employeeMinuteAllocated.clear(); 
+    this.equipmentMinuteAllocated.clear(); 
+  }
 
   allocateForOperation(
     requiredRoleIds: string[],
@@ -212,7 +254,17 @@ export class ResourceManager {
       const prev = this.employeeMinuteAllocated.get(e.id) ?? 0;
       this.employeeMinuteAllocated.set(e.id, prev + e.minutes);
       const wage = employeeHourlyWageById(e.id) * (e.minutes / 60);
-      this.laborCostAccrued += wage * laborVarianceMultiplier;
+      const cost = wage * laborVarianceMultiplier;
+      
+      // Accumulate labor for payroll policy
+      if (currentDay != null) {
+        const dailyAccrued = this.laborAccrualDaily.get(currentDay) ?? 0;
+        this.laborAccrualDaily.set(currentDay, dailyAccrued + cost);
+      }
+      this.laborCostAccrued += cost;
+      
+      // Mark employee as worked in this hour
+      this.employeeWorkedThisHour.add(e.id);
     }
     for (const eq of equipmentUsed) {
       this.equipmentMinuteAllocated.set(eq.id, (this.equipmentMinuteAllocated.get(eq.id) ?? 0) + eq.minutes);
@@ -222,6 +274,62 @@ export class ResourceManager {
         this.ensureDay(currentDay).nonCash.depreciation += dep * equipmentVarianceMultiplier;
       }
     }
+  }
+
+  // Hour logging methods
+  beginHour(day: number, hour: number) {
+    this.employeeWorkedThisHour.clear();
+    if (!this.hourLogs.has(day)) this.hourLogs.set(day, []);
+    this.hourLogs.get(day)!.push({ hour, chains: [] });
+  }
+
+  endHour(day: number, hour: number) {
+    // nothing special for now
+  }
+
+  logOperationHour(day: number, hour: number, chainId: string, entry: OperationHourLog) {
+    const hours = this.hourLogs.get(day);
+    if (!hours) return;
+    const h = hours.find(x => x.hour === hour);
+    if (!h) return;
+    let ch = h.chains.find(c => c.chainId === chainId);
+    if (!ch) {
+      ch = { chainId, ops: [] };
+      h.chains.push(ch);
+    }
+    ch.ops.push(entry);
+  }
+
+  flushDayLogsToDaily(day: number) {
+    const dayRec = this.ensureDay(day);
+    const hours = this.hourLogs.get(day) ?? [];
+    const dayLog: DayLog = {
+      day,
+      cashIn: dayRec.cashIn,
+      cashOut: dayRec.cashOut,
+      nonCash: dayRec.nonCash,
+      hours
+    };
+    // Store as DayLog in the daily map
+    (this.daily as any).set(day, dayLog);
+    this.hourLogs.delete(day);
+  }
+
+  // Try to swap an employee to unlock an operation
+  trySwapToUnlockOperation(requiredRoleIds: string[], minutesLeftInHour: number): boolean {
+    for (const roleId of requiredRoleIds) {
+      const candidate = [...this.employees.values()].find(
+        e => e.roleIds.includes(roleId) && !this.employeeWorkedThisHour.has(e.id)
+      );
+      if (!candidate) continue;
+      
+      const allocated = this.employeeMinuteAllocated.get(candidate.id) ?? 0;
+      if (allocated < minutesLeftInHour) {
+        this.employeeMinuteAllocated.set(candidate.id, minutesLeftInHour);
+        return true;
+      }
+    }
+    return false;
   }
 
   // PERIODIC EXPENSES
@@ -236,7 +344,6 @@ export class ResourceManager {
     }
   }
 
-  // Возвращает дневную сумму gross и её разложение на net/VAT
   getDailyPeriodicExpenseShare(exp: PeriodicExpenseSpec, s: SimulationSettings) {
     const divisor = this.periodToDivisor(exp.period, s);
     const dailyGross = exp.amount / divisor;
@@ -273,21 +380,58 @@ export class ResourceManager {
     d.cashOut.periodic += this.periodicNetAccrued;
     d.cashOut.periodicVat += this.periodicVatAccrued;
     this.cashBalance -= (this.periodicNetAccrued + this.periodicVatAccrued);
-    // не обнуляем accrued — они нужны для totals
+  }
+
+  // Payroll policy support
+  private getLaborAccruedForRange(startDay: number, endDay: number): number {
+    let sum = 0;
+    for (let d = startDay; d <= endDay; d++) {
+      sum += this.laborAccrualDaily.get(d) ?? 0;
+    }
+    return sum;
+  }
+
+  bookPayrollPolicyCashOut(dayIndex: number, s: SimulationSettings) {
+    let range: [number, number] | null = null;
+    
+    switch (s.payrollPaymentPolicy) {
+      case 'daily':
+        range = [dayIndex, dayIndex];
+        break;
+      case 'weekly':
+        if (dayIndex % 7 === 0) {
+          range = [Math.max(1, dayIndex - 6), dayIndex];
+        }
+        break;
+      case 'biweekly':
+        if (dayIndex % 14 === 0) {
+          range = [Math.max(1, dayIndex - 13), dayIndex];
+        }
+        break;
+      case 'monthly':
+        if (dayIndex % s.monthDivisor === 0) {
+          range = [Math.max(1, dayIndex - (s.monthDivisor - 1)), dayIndex];
+        }
+        break;
+    }
+
+    if (range) {
+      const amount = this.getLaborAccruedForRange(range[0], range[1]);
+      if (amount > 0) {
+        const d = this.ensureDay(dayIndex);
+        d.cashOut.labor += amount;
+        this.cashBalance -= amount;
+      }
+    }
   }
 
   bookEndOfDayPayments(dayIndex: number, s: SimulationSettings) {
-    const d = this.ensureDay(dayIndex);
-    // Зарплата — cash out
-    d.cashOut.labor += this.laborCostAccrued;
-    this.cashBalance -= this.laborCostAccrued;
-    this.laborCostAccrued = 0;
-
-    // Амортизация как cash (если policy=daily)
+    // Depreciation as cash (if policy=daily)
     if (s.depreciationCashPolicy === 'daily') {
       const dep = this.ensureDay(dayIndex).nonCash.depreciation;
       this.cashBalance -= dep;
     }
+    // Note: Labor is now handled by bookPayrollPolicyCashOut
   }
 
   creditClientInflow(currentDay: number, amount: number) {

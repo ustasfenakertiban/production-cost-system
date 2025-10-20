@@ -22,6 +22,8 @@ export interface SimulationSettings {
   depreciationCashPolicy: 'daily' | 'end_of_simulation';
   periodicExpensePaymentPolicy: 'daily' | 'end_of_simulation';
   monthDivisor: number;
+  payrollPaymentPolicy: 'daily' | 'weekly' | 'biweekly' | 'monthly';
+  materialTwoPhasePayment: boolean;
 }
 
 export interface MaterialSpec {
@@ -97,4 +99,84 @@ export interface PeriodicExpenseSpec {
   amount: number; // gross (с НДС)
   isActive: boolean;
   vatRate: number;
+}
+
+// Detailed logging types
+export interface DayCashOut {
+  materials: number;
+  materialsVat: number;
+  labor: number;
+  periodic: number;
+  periodicVat: number;
+}
+
+export interface DayNonCash {
+  depreciation: number;
+}
+
+export interface DayLog {
+  day: number;
+  cashIn: number;
+  cashOut: DayCashOut;
+  nonCash: DayNonCash;
+  hours: HourLog[];
+}
+
+export interface HourLog {
+  hour: number;
+  chains: ChainHourLog[];
+}
+
+export interface ChainHourLog {
+  chainId: string;
+  ops: OperationHourLog[];
+}
+
+export interface OperationHourLog {
+  opId: string;
+  produced: number;
+  pulledFromPrev: number;
+  materialsConsumed: Array<{ materialId: string; qty: number; net: number; vat: number }>;
+  laborCost: number;
+  depreciation: number;
+}
+
+export interface MaterialBatchDebug {
+  materialId: string;
+  qty: number;
+  unitCost: number;
+  vatRate: number;
+  orderDay: number;
+  etaProductionDay: number;
+  etaArrivalDay: number;
+  prepayNet: number;
+  prepayVat: number;
+  postpayNet: number;
+  postpayVat: number;
+}
+
+export interface SimulationWarnings {
+  paymentSchedulePercentTotal?: number;
+  paymentScheduleOver100?: boolean;
+  paymentScheduleHasEmptyAmount?: boolean;
+}
+
+export interface SimulationResult {
+  daysTaken: number;
+  totals: {
+    materialNet: number;
+    materialVAT: number;
+    labor: number;
+    depreciation: number;
+    periodicNet: number;
+    periodicVAT: number;
+    revenue?: number;
+    grossMargin?: number;
+    cashEnding: number;
+  };
+  days: DayLog[];
+  periodicCashOutDay?: number;
+  materialBatches?: MaterialBatchDebug[];
+  warnings?: SimulationWarnings;
+  logs: any[];
 }

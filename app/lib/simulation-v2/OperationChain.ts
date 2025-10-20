@@ -24,4 +24,8 @@ export class OperationChain {
   isCompleted(): boolean { return this.operations.every(o => o.isCompleted()); }
   get orderIndex(): number { return this.spec.orderIndex; }
   get type() { return this.spec.type; }
+  
+  resetHourCounters() {
+    this.operations.forEach(o => o.resetHourCounters());
+  }
 }

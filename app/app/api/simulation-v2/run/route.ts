@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
 
     engine.setPaymentInflows(inflows);
     engine.setPeriodicExpenses(periodicExpenses);
+    engine.setTotalOrderAmount(totalOrderAmount);
 
     const result = await engine.run();
     return NextResponse.json(result);

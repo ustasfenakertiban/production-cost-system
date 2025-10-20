@@ -476,6 +476,8 @@ model SimulationSettingsV2 {
   monthDivisor                    Float    @default(30)   // Делитель для месяца (влияет на квартал и год)
   varianceMode                    String   @default("no_variance") // Режим вариативности
   variancePercent                 Float    @default(0)    // Процент вариативности
+  payrollPaymentPolicy            String   @default("daily") // 'daily' | 'weekly' | 'biweekly' | 'monthly'
+  materialTwoPhasePayment         Boolean  @default(true)  // true: двухфазная оплата (предоплата+постоплата), false: вся оплата сразу
   
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt

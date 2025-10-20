@@ -1,5 +1,8 @@
 
-import { PeriodicExpenseSpec, ProcessSpec, SimulationSettings } from './types';
+import {
+  PeriodicExpenseSpec, ProcessSpec, SimulationSettings,
+  SimulationResult, DayLog, OperationHourLog, SimulationWarnings
+} from './types';
 import { OperationChain } from './OperationChain';
 import { productivityWithVariance, materialsOrDepVarianceMultiplier } from './variance';
 import { ResourceManager } from './ResourceManager';
@@ -13,20 +16,24 @@ export class SimulationEngine {
 
   private periodicExpenses: PeriodicExpenseSpec[] = [];
   private inflows: Array<{ dayNumber: number; amount: number }> = [];
+  private revenueTotal = 0;
+  private totalOrderAmount?: number;
 
   constructor(process: ProcessSpec, resources: ResourceManager, settings: SimulationSettings, targets: Map<string, number>) {
     this.process = process;
     this.settings = settings;
     this.resources = resources;
-    this.chains = process.chains.map(ch => new OperationChain(ch, targets.get(ch.id) ?? 0));
+    // one-time цепочки: если цель не задана, ставим 1
+    this.chains = process.chains.map(ch => {
+      const t = targets.get(ch.id);
+      const target = t != null ? t : (ch.type === 'one-time' ? 1 : 0);
+      return new OperationChain(ch, target);
+    });
   }
 
-  setPeriodicExpenses(exps: PeriodicExpenseSpec[]) {
-    this.periodicExpenses = exps ?? [];
-  }
-  setPaymentInflows(items: Array<{ dayNumber: number; amount: number }>) {
-    this.inflows = items ?? [];
-  }
+  setPeriodicExpenses(exps: PeriodicExpenseSpec[]) { this.periodicExpenses = exps ?? []; }
+  setPaymentInflows(items: Array<{ dayNumber: number; amount: number }>) { this.inflows = items ?? []; }
+  setTotalOrderAmount(amount?: number) { this.totalOrderAmount = amount; }
 
   private getActiveOrderIndex(): number | null {
     const unfinished = this.chains.filter(c => !c.isCompleted());
@@ -38,22 +45,44 @@ export class SimulationEngine {
   }
   allCompleted(): boolean { return this.chains.every(c => c.isCompleted()); }
 
-  async run() {
-    while (!this.allCompleted()) {
-      // Утро: клиентские поступления
-      const inflow = this.inflows.filter(p => p.dayNumber === this.currentDay).reduce((a, b) => a + (b.amount ?? 0), 0);
-      if (inflow > 0) this.resources.creditClientInflow(this.currentDay, inflow);
+  private validatePaymentSchedule(): SimulationWarnings {
+    const w: SimulationWarnings = {};
+    if (this.inflows.length && this.totalOrderAmount != null) {
+      const sum = this.inflows.reduce((a, b) => a + (b.amount ?? 0), 0);
+      w.paymentSchedulePercentTotal = (sum / this.totalOrderAmount) * 100;
+      if (w.paymentSchedulePercentTotal > 100.0001) w.paymentScheduleOver100 = true;
+    }
+    const zeroes = this.inflows.some(i => !i.amount || i.amount <= 0);
+    if (zeroes) w.paymentScheduleHasEmptyAmount = true;
+    return w;
+  }
 
-      // Утро: автозаказы и постоплаты, приход материалов
+  async run(): Promise<SimulationResult> {
+    const warnings = this.validatePaymentSchedule();
+
+    while (!this.allCompleted()) {
+      // Утро: поступления от клиента
+      const inflow = this.inflows.filter(p => p.dayNumber === this.currentDay).reduce((a, b) => a + (b.amount ?? 0), 0);
+      if (inflow > 0) {
+        this.resources.creditClientInflow(this.currentDay, inflow);
+        this.revenueTotal += inflow;
+      }
+
+      // Утро: поставки/оплаты
       this.resources.dailyMaterialReplenishment(this.currentDay, this.settings);
       this.resources.processMaterialPostpay(this.currentDay);
       this.resources.processIncomingMaterials(this.currentDay);
 
-      // Рабочие часы
+      // Рабочий день: по часам
       for (let h = 1; h <= this.settings.workingHoursPerDay; h++) {
+        this.resources.beginHour(this.currentDay, h);
         const activeOrder = this.getActiveOrderIndex();
-        if (activeOrder === null) break;
+        if (activeOrder === null) { this.resources.endHour(this.currentDay, h); break; }
         const activeChains = this.getActiveChains(activeOrder);
+
+        // Сброс почасовых счётчиков операций
+        for (const chain of activeChains) chain.resetHourCounters();
+
         this.resources.resetHourAllocations();
         const minutesLeft = 60 - this.settings.restMinutesPerHour;
 
@@ -82,17 +111,25 @@ export class SimulationEngine {
                 requireFullForEquipment: !!op.spec.requiresContinuousEquipmentWork
               }
             );
-            if (alloc.capacityFactor <= 0) continue;
+            let capacityFactor = alloc.capacityFactor;
+            if (capacityFactor <= 0) {
+              // Попытка swap
+              const swapped = this.resources.trySwapToUnlockOperation(op.spec.requiredRoleIds, minutesLeft);
+              if (!swapped) continue;
+              // После swap считаем, что фактор = 1 (полный час доступен)
+              capacityFactor = 1;
+            }
 
-            const byResources = effProd * alloc.capacityFactor;
+            const byResources = effProd * capacityFactor;
             const hourQtyCandidate = Math.max(0, Math.min(byResources, op.remaining, incomingCap));
             if (hourQtyCandidate <= 0) continue;
 
-            const materialsToConsume = op.spec.materialUsages.map(mu => ({
+            // Списываем материалы
+            const toConsume = op.spec.materialUsages.map(mu => ({
               materialId: mu.materialId, qty: mu.quantityPerUnit * hourQtyCandidate
             }));
-            const materialsOk = this.resources.reserveAndConsumeMaterials(materialsToConsume);
-            if (!materialsOk) continue;
+            const res = this.resources.reserveAndConsumeMaterials(toConsume);
+            if (!res?.ok) continue;
 
             const pulled = prev ? op.pullFromPrevious(prev, hourQtyCandidate) : hourQtyCandidate;
             if (pulled <= 0) continue;
@@ -108,8 +145,22 @@ export class SimulationEngine {
             );
 
             op.produceForHour(pulled);
+
+            // Логирование операции
+            const laborCost = alloc.employeesUsed.reduce((sum, e) => sum + (this.resources.employees.get(e.id)!.hourlyWage * (e.minutes / 60)), 0);
+            const depreciation = alloc.equipmentUsed.reduce((sum, eq) => sum + (this.resources.equipment.get(eq.id)!.hourlyDepreciation * (eq.minutes / 60) * mult), 0);
+            const entry: OperationHourLog = {
+              opId: op.spec.id,
+              produced: pulled,
+              pulledFromPrev: prev ? pulled : 0,
+              materialsConsumed: res.details,
+              laborCost,
+              depreciation
+            };
+            this.resources.logOperationHour(this.currentDay, h, chain.spec.id, entry);
           }
         }
+        this.resources.endHour(this.currentDay, h);
       }
 
       // Конец дня: периодические расходы по policy
@@ -119,31 +170,62 @@ export class SimulationEngine {
         this.resources.accruePeriodicExpensesForDayOnly(this.periodicExpenses, this.settings);
       }
 
-      // Конец дня: зарплаты, опция амортизации
+      // Конец дня: амортизация cash-политика (зарплаты теперь по payroll policy)
       this.resources.bookEndOfDayPayments(this.currentDay, this.settings);
+
+      // Списать зарплаты, если наступил срок по policy
+      this.resources.bookPayrollPolicyCashOut(this.currentDay, this.settings);
+
+      // Сохранить почасовые логи в дневной срез
+      this.resources.flushDayLogsToDaily(this.currentDay);
 
       this.currentDay += 1;
     }
 
-    // Если периодические расходы списываются в конце симуляции — проводим их последним днём
+    // Периодические расходы при policy=end_of_simulation — списать последним днём
+    let periodicCashOutDay: number | undefined = undefined;
     if (this.settings.periodicExpensePaymentPolicy === 'end_of_simulation') {
       this.resources.bookEndOfSimulationPeriodicCashOut(this.currentDay);
+      periodicCashOutDay = this.currentDay;
+      // Зафиксировать дневной срез для последнего дня
+      this.resources.flushDayLogsToDaily(this.currentDay);
     }
 
+    // Конечная выплата зарплат, если что-то осталось несквитировано по policy (хвост)
+    this.resources.bookPayrollPolicyCashOut(this.currentDay, this.settings);
+    this.resources.flushDayLogsToDaily(this.currentDay);
+
     const rm: any = this.resources;
-    return {
+
+    const revenue = this.revenueTotal || (this.totalOrderAmount ?? 0);
+    const costCore = (rm.materialCostAccrued ?? 0) + (rm.laborCostAccrued ?? 0) + (rm.equipmentDepreciationAccrued ?? 0) + (rm.periodicNetAccrued ?? 0);
+    const grossMargin = revenue - costCore;
+
+    const daysArr: DayLog[] = Array.from((rm.daily?.entries?.() ?? [])).map(([day, v]: any) => {
+      // Совместимость: если в v нет hours — подставить []
+      if (!v.hours) v.hours = [];
+      return { day, ...v };
+    });
+
+    const result: SimulationResult = {
       daysTaken: this.currentDay - 1,
       totals: {
         materialNet: rm.materialCostAccrued ?? 0,
         materialVAT: rm.materialVatAccrued ?? 0,
-        labor: rm.laborCostAccrued ?? 0, // к моменту конца дня будет 0, но суммарное за симуляцию мы накапливаем в ежедневных cashOut.labor
+        labor: rm.laborCostAccrued ?? 0,
         depreciation: rm.equipmentDepreciationAccrued ?? 0,
         periodicNet: rm.periodicNetAccrued ?? 0,
         periodicVAT: rm.periodicVatAccrued ?? 0,
+        revenue,
+        grossMargin,
         cashEnding: rm.cashBalance ?? 0
       },
-      days: Array.from(rm.daily?.entries?.() ?? []).map(([day, v]: any) => ({ day, ...v })),
+      days: daysArr,
+      periodicCashOutDay,
+      materialBatches: (rm.materialBatchesDebug ?? []),
+      warnings,
       logs: []
     };
+    return result;
   }
 }

@@ -7,6 +7,7 @@ export class Operation {
   outgoingBuffer: number;
   transferredCount: number;
   hourCycleCounter: number;
+  private producedThisHour = 0;
 
   constructor(spec: OperationSpec, initialTarget: number) {
     this.spec = spec;
@@ -19,6 +20,8 @@ export class Operation {
   isCompleted(): boolean { return this.remaining <= 0; }
   getMinStartInput(): number { return this.spec.minStartInput ?? 0; }
   getOutgoingBuffer(): number { return this.outgoingBuffer; }
+  resetHourCounters() { this.producedThisHour = 0; }
+  getProducedThisHour() { return this.producedThisHour; }
 
   pullFromPrevious(prev: Operation, desiredQty: number): number {
     const available = prev.getOutgoingBuffer();
@@ -34,6 +37,7 @@ export class Operation {
     this.remaining -= produced;
     this.outgoingBuffer += produced;
     this.hourCycleCounter += 1;
+    this.producedThisHour += produced;
     return produced;
   }
 }

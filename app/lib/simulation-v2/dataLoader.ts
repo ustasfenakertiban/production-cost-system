@@ -114,6 +114,8 @@ export async function loadSimulationSettingsV2(): Promise<SimulationSettings> {
     depreciationCashPolicy: (s?.depreciationCashPolicy as any) ?? 'end_of_simulation',
     periodicExpensePaymentPolicy: (s?.periodicExpensePaymentPolicy as any) ?? 'daily',
     monthDivisor: Number(s?.monthDivisor ?? 30),
+    payrollPaymentPolicy: (s?.payrollPaymentPolicy as any) ?? 'daily',
+    materialTwoPhasePayment: Boolean(s?.materialTwoPhasePayment ?? true),
   };
 }
 
