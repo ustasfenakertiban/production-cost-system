@@ -514,11 +514,12 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                   id="manufacturingDays"
                   type="number"
                   min="0"
+                  step="1"
                   value={formData.manufacturingDays}
                   onChange={(e) => handleChange('manufacturingDays', e.target.value)}
                   placeholder="0"
                 />
-                <p className="text-xs text-gray-500 mt-1">Срок изготовления</p>
+                <p className="text-xs text-gray-500 mt-1">Срок изготовления (0 = на складе)</p>
               </div>
               <div>
                 <Label htmlFor="deliveryDays">Доставка (дн)</Label>
@@ -526,11 +527,12 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                   id="deliveryDays"
                   type="number"
                   min="0"
+                  step="1"
                   value={formData.deliveryDays}
                   onChange={(e) => handleChange('deliveryDays', e.target.value)}
                   placeholder="0"
                 />
-                <p className="text-xs text-gray-500 mt-1">Срок доставки</p>
+                <p className="text-xs text-gray-500 mt-1">Срок доставки (0 = мгновенно)</p>
               </div>
             </div>
           </div>
