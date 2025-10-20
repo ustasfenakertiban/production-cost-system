@@ -133,8 +133,10 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         minStockPercentage: parseFloat(formData.minStockPercentage) || 0,
         batchSize: formData.batchSize ? parseFloat(formData.batchSize) : null,
         prepaymentPercentage: parseFloat(formData.prepaymentPercentage) || 0,
-        manufacturingDays: parseInt(formData.manufacturingDays) || 0,
-        deliveryDays: parseInt(formData.deliveryDays) || 0,
+        // Срок изготовления: может быть 0, если материал уже на складе поставщика
+        manufacturingDays: formData.manufacturingDays !== "" ? parseInt(formData.manufacturingDays) : 0,
+        // Срок доставки: может быть 0, например для электричества (доступно мгновенно)
+        deliveryDays: formData.deliveryDays !== "" ? parseInt(formData.deliveryDays) : 0,
         comment: formData.comment || null,
       };
 

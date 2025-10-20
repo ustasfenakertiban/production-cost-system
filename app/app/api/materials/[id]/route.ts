@@ -20,12 +20,12 @@ export async function PUT(
         categoryId: data.categoryId,
         unit: data.unit,
         cost: data.cost,
-        vatPercentage: data.vatPercentage || 0,
-        minStockPercentage: data.minStockPercentage || 0,
+        vatPercentage: data.vatPercentage ?? 0,
+        minStockPercentage: data.minStockPercentage ?? 0,
         batchSize: data.batchSize || null,
-        prepaymentPercentage: data.prepaymentPercentage || 0,
-        manufacturingDays: data.manufacturingDays || 0,
-        deliveryDays: data.deliveryDays || 0,
+        prepaymentPercentage: data.prepaymentPercentage ?? 0,
+        manufacturingDays: data.manufacturingDays ?? 0, // Может быть 0 (не требуется срок)
+        deliveryDays: data.deliveryDays ?? 0, // Может быть 0 (доступно мгновенно)
         comment: data.comment,
       },
       include: {

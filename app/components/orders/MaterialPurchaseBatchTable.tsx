@@ -62,8 +62,8 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
   const [editingBatch, setEditingBatch] = useState<Partial<MaterialPurchaseBatch> | null>(null);
   const [newBatch, setNewBatch] = useState<Partial<MaterialPurchaseBatch>>({
     orderId,
-    deliveryDay: 1,
-    manufacturingDay: 0,
+    deliveryDay: 0, // По умолчанию 0, будет заполнено из справочника материалов
+    manufacturingDay: 0, // По умолчанию 0, будет заполнено из справочника материалов
     quantity: 0,
     pricePerUnit: 0,
     prepaymentPercentage: 0,
@@ -236,9 +236,9 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
       materialId,
       quantity: material?.batchSize || 0, // Минимальная партия
       pricePerUnit: material?.cost || 0, // Цена берется из справочника
-      prepaymentPercentage: material?.prepaymentPercentage || 0,
-      manufacturingDay: material?.manufacturingDays || 0,
-      deliveryDay: material?.deliveryDays || 1,
+      prepaymentPercentage: material?.prepaymentPercentage ?? 0,
+      manufacturingDay: material?.manufacturingDays ?? 0, // Может быть 0 (материал на складе)
+      deliveryDay: material?.deliveryDays ?? 0, // Может быть 0 (доступно мгновенно, например электричество)
     });
   };
 
