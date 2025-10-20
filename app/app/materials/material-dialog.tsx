@@ -177,8 +177,8 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
   };
 
   const handleNumberChange = (field: string, value: string) => {
-    // Разрешаем пустую строку и любые числа (включая 0)
-    if (value === '' || !isNaN(Number(value))) {
+    // Разрешаем пустую строку или строку из цифр (включая "0")
+    if (value === '' || /^\d+$/.test(value)) {
       setFormData(prev => ({ ...prev, [field]: value }));
     }
   };
@@ -521,8 +521,14 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                   id="manufacturingDays"
                   type="text"
                   inputMode="numeric"
-                  value={formData.manufacturingDays}
-                  onChange={(e) => handleNumberChange('manufacturingDays', e.target.value)}
+                  value={formData.manufacturingDays || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Разрешаем пустую строку или строки содержащие только цифры
+                    if (val === '' || /^\d+$/.test(val)) {
+                      handleChange('manufacturingDays', val);
+                    }
+                  }}
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1">Срок изготовления (0 = на складе)</p>
@@ -533,8 +539,14 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                   id="deliveryDays"
                   type="text"
                   inputMode="numeric"
-                  value={formData.deliveryDays}
-                  onChange={(e) => handleNumberChange('deliveryDays', e.target.value)}
+                  value={formData.deliveryDays || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Разрешаем пустую строку или строки содержащие только цифры
+                    if (val === '' || /^\d+$/.test(val)) {
+                      handleChange('deliveryDays', val);
+                    }
+                  }}
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1">Срок доставки (0 = мгновенно)</p>
