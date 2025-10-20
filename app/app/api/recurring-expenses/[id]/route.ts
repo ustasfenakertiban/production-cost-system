@@ -19,7 +19,7 @@ export async function PUT(
         name: data.name,
         period: data.period,
         amount: data.amount,
-        distributionType: data.distributionType,
+        vatRate: data.vatRate,
         active: data.active,
         notes: data.notes || null,
       },

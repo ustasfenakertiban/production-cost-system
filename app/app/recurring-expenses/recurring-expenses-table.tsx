@@ -14,7 +14,7 @@ interface RecurringExpense {
   name: string;
   period: 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
   amount: number;
-  distributionType: 'FIXED' | 'PROPORTIONAL';
+  vatRate: number;
   active: boolean;
   notes?: string;
   createdAt: string;
@@ -35,11 +35,6 @@ const PERIOD_COLORS = {
   MONTH: 'bg-blue-50 text-blue-700',
   QUARTER: 'bg-purple-50 text-purple-700',
   YEAR: 'bg-green-50 text-green-700'
-};
-
-const DISTRIBUTION_LABELS = {
-  PROPORTIONAL: 'Равномерно',
-  FIXED: 'Фиксированные'
 };
 
 export function RecurringExpensesTable() {
@@ -144,7 +139,7 @@ export function RecurringExpensesTable() {
             <tr className="border-b bg-gray-50">
               <th className="text-left p-3 font-semibold">Название расхода</th>
               <th className="text-center p-3 font-semibold">Период</th>
-              <th className="text-center p-3 font-semibold">Распределение</th>
+              <th className="text-center p-3 font-semibold">НДС</th>
               <th className="text-right p-3 font-semibold">Сумма</th>
               <th className="text-center p-3 font-semibold">Статус</th>
               <th className="text-center p-3 font-semibold">Действия</th>
@@ -165,9 +160,7 @@ export function RecurringExpensesTable() {
                   </Badge>
                 </td>
                 <td className="p-3 text-center">
-                  <Badge variant="outline" className={expense.distributionType === 'FIXED' ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700'}>
-                    {DISTRIBUTION_LABELS[expense.distributionType]}
-                  </Badge>
+                  <span className="font-medium">{expense.vatRate}%</span>
                 </td>
                 <td className="p-3 text-right">
                   <div className="font-medium text-red-600">

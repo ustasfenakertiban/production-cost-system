@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         name: data.name,
         period: data.period,
         amount: data.amount,
-        distributionType: data.distributionType || 'PROPORTIONAL',
+        vatRate: data.vatRate || 0,
         active: data.active !== undefined ? data.active : true,
         notes: data.notes || null,
       },

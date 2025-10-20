@@ -112,15 +112,15 @@ model Material {
 }
 
 model RecurringExpense {
-  id               String           @id @default(cuid())
-  name             String
-  period           ExpensePeriod
-  amount           Float
-  distributionType DistributionType @default(PROPORTIONAL)
-  active           Boolean          @default(true)
-  notes            String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  id        String        @id @default(cuid())
+  name      String
+  period    ExpensePeriod
+  amount    Float
+  vatRate   Float         @default(0) // НДС в процентах
+  active    Boolean       @default(true)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
   @@map("recurring_expenses")
 }
@@ -309,11 +309,6 @@ enum ExpensePeriod {
   MONTH
   QUARTER
   YEAR
-}
-
-enum DistributionType {
-  FIXED        // Фиксированные расходы (вычесть в конце заказа)
-  PROPORTIONAL // Распределить равномерно на всю продукцию
 }
 
 enum ChainType {

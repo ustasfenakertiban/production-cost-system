@@ -17,7 +17,7 @@ interface RecurringExpense {
   name: string;
   period: 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR';
   amount: number;
-  distributionType: 'FIXED' | 'PROPORTIONAL';
+  vatRate: number;
   active: boolean;
   notes?: string;
 }
@@ -35,17 +35,12 @@ const PERIOD_OPTIONS = [
   { value: 'QUARTER', label: 'Квартал' },
 ];
 
-const DISTRIBUTION_OPTIONS = [
-  { value: 'PROPORTIONAL', label: 'Равномерно распределить' },
-  { value: 'FIXED', label: 'Фиксированные (в конце заказа)' },
-];
-
 export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpenseDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
     period: "",
     amount: "",
-    distributionType: "PROPORTIONAL",
+    vatRate: "",
     active: true,
     notes: "",
   });
@@ -58,7 +53,7 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
         name: expense.name,
         period: expense.period,
         amount: expense.amount.toString(),
-        distributionType: expense.distributionType,
+        vatRate: expense.vatRate.toString(),
         active: expense.active,
         notes: expense.notes || "",
       });
@@ -67,7 +62,7 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
         name: "",
         period: "",
         amount: "",
-        distributionType: "PROPORTIONAL",
+        vatRate: "0",
         active: true,
         notes: "",
       });
@@ -83,7 +78,7 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
         name: formData.name,
         period: formData.period as 'DAY' | 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR',
         amount: parseFloat(formData.amount),
-        distributionType: formData.distributionType as 'FIXED' | 'PROPORTIONAL',
+        vatRate: parseFloat(formData.vatRate),
         active: formData.active,
         notes: formData.notes || null,
       };
@@ -176,19 +171,17 @@ export function RecurringExpenseDialog({ expense, open, onClose }: RecurringExpe
           </div>
 
           <div>
-            <Label htmlFor="distributionType">Тип распределения *</Label>
-            <Select value={formData.distributionType} onValueChange={(value) => handleChange('distributionType', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Выберите тип" />
-              </SelectTrigger>
-              <SelectContent>
-                {DISTRIBUTION_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="vatRate">НДС (%)</Label>
+            <Input
+              id="vatRate"
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={formData.vatRate}
+              onChange={(e) => handleChange('vatRate', e.target.value)}
+              placeholder="0"
+            />
           </div>
 
           <div className="flex items-center gap-3 py-2">
