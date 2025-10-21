@@ -147,8 +147,8 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
         });
         setNewBatch({
           orderId,
-          deliveryDay: 1,
-          manufacturingDay: 0,
+          deliveryDays: 1,
+          manufacturingDays: 0,
           quantity: 0,
           pricePerUnit: 0,
           prepaymentPercentage: 0,
@@ -381,10 +381,7 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
               Для каждого материала заполняется минимальная партия закупки, % предоплаты, сроки изготовления и доставки.
               {selectedMaterial && (
                 <div className="mt-2 text-sm">
-                  <span className="font-semibold">Выбран: {selectedMaterial.name}</span> 
-                  {selectedMaterial.minStockPercentage && 
-                    <span className="ml-2">| Неснижаемый остаток: {selectedMaterial.minStockPercentage}%</span>
-                  }
+                  <span className="font-semibold">Выбран: {selectedMaterial.name}</span>
                 </div>
               )}
             </CardDescription>
