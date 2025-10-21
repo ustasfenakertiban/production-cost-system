@@ -5,8 +5,17 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Pencil, Save, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Save, X, Download, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -70,6 +79,13 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
     status: "planned",
   });
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
+  
+  // Состояние для диалогов шаблонов
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [showApplyTemplateDialog, setShowApplyTemplateDialog] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [replaceExisting, setReplaceExisting] = useState(false);
 
   useEffect(() => {
     loadBatches();
@@ -242,21 +258,145 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
     });
   };
 
+  const handleSaveAsTemplate = async () => {
+    if (!templateName.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Введите название шаблона",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (batches.length === 0) {
+      toast({
+        title: "Ошибка",
+        description: "Нет партий для сохранения",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/orders/${orderId}/material-batches/save-as-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: templateName,
+          description: templateDescription,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: "Успешно",
+          description: `Сохранено ${result.templates.length} шаблонов`,
+        });
+        setShowSaveTemplateDialog(false);
+        setTemplateName("");
+        setTemplateDescription("");
+      } else {
+        throw new Error("Ошибка сохранения шаблона");
+      }
+    } catch (error) {
+      console.error("Ошибка сохранения шаблона:", error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось сохранить шаблон",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApplyTemplate = async () => {
+    if (!templateName.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Введите название шаблона",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/orders/${orderId}/material-batches/apply-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateName,
+          replaceExisting,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          title: "Успешно",
+          description: `Применено ${result.batches.length} партий из шаблона`,
+        });
+        setShowApplyTemplateDialog(false);
+        setTemplateName("");
+        setReplaceExisting(false);
+        loadBatches();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Ошибка применения шаблона");
+      }
+    } catch (error: any) {
+      console.error("Ошибка применения шаблона:", error);
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось применить шаблон",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Партии закупки материалов</CardTitle>
-        <CardDescription>
-          Для каждого материала заполняется минимальная партия закупки, % предоплаты, сроки изготовления и доставки.
-          {selectedMaterial && (
-            <div className="mt-2 text-sm">
-              <span className="font-semibold">Выбран: {selectedMaterial.name}</span> 
-              {selectedMaterial.minStockPercentage && 
-                <span className="ml-2">| Неснижаемый остаток: {selectedMaterial.minStockPercentage}%</span>
-              }
-            </div>
-          )}
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Партии закупки материалов</CardTitle>
+            <CardDescription>
+              Для каждого материала заполняется минимальная партия закупки, % предоплаты, сроки изготовления и доставки.
+              {selectedMaterial && (
+                <div className="mt-2 text-sm">
+                  <span className="font-semibold">Выбран: {selectedMaterial.name}</span> 
+                  {selectedMaterial.minStockPercentage && 
+                    <span className="ml-2">| Неснижаемый остаток: {selectedMaterial.minStockPercentage}%</span>
+                  }
+                </div>
+              )}
+            </CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSaveTemplateDialog(true)}
+              disabled={batches.length === 0}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Сохранить как шаблон
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowApplyTemplateDialog(true)}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Восстановить из шаблона
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -512,6 +652,89 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
           </Table>
         </div>
       </CardContent>
+
+      {/* Диалог сохранения в шаблон */}
+      <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Сохранить как шаблон</DialogTitle>
+            <DialogDescription>
+              Сохраните текущие партии закупки как шаблон для использования в других заказах
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="template-name">Название шаблона *</Label>
+              <Input
+                id="template-name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Например: Стандартная партия"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="template-description">Описание (необязательно)</Label>
+              <Input
+                id="template-description"
+                value={templateDescription}
+                onChange={(e) => setTemplateDescription(e.target.value)}
+                placeholder="Описание шаблона"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveTemplateDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleSaveAsTemplate} disabled={loading}>
+              {loading ? "Сохранение..." : "Сохранить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Диалог применения шаблона */}
+      <Dialog open={showApplyTemplateDialog} onOpenChange={setShowApplyTemplateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Восстановить из шаблона</DialogTitle>
+            <DialogDescription>
+              Примените сохраненный шаблон партий закупки к этому заказу
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="apply-template-name">Название шаблона *</Label>
+              <Input
+                id="apply-template-name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Например: Стандартная партия"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="replace-existing"
+                checked={replaceExisting}
+                onChange={(e) => setReplaceExisting(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="replace-existing" className="cursor-pointer">
+                Заменить существующие партии
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApplyTemplateDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleApplyTemplate} disabled={loading}>
+              {loading ? "Применение..." : "Применить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

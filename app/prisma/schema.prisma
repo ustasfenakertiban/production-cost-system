@@ -89,24 +89,25 @@ model MaterialCategory {
 }
 
 model Material {
-  id                      String                      @id @default(cuid())
+  id                      String                            @id @default(cuid())
   name                    String
   categoryId              String
   unit                    String
   cost                    Float
-  vatPercentage           Float                       @default(0)
-  minStockPercentage      Float?                      @default(0) // Минимальный неснижаемый остаток от партии закупки (в %)
-  batchSize               Float?                      // Размер партии закупки
-  prepaymentPercentage    Float?                      @default(0) // % предоплаты при закупке
-  manufacturingDays       Int?                        @default(0) // Срок изготовления в днях
-  deliveryDays            Int?                        @default(0) // Срок доставки в днях
-  createdAt               DateTime                    @default(now())
-  updatedAt               DateTime                    @updatedAt
+  vatPercentage           Float                             @default(0)
+  minStockPercentage      Float?                            @default(0) // Минимальный неснижаемый остаток от партии закупки (в %)
+  batchSize               Float?                            // Размер партии закупки (устарело, используйте шаблоны)
+  prepaymentPercentage    Float?                            @default(0) // % предоплаты при закупке
+  manufacturingDays       Int?                              @default(0) // Срок изготовления в днях
+  deliveryDays            Int?                              @default(0) // Срок доставки в днях
+  createdAt               DateTime                          @default(now())
+  updatedAt               DateTime                          @updatedAt
   comment                 String?
-  category                MaterialCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category                MaterialCategory                  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   operationMaterials      OperationMaterial[]
   templateMaterials       OperationTemplateMaterial[]
-  materialPurchaseBatches MaterialPurchaseBatch[]     // Партии закупки (v2)
+  materialPurchaseBatches MaterialPurchaseBatch[]           // Партии закупки (v2)
+  purchaseBatchTemplates  MaterialPurchaseBatchTemplate[]   // Шаблоны партий закупки
 
   @@map("materials")
 }
@@ -543,4 +544,22 @@ model MaterialPurchaseBatch {
   material             Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@map("material_purchase_batches")
+}
+
+model MaterialPurchaseBatchTemplate {
+  id                   String   @id @default(cuid())
+  name                 String   // Название шаблона
+  description          String?  // Описание шаблона
+  materialId           String   // Связь с материалом
+  quantity             Float    // Количество материала в партии
+  pricePerUnit         Float    // Цена за единицу
+  prepaymentPercentage Float    @default(0) // % предоплаты для этой партии
+  manufacturingDays    Int      @default(0) // Дней на изготовление
+  deliveryDays         Int      // Дней на доставку
+  minStock             Float?   // Минимальный запас на складе
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  material             Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("material_purchase_batch_templates")
 }
