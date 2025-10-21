@@ -98,8 +98,18 @@ export class SimulationEngine {
       for (let h = 1; h <= this.settings.workingHoursPerDay; h++) {
         this.resources.beginHour(this.currentDay, h);
         const activeOrder = this.getActiveOrderIndex();
-        if (activeOrder === null) { this.resources.endHour(this.currentDay, h); break; }
+        if (activeOrder === null) { 
+          if (this.currentDay <= 2 && h === 1) {
+            console.log(`[SimEngine] Day ${this.currentDay}, Hour ${h}: No active order`);
+          }
+          this.resources.endHour(this.currentDay, h); 
+          break; 
+        }
         const activeChains = this.getActiveChains(activeOrder);
+
+        if (this.currentDay <= 2 && h === 1) {
+          console.log(`[SimEngine] Day ${this.currentDay}, Hour ${h}: Active chains: ${activeChains.length}, chains: ${activeChains.map(c => c.spec.name).join(', ')}`);
+        }
 
         // Сброс почасовых счётчиков операций
         for (const chain of activeChains) chain.resetHourCounters();
@@ -109,19 +119,34 @@ export class SimulationEngine {
 
         for (const chain of activeChains) {
           for (const op of chain.getOperationsInOrder()) {
-            if (op.isCompleted()) continue;
+            if (op.isCompleted()) {
+              if (this.currentDay <= 2 && h === 1) {
+                console.log(`[SimEngine]   Op "${op.spec.name}": already completed, skipping`);
+              }
+              continue;
+            }
 
             // Вытягивание
             let incomingCap = Number.POSITIVE_INFINITY;
             const prev = chain.getPreviousOperation(op);
             if (prev) {
               const available = prev.getOutgoingBuffer();
-              if (available < op.getMinStartInput()) continue;
+              if (available < op.getMinStartInput()) {
+                if (this.currentDay <= 2 && h === 1) {
+                  console.log(`[SimEngine]   Op "${op.spec.name}": waiting for input (available: ${available}, min: ${op.getMinStartInput()})`);
+                }
+                continue;
+              }
               incomingCap = available;
             }
 
             const effProd = productivityWithVariance(op.spec.baseProductivityPerHour, this.settings) * (minutesLeft / 60);
-            if (effProd <= 0) continue;
+            if (effProd <= 0) {
+              if (this.currentDay <= 2 && h === 1) {
+                console.log(`[SimEngine]   Op "${op.spec.name}": zero productivity`);
+              }
+              continue;
+            }
 
             const alloc = this.resources.allocateForOperation(
               op.spec.requiredRoleIds,
@@ -136,24 +161,48 @@ export class SimulationEngine {
             if (capacityFactor <= 0) {
               // Попытка swap
               const swapped = this.resources.trySwapToUnlockOperation(op.spec.requiredRoleIds, minutesLeft);
-              if (!swapped) continue;
+              if (!swapped) {
+                if (this.currentDay <= 2 && h === 1) {
+                  console.log(`[SimEngine]   Op "${op.spec.name}": no resources available, swap failed`);
+                }
+                continue;
+              }
               // После swap считаем, что фактор = 1 (полный час доступен)
               capacityFactor = 1;
             }
 
             const byResources = effProd * capacityFactor;
             const hourQtyCandidate = Math.max(0, Math.min(byResources, op.remaining, incomingCap));
-            if (hourQtyCandidate <= 0) continue;
+            if (hourQtyCandidate <= 0) {
+              if (this.currentDay <= 2 && h === 1) {
+                console.log(`[SimEngine]   Op "${op.spec.name}": hourQtyCandidate = 0 (byResources: ${byResources}, remaining: ${op.remaining}, incomingCap: ${incomingCap})`);
+              }
+              continue;
+            }
 
             // Списываем материалы
             const toConsume = op.spec.materialUsages.map(mu => ({
               materialId: mu.materialId, qty: mu.quantityPerUnit * hourQtyCandidate
             }));
             const res = this.resources.reserveAndConsumeMaterials(toConsume);
-            if (!res?.ok) continue;
+            if (!res?.ok) {
+              if (this.currentDay <= 2 && h === 1) {
+                console.log(`[SimEngine]   Op "${op.spec.name}": insufficient materials`);
+              }
+              continue;
+            }
 
             const pulled = prev ? op.pullFromPrevious(prev, hourQtyCandidate) : hourQtyCandidate;
-            if (pulled <= 0) continue;
+            if (pulled <= 0) {
+              if (this.currentDay <= 2 && h === 1) {
+                console.log(`[SimEngine]   Op "${op.spec.name}": pulled = 0`);
+              }
+              continue;
+            }
+
+            if (this.currentDay <= 2 && h === 1) {
+              console.log(`[SimEngine]   Op "${op.spec.name}": SUCCESS! produced ${pulled} units`);
+            }
 
             const mult = materialsOrDepVarianceMultiplier(this.settings);
             this.resources.commitHourWork(
