@@ -274,6 +274,11 @@ export async function POST(req: NextRequest) {
           const m = materials.find(mat => mat.id === b.materialId);
           return `${m?.name}: заказ день ${b.orderDay}, прибытие день ${b.etaArrivalDay}, кол-во ${b.qty}`;
         }),
+        // Подробная информация о материалах из БД
+        materialsFromDb: materials.map(m => {
+          const hasError = m.minOrderQty === 0 || m.minStock === 0;
+          return `${m.name}: minOrderQty=${m.minOrderQty}, minStock=${m.minStock}, cost=${m.unitCost}₽${hasError ? ' ⚠️ ОШИБКА: партия закупки = 0!' : ''}`;
+        }),
         waitForMaterialDelivery: settings.waitForMaterialDelivery,
         totalOrderAmount: totalOrderAmount,
         materialsCount: materials.length,

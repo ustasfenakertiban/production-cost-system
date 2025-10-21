@@ -234,6 +234,13 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           logLines.push("  (нет заказов материалов)");
         }
         logLines.push("");
+        
+        // Подробная информация о материалах из БД
+        if (data.diagnostics.materialsFromDb && data.diagnostics.materialsFromDb.length > 0) {
+          logLines.push("Материалы из базы данных (параметры):");
+          data.diagnostics.materialsFromDb.forEach((m: string) => logLines.push(`  ${m}`));
+          logLines.push("");
+        }
       }
       
       logLines.push("=== ОПЕРАЦИИ ===");
