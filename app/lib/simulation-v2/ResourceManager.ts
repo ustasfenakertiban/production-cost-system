@@ -75,16 +75,27 @@ export class ResourceManager {
 
   // Автозаказ материалов утром
   dailyMaterialReplenishment(currentDay: number, s: SimulationSettings) {
+    if (currentDay <= 3) {
+      console.log(`[ResourceMgr] Day ${currentDay}: Checking material replenishment`);
+      console.log(`[ResourceMgr]   waitForMaterialDelivery: ${s.waitForMaterialDelivery}`);
+      console.log(`[ResourceMgr]   thresholdRatio: ${s.thresholdRatio}`);
+    }
     for (const m of this.materials.values()) {
       const stock = this.getStock(m.id);
       const threshold = s.thresholdRatio * m.minStock;
       const hasIncoming = this.plannedBatches.some(b => b.materialId === m.id && b.etaArrivalDay >= currentDay);
+      if (currentDay <= 3) {
+        console.log(`[ResourceMgr]   Material "${m.name}": stock=${stock}, threshold=${threshold}, minStock=${m.minStock}, hasIncoming=${hasIncoming}`);
+      }
       if (stock <= threshold && !hasIncoming) {
         const leadProd = s.waitForMaterialDelivery ? m.leadTimeProductionDays : 0;
         const leadShip = s.waitForMaterialDelivery ? m.leadTimeShippingDays : 0;
         const etaProdDay = currentDay + leadProd;
         const etaArrivalDay = currentDay + leadProd + leadShip;
         const qty = m.minOrderQty;
+        if (currentDay <= 3) {
+          console.log(`[ResourceMgr]     → Ordering: qty=${qty}, leadProd=${leadProd}, leadShip=${leadShip}, etaArrivalDay=${etaArrivalDay}`);
+        }
         const net = m.unitCost * qty;
         const vat = net * (m.vatRate / 100);
 
@@ -152,9 +163,16 @@ export class ResourceManager {
       if (b.etaArrivalDay === currentDay) { arrived.push(b); return false; }
       return true;
     });
+    if (currentDay <= 5) {
+      console.log(`[ResourceMgr] Day ${currentDay}: Processing incoming materials, arrived=${arrived.length}, pending=${this.plannedBatches.length}`);
+    }
     for (const b of arrived) {
       const prev = this.getStock(b.materialId);
       this.setStock(b.materialId, prev + b.qty);
+      const m = this.materials.get(b.materialId);
+      if (currentDay <= 5) {
+        console.log(`[ResourceMgr]   Material "${m?.name}" arrived: qty=${b.qty}, stock: ${prev} → ${prev + b.qty}`);
+      }
     }
   }
 
@@ -162,7 +180,11 @@ export class ResourceManager {
     // Check availability
     for (const c of consumption) {
       const stock = this.getStock(c.materialId);
-      if (stock < c.qty) return { ok: false, details: [] };
+      if (stock < c.qty) {
+        const m = this.materials.get(c.materialId);
+        console.log(`[ResourceMgr] ⚠️ Material shortage: "${m?.name}" needs ${c.qty}, available ${stock}`);
+        return { ok: false, details: [] };
+      }
     }
     
     // Consume and record details
