@@ -93,8 +93,14 @@ export class ResourceManager {
         const etaProdDay = currentDay + leadProd;
         const etaArrivalDay = currentDay + leadProd + leadShip;
         const qty = m.minOrderQty;
-        if (currentDay <= 3) {
-          console.log(`[ResourceMgr]     → Ordering: qty=${qty}, leadProd=${leadProd}, leadShip=${leadShip}, etaArrivalDay=${etaArrivalDay}`);
+        
+        console.log(`[ResourceMgr] Day ${currentDay}: Ordering material "${m.name}"`);
+        console.log(`[ResourceMgr]   minOrderQty from spec: ${m.minOrderQty}`);
+        console.log(`[ResourceMgr]   qty to order: ${qty}`);
+        console.log(`[ResourceMgr]   leadProd: ${leadProd}, leadShip: ${leadShip}, etaArrivalDay: ${etaArrivalDay}`);
+        
+        if (qty === 0) {
+          console.error(`[ResourceMgr] ⚠️ ERROR: Attempting to order 0 units of "${m.name}"! minOrderQty=${m.minOrderQty}, minStock=${m.minStock}`);
         }
         const net = m.unitCost * qty;
         const vat = net * (m.vatRate / 100);

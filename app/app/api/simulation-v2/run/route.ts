@@ -44,6 +44,14 @@ export async function POST(req: NextRequest) {
     ]);
 
     console.log('[SIM-V2] Loaded data - materials:', materials.length, 'equipment:', equipment.length, 'employees:', allEmployees.length);
+    
+    // Диагностика: выводим первые 3 материала для проверки
+    if (materials.length > 0) {
+      console.log('[SIM-V2] First 3 materials loaded:');
+      materials.slice(0, 3).forEach(m => {
+        console.log(`  - ${m.name}: minOrderQty=${m.minOrderQty}, minStock=${m.minStock}, unitCost=${m.unitCost}`);
+      });
+    }
 
     // Фильтруем сотрудников, если указан список выбранных
     let employees = allEmployees;
