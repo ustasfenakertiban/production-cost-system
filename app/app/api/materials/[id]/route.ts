@@ -13,6 +13,11 @@ export async function PUT(
   try {
     const data = await request.json();
     
+    console.log(`[Materials API] UPDATE ${params.id}:`);
+    console.log(`  Name: ${data.name}`);
+    console.log(`  batchSize from request: ${data.batchSize} (type: ${typeof data.batchSize})`);
+    console.log(`  Will be saved as: ${data.batchSize || null}`);
+    
     const material = await prisma.material.update({
       where: { id: params.id },
       data: {
@@ -32,6 +37,8 @@ export async function PUT(
         category: true,
       },
     });
+    
+    console.log(`[Materials API] Material updated. batchSize in DB: ${material.batchSize}`);
     
     return NextResponse.json(material);
   } catch (error) {

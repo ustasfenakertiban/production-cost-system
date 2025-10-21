@@ -30,6 +30,11 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
     
+    console.log(`[Materials API] CREATE new material:`);
+    console.log(`  Name: ${data.name}`);
+    console.log(`  batchSize from request: ${data.batchSize} (type: ${typeof data.batchSize})`);
+    console.log(`  Will be saved as: ${data.batchSize || null}`);
+    
     const material = await prisma.material.create({
       data: {
         name: data.name,
@@ -48,6 +53,8 @@ export async function POST(request: NextRequest) {
         category: true,
       },
     });
+    
+    console.log(`[Materials API] Material created. batchSize in DB: ${material.batchSize}`);
     
     return NextResponse.json(material, { status: 201 });
   } catch (error) {
