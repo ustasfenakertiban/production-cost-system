@@ -257,6 +257,20 @@ export async function POST(req: NextRequest) {
       warnings: result.warnings,
       // Добавляем исходный результат для отладки
       _raw: result,
+      // Диагностическая информация
+      diagnostics: {
+        initialCashBalance: settings.initialCashBalance,
+        finalCashBalance: resources.cashBalance,
+        paymentSchedule: inflows.map(i => `День ${i.dayNumber}: ${i.amount}₽`),
+        materialOrders: resources.materialBatchesDebug.slice(0, 10).map(b => {
+          const m = materials.find(mat => mat.id === b.materialId);
+          return `${m?.name}: заказ день ${b.orderDay}, прибытие день ${b.etaArrivalDay}, кол-во ${b.qty}`;
+        }),
+        waitForMaterialDelivery: settings.waitForMaterialDelivery,
+        totalOrderAmount: totalOrderAmount,
+        materialsCount: materials.length,
+        chainsCount: processSpec.chains.length
+      }
     };
     
     console.log('[SIM-V2] Formatted response:', JSON.stringify(response, null, 2));

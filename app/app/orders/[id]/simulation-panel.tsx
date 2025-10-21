@@ -210,6 +210,32 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       logLines.push(`Общая стоимость: ${(data.totalCost ?? 0).toFixed(2)}`);
       logLines.push("");
       
+      // Диагностическая информация
+      if (data.diagnostics) {
+        logLines.push("=== ДИАГНОСТИКА ===");
+        logLines.push(`Начальный баланс: ${data.diagnostics.initialCashBalance ?? 0}₽`);
+        logLines.push(`Конечный баланс: ${(data.diagnostics.finalCashBalance ?? 0).toFixed(2)}₽`);
+        logLines.push(`Ожидание материалов: ${data.diagnostics.waitForMaterialDelivery ? 'ДА' : 'НЕТ'}`);
+        logLines.push(`Сумма заказа: ${data.diagnostics.totalOrderAmount ?? 0}₽`);
+        logLines.push(`Материалов в базе: ${data.diagnostics.materialsCount ?? 0}`);
+        logLines.push(`Цепочек операций: ${data.diagnostics.chainsCount ?? 0}`);
+        logLines.push("");
+        logLines.push("График платежей:");
+        if (data.diagnostics.paymentSchedule && data.diagnostics.paymentSchedule.length > 0) {
+          data.diagnostics.paymentSchedule.forEach((p: string) => logLines.push(`  ${p}`));
+        } else {
+          logLines.push("  (нет платежей)");
+        }
+        logLines.push("");
+        logLines.push("Заказы материалов:");
+        if (data.diagnostics.materialOrders && data.diagnostics.materialOrders.length > 0) {
+          data.diagnostics.materialOrders.forEach((m: string) => logLines.push(`  ${m}`));
+        } else {
+          logLines.push("  (нет заказов материалов)");
+        }
+        logLines.push("");
+      }
+      
       logLines.push("=== ОПЕРАЦИИ ===");
       for (const op of data.operations || []) {
         logLines.push(`\n[${op.chainName || 'N/A'}] ${op.operationName || 'N/A'}`);
