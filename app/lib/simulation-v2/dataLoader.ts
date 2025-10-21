@@ -10,16 +10,22 @@ const prisma = new PrismaClient();
 
 export async function loadMaterials(): Promise<MaterialSpec[]> {
   const rows = await prisma.material.findMany();
-  return rows.map(r => ({
-    id: String(r.id),
-    name: r.name,
-    unitCost: Number(r.cost ?? 0),
-    vatRate: Number(r.vatPercentage ?? 0),
-    minStock: Number(r.batchSize ?? 0), // адаптация: используем batchSize как minStock
-    minOrderQty: Number(r.batchSize ?? 0), // адаптация: используем batchSize как minOrderQty
-    leadTimeProductionDays: Number(r.manufacturingDays ?? 0),
-    leadTimeShippingDays: Number(r.deliveryDays ?? 0),
-  }));
+  return rows.map(r => {
+    const batchSize = Number(r.batchSize ?? 0);
+    // Если batchSize = 0, используем минимум 1 единицу, чтобы избежать заказа 0 единиц
+    const effectiveBatchSize = batchSize > 0 ? batchSize : 1;
+    
+    return {
+      id: String(r.id),
+      name: r.name,
+      unitCost: Number(r.cost ?? 0),
+      vatRate: Number(r.vatPercentage ?? 0),
+      minStock: effectiveBatchSize, // минимальный остаток на складе
+      minOrderQty: effectiveBatchSize, // минимальный размер заказа
+      leadTimeProductionDays: Number(r.manufacturingDays ?? 0),
+      leadTimeShippingDays: Number(r.deliveryDays ?? 0),
+    };
+  });
 }
 
 export async function loadEquipment(): Promise<EquipmentSpec[]> {
