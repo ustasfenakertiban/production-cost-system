@@ -8,26 +8,53 @@ import {
 
 const prisma = new PrismaClient();
 
-export async function loadMaterials(): Promise<MaterialSpec[]> {
+export async function loadMaterials(orderId?: string): Promise<MaterialSpec[]> {
   const rows = await prisma.material.findMany();
   console.log('[DataLoader] Loading materials from database...');
+  
+  // Загружаем партии закупки для заказа (если orderId указан)
+  let batches: any[] = [];
+  if (orderId) {
+    batches = await prisma.materialPurchaseBatch.findMany({
+      where: { orderId }
+    });
+    console.log(`[DataLoader] Loaded ${batches.length} material purchase batches for order ${orderId}`);
+  }
+  
+  // Создаем Map для быстрого доступа к партиям по materialId
+  const batchByMaterial = new Map(batches.map(b => [b.materialId, b]));
+  
   return rows.map(r => {
-    const batchSize = Number(r.batchSize ?? 0);
-    console.log(`[DataLoader] Material "${r.name}": batchSize from DB = ${r.batchSize}, converted to Number = ${batchSize}`);
+    const batch = batchByMaterial.get(r.id);
     
-    if (batchSize === 0) {
-      console.warn(`[DataLoader] ⚠️ Material "${r.name}" has batchSize = 0! This will cause order quantity = 0.`);
+    // Если есть партия для этого материала - используем ее данные
+    if (batch) {
+      const quantity = Number(batch.quantity ?? 100);
+      console.log(`[DataLoader] Material "${r.name}": using batch data - quantity=${quantity}, minStock=${batch.minStock ?? 0}`);
+      
+      return {
+        id: String(r.id),
+        name: r.name,
+        unitCost: Number(batch.pricePerUnit ?? r.cost ?? 0),
+        vatRate: Number(batch.vatPercent ?? r.vatPercentage ?? 0),
+        minStock: Number(batch.minStock ?? quantity * 0.2), // минимальный остаток на складе
+        minOrderQty: quantity, // минимальный размер заказа
+        leadTimeProductionDays: Number(batch.manufacturingDays ?? 0),
+        leadTimeShippingDays: Number(batch.deliveryDays ?? 0),
+      };
     }
     
+    // Если партии нет - используем значения по умолчанию
+    console.log(`[DataLoader] Material "${r.name}": no batch found, using defaults (minOrderQty=100)`);
     return {
       id: String(r.id),
       name: r.name,
       unitCost: Number(r.cost ?? 0),
       vatRate: Number(r.vatPercentage ?? 0),
-      minStock: batchSize, // минимальный остаток на складе
-      minOrderQty: batchSize, // минимальный размер заказа
-      leadTimeProductionDays: Number(r.manufacturingDays ?? 0),
-      leadTimeShippingDays: Number(r.deliveryDays ?? 0),
+      minStock: 20, // 20 единиц минимальный остаток
+      minOrderQty: 100, // 100 единиц минимальный размер заказа
+      leadTimeProductionDays: 0,
+      leadTimeShippingDays: 0,
     };
   });
 }

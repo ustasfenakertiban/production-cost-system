@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       include: {
         material: true,
       },
-      orderBy: { deliveryDay: 'asc' },
+      orderBy: { deliveryDays: 'asc' },
     });
 
     return NextResponse.json(batches);
@@ -39,11 +39,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orderId, materialId, quantity, pricePerUnit, deliveryDay, status } = body;
+    const { 
+      orderId, 
+      materialId, 
+      quantity, 
+      pricePerUnit, 
+      vatPercent,
+      prepaymentPercentage,
+      manufacturingDays,
+      deliveryDays,
+      minStock,
+      status 
+    } = body;
 
-    if (!orderId || !materialId || quantity === undefined || pricePerUnit === undefined || deliveryDay === undefined) {
+    if (!orderId || !materialId || quantity === undefined || pricePerUnit === undefined || deliveryDays === undefined) {
       return NextResponse.json(
-        { error: 'orderId, materialId, quantity, pricePerUnit, and deliveryDay are required' },
+        { error: 'orderId, materialId, quantity, pricePerUnit, and deliveryDays are required' },
         { status: 400 }
       );
     }
@@ -56,8 +67,12 @@ export async function POST(request: NextRequest) {
         materialId,
         quantity,
         pricePerUnit,
+        vatPercent: vatPercent ?? 0,
         totalCost,
-        deliveryDay,
+        prepaymentPercentage: prepaymentPercentage ?? 0,
+        manufacturingDays: manufacturingDays ?? 0,
+        deliveryDays,
+        minStock: minStock || null,
         status: status || 'planned',
       },
       include: {

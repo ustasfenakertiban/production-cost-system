@@ -30,11 +30,6 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
     
-    console.log(`[Materials API] CREATE new material:`);
-    console.log(`  Name: ${data.name}`);
-    console.log(`  batchSize from request: ${data.batchSize} (type: ${typeof data.batchSize})`);
-    console.log(`  Will be saved as: ${data.batchSize || null}`);
-    
     const material = await prisma.material.create({
       data: {
         name: data.name,
@@ -42,19 +37,12 @@ export async function POST(request: NextRequest) {
         unit: data.unit,
         cost: data.cost,
         vatPercentage: data.vatPercentage ?? 0,
-        minStockPercentage: data.minStockPercentage ?? 0,
-        batchSize: data.batchSize || null,
-        prepaymentPercentage: data.prepaymentPercentage ?? 0,
-        manufacturingDays: data.manufacturingDays ?? 0, // Может быть 0 (не требуется срок)
-        deliveryDays: data.deliveryDays ?? 0, // Может быть 0 (доступно мгновенно)
         comment: data.comment,
       },
       include: {
         category: true,
       },
     });
-    
-    console.log(`[Materials API] Material created. batchSize in DB: ${material.batchSize}`);
     
     return NextResponse.json(material, { status: 201 });
   } catch (error) {

@@ -42,10 +42,11 @@ export async function POST(
             materialId: batch.materialId,
             quantity: batch.quantity,
             pricePerUnit: batch.pricePerUnit,
-            prepaymentPercentage: batch.prepaymentPercentage,
-            manufacturingDays: batch.manufacturingDay,
-            deliveryDays: batch.deliveryDay,
-            minStock: batch.quantity * 0.2, // 20% от партии как минимальный запас
+            vatPercent: batch.vatPercent ?? 0,
+            prepaymentPercentage: batch.prepaymentPercentage ?? 0,
+            manufacturingDays: batch.manufacturingDays ?? 0,
+            deliveryDays: batch.deliveryDays ?? 0,
+            minStock: batch.minStock,
           },
           include: {
             material: {
@@ -54,6 +55,7 @@ export async function POST(
                 name: true,
                 unit: true,
                 cost: true,
+                vatPercentage: true,
               },
             },
           },

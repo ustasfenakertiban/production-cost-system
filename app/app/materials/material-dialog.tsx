@@ -51,11 +51,6 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
     unit: "",
     cost: "",
     vatPercentage: "",
-    minStockPercentage: "0",
-    batchSize: "",
-    prepaymentPercentage: "0",
-    manufacturingDays: "0",
-    deliveryDays: "0",
     comment: "",
   });
   
@@ -83,11 +78,6 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: material.unit,
         cost: material.cost.toString(),
         vatPercentage: material.vatPercentage?.toString() || "0",
-        minStockPercentage: (material as any).minStockPercentage?.toString() || "0",
-        batchSize: (material as any).batchSize?.toString() || "",
-        prepaymentPercentage: (material as any).prepaymentPercentage?.toString() || "0",
-        manufacturingDays: (material as any).manufacturingDays?.toString() || "0",
-        deliveryDays: (material as any).deliveryDays?.toString() || "0",
         comment: material.comment || "",
       });
     } else {
@@ -97,11 +87,6 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: "",
         cost: "",
         vatPercentage: "0",
-        minStockPercentage: "0",
-        batchSize: "",
-        prepaymentPercentage: "0",
-        manufacturingDays: "0",
-        deliveryDays: "0",
         comment: "",
       });
     }
@@ -130,13 +115,6 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
         unit: formData.unit,
         cost: parseFloat(formData.cost),
         vatPercentage: parseFloat(formData.vatPercentage) || 0,
-        minStockPercentage: parseFloat(formData.minStockPercentage) || 0,
-        batchSize: formData.batchSize ? parseFloat(formData.batchSize) : null,
-        prepaymentPercentage: parseFloat(formData.prepaymentPercentage) || 0,
-        // Срок изготовления: может быть 0, если материал уже на складе поставщика
-        manufacturingDays: formData.manufacturingDays !== "" ? parseInt(formData.manufacturingDays) : 0,
-        // Срок доставки: может быть 0, например для электричества (доступно мгновенно)
-        deliveryDays: formData.deliveryDays !== "" ? parseInt(formData.deliveryDays) : 0,
         comment: formData.comment || null,
       };
 
@@ -174,13 +152,6 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleNumberChange = (field: string, value: string) => {
-    // Разрешаем пустую строку или строку из цифр (включая "0")
-    if (value === '' || /^\d+$/.test(value)) {
-      setFormData(prev => ({ ...prev, [field]: value }));
-    }
   };
 
   const handleAddCategory = async () => {
@@ -462,94 +433,6 @@ export function MaterialDialog({ material, open, onClose }: MaterialDialogProps)
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-500">
                   за {formData.unit || "ед"}
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="batchSize">Размер партии закупки</Label>
-              <Input
-                id="batchSize"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.batchSize}
-                onChange={(e) => handleChange('batchSize', e.target.value)}
-                placeholder="100"
-              />
-              <p className="text-xs text-gray-500 mt-1">В единицах материала</p>
-            </div>
-            <div>
-              <Label htmlFor="minStock">Минимальный остаток (%)</Label>
-              <Input
-                id="minStock"
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                value={formData.minStockPercentage}
-                onChange={(e) => handleChange('minStockPercentage', e.target.value)}
-                placeholder="0"
-              />
-              <p className="text-xs text-gray-500 mt-1">% от партии закупки</p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-gray-700 border-b pb-1">
-              Параметры закупки (для симуляции v2)
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="prepaymentPercentage">% предоплаты</Label>
-                <Input
-                  id="prepaymentPercentage"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  value={formData.prepaymentPercentage}
-                  onChange={(e) => handleChange('prepaymentPercentage', e.target.value)}
-                  placeholder="0"
-                />
-                <p className="text-xs text-gray-500 mt-1">% от суммы</p>
-              </div>
-              <div>
-                <Label htmlFor="manufacturingDays">Изготовление (дн)</Label>
-                <Input
-                  id="manufacturingDays"
-                  type="text"
-                  inputMode="numeric"
-                  value={formData.manufacturingDays || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    // Разрешаем пустую строку или строки содержащие только цифры
-                    if (val === '' || /^\d+$/.test(val)) {
-                      handleChange('manufacturingDays', val);
-                    }
-                  }}
-                  placeholder="0"
-                />
-                <p className="text-xs text-gray-500 mt-1">Срок изготовления (0 = на складе)</p>
-              </div>
-              <div>
-                <Label htmlFor="deliveryDays">Доставка (дн)</Label>
-                <Input
-                  id="deliveryDays"
-                  type="text"
-                  inputMode="numeric"
-                  value={formData.deliveryDays || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    // Разрешаем пустую строку или строки содержащие только цифры
-                    if (val === '' || /^\d+$/.test(val)) {
-                      handleChange('deliveryDays', val);
-                    }
-                  }}
-                  placeholder="0"
-                />
-                <p className="text-xs text-gray-500 mt-1">Срок доставки (0 = мгновенно)</p>
               </div>
             </div>
           </div>

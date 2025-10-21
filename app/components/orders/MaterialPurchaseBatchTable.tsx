@@ -37,11 +37,7 @@ interface Material {
   name: string;
   unit: string;
   cost: number;
-  batchSize?: number;
-  minStockPercentage?: number;
-  prepaymentPercentage?: number;
-  manufacturingDays?: number;
-  deliveryDays?: number;
+  vatPercentage: number;
 }
 
 interface MaterialPurchaseBatch {
@@ -51,10 +47,12 @@ interface MaterialPurchaseBatch {
   material?: Material;
   quantity: number;
   pricePerUnit: number;
+  vatPercent: number;
   totalCost: number;
   prepaymentPercentage: number;
-  manufacturingDay: number;
-  deliveryDay: number;
+  manufacturingDays: number;
+  deliveryDays: number;
+  minStock?: number;
   status: string;
 }
 
@@ -71,11 +69,13 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
   const [editingBatch, setEditingBatch] = useState<Partial<MaterialPurchaseBatch> | null>(null);
   const [newBatch, setNewBatch] = useState<Partial<MaterialPurchaseBatch>>({
     orderId,
-    deliveryDay: 0, // По умолчанию 0, будет заполнено из справочника материалов
-    manufacturingDay: 0, // По умолчанию 0, будет заполнено из справочника материалов
+    deliveryDays: 0,
+    manufacturingDays: 0,
     quantity: 0,
     pricePerUnit: 0,
+    vatPercent: 0,
     prepaymentPercentage: 0,
+    minStock: 0,
     status: "planned",
   });
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
@@ -117,7 +117,7 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
   };
 
   const handleAdd = async () => {
-    if (!newBatch.materialId || newBatch.quantity === undefined || newBatch.deliveryDay === undefined) {
+    if (!newBatch.materialId || newBatch.quantity === undefined || newBatch.deliveryDays === undefined) {
       toast({
         title: "Ошибка",
         description: "Заполните материал, количество и дни поставки",
@@ -250,12 +250,24 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
     setNewBatch({
       ...newBatch,
       materialId,
-      quantity: material?.batchSize || 0, // Минимальная партия
       pricePerUnit: material?.cost || 0, // Цена берется из справочника
-      prepaymentPercentage: material?.prepaymentPercentage ?? 0,
-      manufacturingDay: material?.manufacturingDays ?? 0, // Может быть 0 (материал на складе)
-      deliveryDay: material?.deliveryDays ?? 0, // Может быть 0 (доступно мгновенно, например электричество)
+      vatPercent: material?.vatPercentage || 0, // % НДС берется из справочника
     });
+  };
+
+  // Кнопка "Взять из справочника" - обновляет pricePerUnit и vatPercent
+  const handleCopyFromMaterial = () => {
+    if (selectedMaterial) {
+      setNewBatch({
+        ...newBatch,
+        pricePerUnit: selectedMaterial.cost,
+        vatPercent: selectedMaterial.vatPercentage,
+      });
+      toast({
+        title: "Успешно",
+        description: "Цена и НДС скопированы из справочника",
+      });
+    }
   };
 
   const handleSaveAsTemplate = async () => {
@@ -404,11 +416,13 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[150px]">Материал</TableHead>
-                <TableHead className="min-w-[100px]">Мин. партия</TableHead>
-                <TableHead className="min-w-[80px]">% предоплаты</TableHead>
-                <TableHead className="min-w-[100px]">Срок изготовления (дн)</TableHead>
-                <TableHead className="min-w-[100px]">Срок доставки (дн)</TableHead>
+                <TableHead className="min-w-[100px]">Количество</TableHead>
                 <TableHead className="min-w-[80px]">Цена/ед. (₽)</TableHead>
+                <TableHead className="min-w-[60px]">% НДС</TableHead>
+                <TableHead className="min-w-[80px]">% предоплаты</TableHead>
+                <TableHead className="min-w-[90px]">Изготовление (дн)</TableHead>
+                <TableHead className="min-w-[90px]">Доставка (дн)</TableHead>
+                <TableHead className="min-w-[90px]">Мин. запас</TableHead>
                 <TableHead className="min-w-[100px]">Сумма (₽)</TableHead>
                 <TableHead className="w-[80px]">Действия</TableHead>
               </TableRow>
@@ -424,9 +438,6 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                       <div className="font-medium">{batch.material?.name || "—"}</div>
                       <div className="text-xs text-muted-foreground">
                         {batch.material?.unit || ""}
-                        {batch.material?.minStockPercentage && 
-                          ` • Неснижаемый: ${batch.material.minStockPercentage}%`
-                        }
                       </div>
                     </TableCell>
                     <TableCell>
@@ -443,6 +454,39 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                         />
                       ) : (
                         `${batch.quantity} ${batch.material?.unit || ""}`
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={displayBatch?.pricePerUnit ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingBatch({ ...editingBatch, pricePerUnit: val === "" ? 0 : parseFloat(val) });
+                          }}
+                          className="w-24"
+                        />
+                      ) : (
+                        batch.pricePerUnit.toFixed(2)
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step="0.1"
+                          max="100"
+                          value={displayBatch?.vatPercent ?? ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingBatch({ ...editingBatch, vatPercent: val === "" ? 0 : parseFloat(val) });
+                          }}
+                          className="w-20"
+                        />
+                      ) : (
+                        `${batch.vatPercent}%`
                       )}
                     </TableCell>
                     <TableCell>
@@ -466,30 +510,30 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                       {isEditing ? (
                         <Input
                           type="number"
-                          value={displayBatch?.manufacturingDay ?? ""}
+                          value={displayBatch?.manufacturingDays ?? ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            setEditingBatch({ ...editingBatch, manufacturingDay: val === "" ? 0 : parseInt(val) });
+                            setEditingBatch({ ...editingBatch, manufacturingDays: val === "" ? 0 : parseInt(val) });
                           }}
                           className="w-20"
                         />
                       ) : (
-                        batch.manufacturingDay ?? "—"
+                        batch.manufacturingDays ?? "—"
                       )}
                     </TableCell>
                     <TableCell>
                       {isEditing ? (
                         <Input
                           type="number"
-                          value={displayBatch?.deliveryDay ?? ""}
+                          value={displayBatch?.deliveryDays ?? ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            setEditingBatch({ ...editingBatch, deliveryDay: val === "" ? 0 : parseInt(val) });
+                            setEditingBatch({ ...editingBatch, deliveryDays: val === "" ? 0 : parseInt(val) });
                           }}
                           className="w-20"
                         />
                       ) : (
-                        batch.deliveryDay
+                        batch.deliveryDays ?? "—"
                       )}
                     </TableCell>
                     <TableCell>
@@ -497,15 +541,16 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                         <Input
                           type="number"
                           step="0.01"
-                          value={displayBatch?.pricePerUnit ?? ""}
+                          value={displayBatch?.minStock ?? ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            setEditingBatch({ ...editingBatch, pricePerUnit: val === "" ? 0 : parseFloat(val) });
+                            setEditingBatch({ ...editingBatch, minStock: val === "" ? undefined : parseFloat(val) });
                           }}
-                          className="w-24"
+                          className="w-20"
+                          placeholder="—"
                         />
                       ) : (
-                        batch.pricePerUnit.toFixed(2)
+                        batch.minStock !== null && batch.minStock !== undefined ? batch.minStock.toFixed(2) : "—"
                       )}
                     </TableCell>
                     <TableCell className="font-medium">
@@ -571,6 +616,17 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {selectedMaterial && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyFromMaterial}
+                      className="mt-1 w-full text-xs"
+                    >
+                      ↓ Взять из справочника
+                    </Button>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Input
@@ -581,10 +637,45 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                       const val = e.target.value;
                       setNewBatch({ ...newBatch, quantity: val === "" ? 0 : parseFloat(val) });
                     }}
-                    placeholder="Партия"
+                    placeholder="0"
                     className="w-24"
                     disabled={!selectedMaterial}
                   />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newBatch.pricePerUnit ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewBatch({ ...newBatch, pricePerUnit: val === "" ? 0 : parseFloat(val) });
+                    }}
+                    placeholder="0"
+                    className="w-24"
+                    disabled={!selectedMaterial}
+                  />
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Справ.: {selectedMaterial?.cost.toFixed(2) || "—"}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    max="100"
+                    value={newBatch.vatPercent ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewBatch({ ...newBatch, vatPercent: val === "" ? 0 : parseFloat(val) });
+                    }}
+                    placeholder="0"
+                    className="w-20"
+                    disabled={!selectedMaterial}
+                  />
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Справ.: {selectedMaterial?.vatPercentage || "—"}%
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Input
@@ -596,7 +687,7 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                       const val = e.target.value;
                       setNewBatch({ ...newBatch, prepaymentPercentage: val === "" ? 0 : parseFloat(val) });
                     }}
-                    placeholder="%"
+                    placeholder="0"
                     className="w-20"
                     disabled={!selectedMaterial}
                   />
@@ -604,12 +695,12 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                 <TableCell>
                   <Input
                     type="number"
-                    value={newBatch.manufacturingDay ?? ""}
+                    value={newBatch.manufacturingDays ?? ""}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setNewBatch({ ...newBatch, manufacturingDay: val === "" ? 0 : parseInt(val) });
+                      setNewBatch({ ...newBatch, manufacturingDays: val === "" ? 0 : parseInt(val) });
                     }}
-                    placeholder="Дн."
+                    placeholder="0"
                     className="w-20"
                     disabled={!selectedMaterial}
                   />
@@ -617,23 +708,29 @@ export function MaterialPurchaseBatchTable({ orderId }: Props) {
                 <TableCell>
                   <Input
                     type="number"
-                    value={newBatch.deliveryDay ?? ""}
+                    value={newBatch.deliveryDays ?? ""}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setNewBatch({ ...newBatch, deliveryDay: val === "" ? 0 : parseInt(val) });
+                      setNewBatch({ ...newBatch, deliveryDays: val === "" ? 0 : parseInt(val) });
                     }}
-                    placeholder="Дн."
+                    placeholder="0"
                     className="w-20"
                     disabled={!selectedMaterial}
                   />
                 </TableCell>
                 <TableCell>
-                  <div className="text-sm font-medium">
-                    {newBatch.pricePerUnit ? newBatch.pricePerUnit.toFixed(2) : "—"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    (из справ.)
-                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newBatch.minStock ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewBatch({ ...newBatch, minStock: val === "" ? 0 : parseFloat(val) });
+                    }}
+                    placeholder="0"
+                    className="w-20"
+                    disabled={!selectedMaterial}
+                  />
                 </TableCell>
                 <TableCell>
                   <div className="text-sm font-medium">

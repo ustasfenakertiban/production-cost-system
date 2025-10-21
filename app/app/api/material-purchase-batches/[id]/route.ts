@@ -19,9 +19,11 @@ export async function PUT(
       materialId, 
       quantity, 
       pricePerUnit, 
+      vatPercent,
       prepaymentPercentage,
-      manufacturingDay,
-      deliveryDay, 
+      manufacturingDays,
+      deliveryDays,
+      minStock,
       status 
     } = body;
 
@@ -35,10 +37,12 @@ export async function PUT(
         materialId,
         quantity,
         pricePerUnit,
+        vatPercent,
         totalCost,
         prepaymentPercentage,
-        manufacturingDay,
-        deliveryDay,
+        manufacturingDays,
+        deliveryDays,
+        minStock,
         status,
       },
       include: {

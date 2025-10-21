@@ -1,12 +1,12 @@
 generator client {
-    provider = "prisma-client-js"
-    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
-    output = "/home/ubuntu/production_cost_system/app/node_modules/.prisma/client"
+  provider      = "prisma-client-js"
+  output        = "/home/ubuntu/production_cost_system/app/node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Equipment {
@@ -17,9 +17,9 @@ model Equipment {
   maxProductivity    Float?
   productivityUnits  String?
   comment            String?
-  trackInOccupancy   Boolean                      @default(true) // Учитывать в загрузке оборудования (v2)
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
+  trackInOccupancy   Boolean                      @default(true)
   operationEquipment OperationEquipment[]
   templateEquipment  OperationTemplateEquipment[]
 
@@ -27,15 +27,15 @@ model Equipment {
 }
 
 model EmployeeRole {
-  id             String                  @id @default(cuid())
+  id             String                   @id @default(cuid())
   name           String
   paymentType    PaymentType
   hourlyRate     Float
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  employeeRoles  EmployeeRoleAssignment[]
   operationRoles OperationRole[]
   templateRoles  OperationTemplateRole[]
-  employeeRoles  EmployeeRoleAssignment[]
 
   @@map("employee_roles")
 }
@@ -72,8 +72,8 @@ model Product {
   imagePath           String?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
-  productionProcesses ProductionProcess[]
   orderItems          OrderItem[]
+  productionProcesses ProductionProcess[]
 
   @@map("products")
 }
@@ -89,25 +89,20 @@ model MaterialCategory {
 }
 
 model Material {
-  id                      String                            @id @default(cuid())
+  id                      String                          @id @default(cuid())
   name                    String
   categoryId              String
   unit                    String
   cost                    Float
-  vatPercentage           Float                             @default(0)
-  minStockPercentage      Float?                            @default(0) // Минимальный неснижаемый остаток от партии закупки (в %)
-  batchSize               Float?                            // Размер партии закупки (устарело, используйте шаблоны)
-  prepaymentPercentage    Float?                            @default(0) // % предоплаты при закупке
-  manufacturingDays       Int?                              @default(0) // Срок изготовления в днях
-  deliveryDays            Int?                              @default(0) // Срок доставки в днях
-  createdAt               DateTime                          @default(now())
-  updatedAt               DateTime                          @updatedAt
+  vatPercentage           Float                           @default(0)
+  createdAt               DateTime                        @default(now())
+  updatedAt               DateTime                        @updatedAt
   comment                 String?
-  category                MaterialCategory                  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  purchaseBatchTemplates  MaterialPurchaseBatchTemplate[]
+  materialPurchaseBatches MaterialPurchaseBatch[]
+  category                MaterialCategory                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   operationMaterials      OperationMaterial[]
   templateMaterials       OperationTemplateMaterial[]
-  materialPurchaseBatches MaterialPurchaseBatch[]           // Партии закупки (v2)
-  purchaseBatchTemplates  MaterialPurchaseBatchTemplate[]   // Шаблоны партий закупки
 
   @@map("materials")
 }
@@ -117,11 +112,11 @@ model RecurringExpense {
   name      String
   period    ExpensePeriod
   amount    Float
-  vatRate   Float         @default(0) // НДС в процентах
-  active    Boolean       @default(true)
-  notes     String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+  active    Boolean       @default(true)
+  notes     String?
+  vatRate   Float         @default(0)
 
   @@map("recurring_expenses")
 }
@@ -159,27 +154,27 @@ model OperationChain {
 }
 
 model ProductionOperation {
-  id                         String               @id @default(cuid())
-  chainId                    String
-  name                       String
-  description                String?
-  comment                    String?
-  orderIndex                 Int
-  enabled                    Boolean              @default(true)
-  estimatedProductivityPerHour Float?
+  id                                   String               @id @default(cuid())
+  chainId                              String
+  name                                 String
+  description                          String?
+  comment                              String?
+  orderIndex                           Int
+  enabled                              Boolean              @default(true)
+  estimatedProductivityPerHour         Float?
   estimatedProductivityPerHourVariance Float?
-  cycleHours                 Float?
-  operationDuration          Float?
-  minimumBatchSize           Int?                 @default(1)
-  cycleName                  String?
-  cyclesPerHour              Float?
-  itemsPerCycle              Float?
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
-  operationEquipment         OperationEquipment[]
-  operationMaterials         OperationMaterial[]
-  operationRoles             OperationRole[]
-  chain                      OperationChain       @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  cycleHours                           Float?
+  operationDuration                    Float?
+  minimumBatchSize                     Int?                 @default(1)
+  cycleName                            String?
+  cyclesPerHour                        Float?
+  itemsPerCycle                        Float?
+  createdAt                            DateTime             @default(now())
+  updatedAt                            DateTime             @updatedAt
+  operationEquipment                   OperationEquipment[]
+  operationMaterials                   OperationMaterial[]
+  operationRoles                       OperationRole[]
+  chain                                OperationChain       @relation(fields: [chainId], references: [id], onDelete: Cascade)
 
   @@map("production_operations")
 }
@@ -204,44 +199,44 @@ model OperationMaterial {
 }
 
 model OperationEquipment {
-  id               String              @id @default(cuid())
-  operationId      String
-  equipmentId      String
-  machineTime      Float
-  machineTimeSeconds Float?
-  piecesPerHour    Float?
-  hourlyRate       Float
-  totalCost        Float
-  variance         Float?
-  comment          String?
-  enabled          Boolean             @default(true)
-  requiresContinuousOperation Boolean  @default(true)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  equipment        Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  operation        ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  id                          String              @id @default(cuid())
+  operationId                 String
+  equipmentId                 String
+  machineTime                 Float
+  machineTimeSeconds          Float?
+  piecesPerHour               Float?
+  hourlyRate                  Float
+  totalCost                   Float
+  variance                    Float?
+  comment                     String?
+  enabled                     Boolean             @default(true)
+  requiresContinuousOperation Boolean             @default(true)
+  createdAt                   DateTime            @default(now())
+  updatedAt                   DateTime            @updatedAt
+  equipment                   Equipment           @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  operation                   ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
 
   @@map("operation_equipment")
 }
 
 model OperationRole {
-  id             String              @id @default(cuid())
-  operationId    String
-  roleId         String
-  timeSpent      Float
-  timeSpentSeconds Float?
-  piecesPerHour  Float?
-  paymentType    PaymentType
-  rate           Float
-  totalCost      Float
-  variance       Float?
-  comment        String?
-  enabled        Boolean             @default(true)
-  requiresContinuousPresence Boolean @default(true)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  operation      ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
-  role           EmployeeRole        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  id                         String              @id @default(cuid())
+  operationId                String
+  roleId                     String
+  timeSpent                  Float
+  timeSpentSeconds           Float?
+  piecesPerHour              Float?
+  paymentType                PaymentType
+  rate                       Float
+  totalCost                  Float
+  variance                   Float?
+  comment                    String?
+  enabled                    Boolean             @default(true)
+  requiresContinuousPresence Boolean             @default(true)
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+  operation                  ProductionOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  role                       EmployeeRole        @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@map("operation_roles")
 }
@@ -299,72 +294,54 @@ model VerificationToken {
   @@map("verificationtokens")
 }
 
-enum PaymentType {
-  HOURLY
-  PIECE_RATE
-}
-
-enum ExpensePeriod {
-  DAY
-  WEEK
-  MONTH
-  QUARTER
-  YEAR
-}
-
-enum ChainType {
-  ONE_TIME
-  PER_UNIT
-}
-
 model Order {
   id                      String                  @id @default(cuid())
   name                    String
   orderDate               DateTime
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
+  materialPurchaseBatches MaterialPurchaseBatch[]
   orderItems              OrderItem[]
-  simulationSettingsV2    SimulationSettingsV2?   // Настройки симуляции v2 (один к одному)
-  paymentSchedules        PaymentSchedule[]       // График платежей
-  materialPurchaseBatches MaterialPurchaseBatch[] // Партии закупки материалов
+  paymentSchedules        PaymentSchedule[]
+  simulationSettingsV2    SimulationSettingsV2?
 
   @@map("orders")
 }
 
 model OrderItem {
-  id                   String            @id @default(cuid())
-  orderId              String
-  productId            String
-  quantity             Int
-  productionProcessId  String
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  order                Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product              Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
-  productionProcess    ProductionProcess @relation(fields: [productionProcessId], references: [id], onDelete: Cascade)
+  id                  String            @id @default(cuid())
+  orderId             String
+  productId           String
+  quantity            Int
+  productionProcessId String
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  order               Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product             Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productionProcess   ProductionProcess @relation(fields: [productionProcessId], references: [id], onDelete: Cascade)
 
   @@map("order_items")
 }
 
 model OperationTemplate {
-  id                               String                        @id @default(cuid())
-  name                             String
-  description                      String?
-  comment                          String?
-  enabled                          Boolean                       @default(true)
-  estimatedProductivityPerHour     Float?
+  id                                   String                       @id @default(cuid())
+  name                                 String
+  description                          String?
+  comment                              String?
+  enabled                              Boolean                      @default(true)
+  estimatedProductivityPerHour         Float?
   estimatedProductivityPerHourVariance Float?
-  cycleHours                       Float?
-  operationDuration                Float?
-  minimumBatchSize                 Int?                          @default(1)
-  cycleName                        String?
-  cyclesPerHour                    Float?
-  itemsPerCycle                    Float?
-  createdAt                        DateTime                      @default(now())
-  updatedAt                        DateTime                      @updatedAt
-  materials                        OperationTemplateMaterial[]
-  equipment                        OperationTemplateEquipment[]
-  roles                            OperationTemplateRole[]
+  cycleHours                           Float?
+  minimumBatchSize                     Int?                         @default(1)
+  createdAt                            DateTime                     @default(now())
+  updatedAt                            DateTime                     @updatedAt
+  operationDuration                    Float?
+  cycleName                            String?
+  cyclesPerHour                        Float?
+  itemsPerCycle                        Float?
+  equipment                            OperationTemplateEquipment[]
+  materials                            OperationTemplateMaterial[]
+  roles                                OperationTemplateRole[]
 
   @@map("operation_templates")
 }
@@ -381,8 +358,8 @@ model OperationTemplateMaterial {
   enabled    Boolean           @default(true)
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
-  template   OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   material   Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  template   OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@map("operation_template_materials")
 }
@@ -402,8 +379,8 @@ model OperationTemplateEquipment {
   requiresContinuousOperation Boolean           @default(true)
   createdAt                   DateTime          @default(now())
   updatedAt                   DateTime          @updatedAt
-  template                    OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   equipment                   Equipment         @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  template                    OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@map("operation_template_equipment")
 }
@@ -424,142 +401,154 @@ model OperationTemplateRole {
   requiresContinuousPresence Boolean           @default(true)
   createdAt                  DateTime          @default(now())
   updatedAt                  DateTime          @updatedAt
-  template                   OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   role                       EmployeeRole      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  template                   OperationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@map("operation_template_roles")
 }
 
 model SimulationSettings {
-  id                    String   @id @default(cuid())
-  payIdleTime           Boolean  @default(true)  // Доплачивать за простой сотрудникам
-  enablePartialWork     Boolean  @default(true)  // Выполнять частичные операции при наличии свободных ресурсов
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                String   @id @default(cuid())
+  payIdleTime       Boolean  @default(true)
+  enablePartialWork Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@map("simulation_settings")
 }
 
 model Backup {
   id         String   @id @default(cuid())
-  filename   String   // Имя файла бэкапа
-  filePath   String   // Путь к файлу на диске
-  type       String   @default("data-only") // data-only или full
-  size       Int      // Размер файла в байтах
-  schemaHash String?  // Хэш схемы базы данных для проверки совместимости
+  type       String   @default("data-only")
+  filename   String
+  size       Int
   createdAt  DateTime @default(now())
+  schemaHash String?
+  filePath   String
 
   @@map("backups")
 }
 
-// ===============================================
-// SIMULATION V2 MODELS
-// ===============================================
-
-// Глобальные настройки для симуляции v2 (не привязаны к заказу)
 model GlobalSimulationSettingsV2 {
-  id                              String   @id @default(cuid())
-  workingHoursPerDay              Float    @default(8)    // Количество рабочих часов в день
-  restMinutesPerHour              Float    @default(0)    // Количество минут отдыха в час
-  waitForMaterialDelivery         Boolean  @default(true)  // Ждать поставку материалов
-  includeRecurringExpenses        Boolean  @default(false) // Учитывать периодические расходы
-  varianceMode                    String   @default("NO_VARIANCE") // Режим вариативности
-  variancePercent                 Float    @default(0)    // Процент вариативности
-  thresholdRatio                  Float    @default(0.5)  // Порог автозаказа материалов (0..1)
-  initialCashBalance              Float    @default(0)    // Начальный остаток денежных средств
-  materialPrepayPercent           Float    @default(30)   // Доля предоплаты материалов (%)
-  depreciationCashPolicy          String   @default("END_OF_SIMULATION") // 'DAILY' | 'END_OF_SIMULATION'
-  periodicExpensePaymentPolicy    String   @default("DAILY") // 'DAILY' | 'END_OF_SIMULATION'
-  monthDivisor                    Float    @default(30)   // Делитель для месяца (влияет на квартал и год)
-  payrollPaymentPolicy            String   @default("DAILY") // 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
-  materialTwoPhasePayment         Boolean  @default(true)  // true: двухфазная оплата (предоплата+постоплата)
-  
-  createdAt                       DateTime @default(now())
-  updatedAt                       DateTime @updatedAt
+  id                           String   @id @default(cuid())
+  workingHoursPerDay           Float    @default(8)
+  restMinutesPerHour           Float    @default(0)
+  waitForMaterialDelivery      Boolean  @default(true)
+  includeRecurringExpenses     Boolean  @default(false)
+  varianceMode                 String   @default("NO_VARIANCE")
+  variancePercent              Float    @default(0)
+  thresholdRatio               Float    @default(0.5)
+  initialCashBalance           Float    @default(0)
+  materialPrepayPercent        Float    @default(30)
+  depreciationCashPolicy       String   @default("END_OF_SIMULATION")
+  periodicExpensePaymentPolicy String   @default("DAILY")
+  monthDivisor                 Float    @default(30)
+  payrollPaymentPolicy         String   @default("DAILY")
+  materialTwoPhasePayment      Boolean  @default(true)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 
   @@map("global_simulation_settings_v2")
 }
 
 model SimulationSettingsV2 {
-  id                              String   @id @default(cuid())
-  orderId                         String   @unique // Связь с заказом
-  workingHoursPerDay              Float    @default(8)    // Количество рабочих часов в день
-  restMinutesPerHour              Float    @default(0)    // Количество минут отдыха в час
-  sellingPriceWithVAT             Float?                  // Продажная цена с НДС
-  vatRate                         Float    @default(20)   // Ставка НДС, %
-  profitTaxRate                   Float    @default(20)   // Ставка налога на прибыль, %
-  includeRecurringExpenses        Boolean  @default(false) // Учитывать периодические расходы
-  waitForMaterialDelivery         Boolean  @default(true)  // Ждать поставку материалов
-  payEmployeesForIdleTime         Boolean  @default(false) // Доплачивать сотрудникам за простой (округлять до часа)
-  
-  // Новые поля для Simulation v2
-  thresholdRatio                  Float    @default(0.5)  // Порог автозаказа материалов (0..1)
-  initialCashBalance              Float    @default(0)    // Начальный остаток денежных средств
-  materialPrepayPercent           Float    @default(0.3)  // Доля предоплаты материалов (0..1)
-  depreciationCashPolicy          String   @default("end_of_simulation") // 'daily' | 'end_of_simulation'
-  periodicExpensePaymentPolicy    String   @default("daily") // 'daily' | 'end_of_simulation'
-  monthDivisor                    Float    @default(30)   // Делитель для месяца (влияет на квартал и год)
-  varianceMode                    String   @default("no_variance") // Режим вариативности
-  variancePercent                 Float    @default(0)    // Процент вариативности
-  payrollPaymentPolicy            String   @default("daily") // 'daily' | 'weekly' | 'biweekly' | 'monthly'
-  materialTwoPhasePayment         Boolean  @default(true)  // true: двухфазная оплата (предоплата+постоплата), false: вся оплата сразу
-  
-  createdAt                       DateTime @default(now())
-  updatedAt                       DateTime @updatedAt
-  order                           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                           String   @id @default(cuid())
+  orderId                      String   @unique
+  workingHoursPerDay           Float    @default(8)
+  restMinutesPerHour           Float    @default(0)
+  sellingPriceWithVAT          Float?
+  vatRate                      Float    @default(20)
+  profitTaxRate                Float    @default(20)
+  includeRecurringExpenses     Boolean  @default(false)
+  waitForMaterialDelivery      Boolean  @default(true)
+  payEmployeesForIdleTime      Boolean  @default(false)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+  depreciationCashPolicy       String   @default("end_of_simulation")
+  initialCashBalance           Float    @default(0)
+  materialPrepayPercent        Float    @default(0.3)
+  monthDivisor                 Float    @default(30)
+  periodicExpensePaymentPolicy String   @default("daily")
+  thresholdRatio               Float    @default(0.5)
+  varianceMode                 String   @default("no_variance")
+  variancePercent              Float    @default(0)
+  materialTwoPhasePayment      Boolean  @default(true)
+  payrollPaymentPolicy         String   @default("daily")
+  order                        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("simulation_settings_v2")
 }
 
 model PaymentSchedule {
-  id              String   @id @default(cuid())
-  orderId         String   // Связь с заказом
-  dayNumber       Int      // День от начала заказа (1, 2, 3...)
-  percentageOfTotal Float  // Процент от общей суммы заказа
-  amount          Float?   // Сумма платежа (может быть рассчитана автоматически)
-  description     String?  // Описание платежа
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  orderId           String
+  dayNumber         Int
+  percentageOfTotal Float
+  amount            Float?
+  description       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("payment_schedules")
 }
 
 model MaterialPurchaseBatch {
   id                   String   @id @default(cuid())
-  orderId              String   // Связь с заказом
-  materialId           String   // Связь с материалом
-  quantity             Float    // Количество материала в партии
-  pricePerUnit         Float    // Цена за единицу
-  totalCost            Float    // Общая стоимость партии
-  prepaymentPercentage Float    @default(0) // % предоплаты для этой партии
-  prepaymentPaid       Float    @default(0) // Сумма оплаченной предоплаты
-  remainingAmount      Float    @default(0) // Остаток к оплате
-  manufacturingDay     Int      @default(0) // День когда изготовится (0 = не указан/уже изготовлен)
-  deliveryDay          Int      // День поступления (от начала заказа)
-  status               String   @default("planned") // planned, manufacturing, in_transit, delivered
+  orderId              String
+  materialId           String
+  quantity             Float
+  pricePerUnit         Float
+  totalCost            Float
+  status               String   @default("planned")
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
-  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  prepaymentPaid       Float    @default(0)
+  prepaymentPercentage Float    @default(0)
+  remainingAmount      Float    @default(0)
+  vatPercent           Float    @default(0)
+  minStock             Float?
+  manufacturingDays    Int      @default(0)
+  deliveryDays         Int      @default(0)
   material             Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("material_purchase_batches")
 }
 
 model MaterialPurchaseBatchTemplate {
   id                   String   @id @default(cuid())
-  name                 String   // Название шаблона
-  description          String?  // Описание шаблона
-  materialId           String   // Связь с материалом
-  quantity             Float    // Количество материала в партии
-  pricePerUnit         Float    // Цена за единицу
-  prepaymentPercentage Float    @default(0) // % предоплаты для этой партии
-  manufacturingDays    Int      @default(0) // Дней на изготовление
-  deliveryDays         Int      // Дней на доставку
-  minStock             Float?   // Минимальный запас на складе
+  name                 String
+  description          String?
+  materialId           String
+  quantity             Float
+  pricePerUnit         Float
+  prepaymentPercentage Float    @default(0)
+  manufacturingDays    Int      @default(0)
+  deliveryDays         Int      @default(0)
+  minStock             Float?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+  vatPercent           Float    @default(0)
   material             Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@map("material_purchase_batch_templates")
+}
+
+enum PaymentType {
+  HOURLY
+  PIECE_RATE
+}
+
+enum ExpensePeriod {
+  DAY
+  WEEK
+  MONTH
+  QUARTER
+  YEAR
+}
+
+enum ChainType {
+  ONE_TIME
+  PER_UNIT
 }
