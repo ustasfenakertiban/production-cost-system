@@ -161,24 +161,40 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
               let subtotalVat = 0;
               
               purchasesThisDay.forEach((purchase, idx) => {
-                details.push(`${idx + 1}. ${purchase.materialName}`);
-                details.push(`   Количество: ${purchase.qty.toFixed(2)} ед.`);
-                details.push(`   Цена за единицу: ${purchase.unitCost.toFixed(2)} ₽/ед.`);
-                details.push(`   Базовая стоимость: ${(purchase.qty * purchase.unitCost).toFixed(2)} ₽`);
-                details.push(`   НДС (${(purchase.vatRate * 100).toFixed(0)}%): ${(purchase.qty * purchase.unitCost * purchase.vatRate).toFixed(2)} ₽`);
-                details.push(`   Оплачено сегодня: ${purchase.totalAmount.toFixed(2)} ₽`);
+                const fullCost = purchase.qty * purchase.unitCost;
+                const fullVat = fullCost * purchase.vatRate;
+                const fullTotal = fullCost + fullVat;
                 
+                details.push(`${idx + 1}. ${purchase.materialName}`);
+                details.push(`   📊 Информация о партии:`);
+                details.push(`      Количество: ${purchase.qty.toFixed(2)} ед.`);
+                details.push(`      Цена за единицу: ${purchase.unitCost.toFixed(2)} ₽/ед.`);
+                details.push(`      Полная стоимость партии: ${fullCost.toFixed(2)} ₽`);
+                details.push(`      НДС (${(purchase.vatRate * 100).toFixed(0)}%): ${fullVat.toFixed(2)} ₽`);
+                details.push(`      Итого партия: ${fullTotal.toFixed(2)} ₽`);
+                details.push('');
+                
+                // Показываем информацию об оплате
                 if (purchase.orderDay === day.day && purchase.etaArrivalDay !== day.day) {
                   details.push(`   📅 Заказ размещен сегодня (День ${purchase.orderDay})`);
                   details.push(`   🚚 Ожидается прибытие: День ${purchase.etaArrivalDay}`);
-                  details.push(`   💳 Тип оплаты: Предоплата`);
+                  details.push(`   💳 Предоплата сегодня:`);
+                  details.push(`      └─ Базовая: ${purchase.netAmount.toFixed(2)} ₽`);
+                  details.push(`      └─ НДС: ${purchase.vatAmount.toFixed(2)} ₽`);
+                  details.push(`      └─ ИТОГО: ${purchase.totalAmount.toFixed(2)} ₽`);
                 } else if (purchase.etaArrivalDay === day.day && purchase.orderDay !== day.day) {
                   details.push(`   📅 Заказ размещен: День ${purchase.orderDay}`);
                   details.push(`   🚚 Прибытие сегодня (День ${purchase.etaArrivalDay})`);
-                  details.push(`   💳 Тип оплаты: Постоплата`);
+                  details.push(`   💳 Постоплата сегодня:`);
+                  details.push(`      └─ Базовая: ${purchase.netAmount.toFixed(2)} ₽`);
+                  details.push(`      └─ НДС: ${purchase.vatAmount.toFixed(2)} ₽`);
+                  details.push(`      └─ ИТОГО: ${purchase.totalAmount.toFixed(2)} ₽`);
                 } else if (purchase.orderDay === day.day && purchase.etaArrivalDay === day.day) {
                   details.push(`   📅 Заказ размещен и получен сегодня (День ${day.day})`);
-                  details.push(`   💳 Тип оплаты: Полная оплата`);
+                  details.push(`   💳 Полная оплата сегодня:`);
+                  details.push(`      └─ Базовая: ${purchase.netAmount.toFixed(2)} ₽`);
+                  details.push(`      └─ НДС: ${purchase.vatAmount.toFixed(2)} ₽`);
+                  details.push(`      └─ ИТОГО: ${purchase.totalAmount.toFixed(2)} ₽`);
                 }
                 
                 details.push('');
