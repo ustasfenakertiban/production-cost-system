@@ -285,7 +285,7 @@ export class SimulationEngine {
     let runningCashBalance = this.settings.initialCashBalance;
     
     // Сортируем дни по порядку
-    const sortedDays: Array<[number, any]> = Array.from((rm.daily?.entries?.() ?? [])).sort((a: any, b: any) => a[0] - b[0]);
+    const sortedDays = Array.from((rm.daily?.entries?.() ?? []) as Iterable<[number, any]>).sort((a: any, b: any) => a[0] - b[0]);
     
     for (const [day, v] of sortedDays) {
       // Совместимость: если в v нет hours — подставить []
