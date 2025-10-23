@@ -389,8 +389,9 @@ export class ResourceManager {
       d.cashOut.periodic += net;
       d.cashOut.periodicVat += vat;
       this.cashBalance -= (net + vat);
-      this.periodicNetAccrued += net;
-      this.periodicVatAccrued += vat;
+      // НЕ накапливаем при политике 'daily' - расходы уже списаны!
+      // this.periodicNetAccrued += net;
+      // this.periodicVatAccrued += vat;
     }
   }
 

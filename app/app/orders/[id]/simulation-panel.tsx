@@ -224,6 +224,34 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
         throw new Error(data.error || "Ошибка симуляции v2");
       }
 
+      // Сначала создаем Map с названиями материалов для использования в логе
+      const matNames = new Map<string, string>();
+      const opMetadata = new Map<string, { chainName: string; operationName: string; chainOrder: number; operationOrder: number }>();
+      
+      if (data.operations && Array.isArray(data.operations)) {
+        data.operations.forEach((op: any) => {
+          // Сохраняем метаданные операций
+          if (op.chainId && op.operationId) {
+            const key = `${op.chainId}|${op.operationId}`;
+            opMetadata.set(key, {
+              chainName: op.chainName || 'Unknown Chain',
+              operationName: op.operationName || 'Unknown Operation',
+              chainOrder: op.chainOrder || 0,
+              operationOrder: op.operationOrder || 0,
+            });
+          }
+          
+          // Извлекаем названия материалов
+          if (op.materialCosts && Array.isArray(op.materialCosts)) {
+            op.materialCosts.forEach((m: any) => {
+              if (m.materialId && m.materialName) {
+                matNames.set(m.materialId, m.materialName);
+              }
+            });
+          }
+        });
+      }
+
       // Преобразуем результат v2 в формат v1 для отображения
       const logLines: string[] = [];
       
@@ -287,7 +315,8 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                           for (const mat of op.materialsConsumed) {
                             const matCost = (mat.net || 0) + (mat.vat || 0);
                             if (matCost > 0) {
-                              logLines.push(`         📦 Материал: ${mat.qty || 0} шт. (${matCost.toFixed(2)} ₽)`);
+                              const materialName = mat.materialId ? matNames.get(mat.materialId) || 'Неизвестный материал' : 'Неизвестный материал';
+                              logLines.push(`         📦 Материал "${materialName}": ${mat.qty || 0} ед. (${matCost.toFixed(2)} ₽)`);
                             }
                           }
                         }
@@ -358,34 +387,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
         setSimulationResult(data._raw);
       }
       
-      // Создаем Map с названиями материалов
-      const matNames = new Map<string, string>();
-      // Создаем Map с метаданными операций (названия цепочек и операций)
-      const opMetadata = new Map<string, { chainName: string; operationName: string; chainOrder: number; operationOrder: number }>();
-      
-      if (data.operations && Array.isArray(data.operations)) {
-        data.operations.forEach((op: any) => {
-          // Сохраняем метаданные операций
-          if (op.chainId && op.operationId) {
-            const key = `${op.chainId}|${op.operationId}`;
-            opMetadata.set(key, {
-              chainName: op.chainName || 'Unknown Chain',
-              operationName: op.operationName || 'Unknown Operation',
-              chainOrder: op.chainOrder || 0,
-              operationOrder: op.operationOrder || 0,
-            });
-          }
-          
-          // Извлекаем названия материалов
-          if (op.materialCosts && Array.isArray(op.materialCosts)) {
-            op.materialCosts.forEach((m: any) => {
-              if (m.materialId && m.materialName) {
-                matNames.set(m.materialId, m.materialName);
-              }
-            });
-          }
-        });
-      }
+      // Сохраняем материалы и метаданные операций (уже созданные выше)
       setMaterialNames(matNames);
       setOperationMetadata(opMetadata);
       
