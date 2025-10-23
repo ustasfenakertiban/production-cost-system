@@ -86,7 +86,23 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
 
     switch (type) {
       case 'materials':
-        // Агрегируем материалы по часам
+        // Сначала покажем ОБЩУЮ ОПЛАТУ за материалы в этот день
+        const totalMaterialsPaid = (day.cashOut?.materials ?? 0) + (day.cashOut?.materialsVat ?? 0);
+        const totalMaterialsNet = day.cashOut?.materials ?? 0;
+        const totalMaterialsVat = day.cashOut?.materialsVat ?? 0;
+        
+        if (totalMaterialsPaid > 0) {
+          details.push('💰 ОПЛАТА МАТЕРИАЛОВ ЗА ДЕНЬ:');
+          details.push('');
+          details.push(`Всего оплачено: ${totalMaterialsPaid.toFixed(2)} ₽`);
+          details.push(`  └─ Базовая стоимость: ${totalMaterialsNet.toFixed(2)} ₽`);
+          details.push(`  └─ НДС: ${totalMaterialsVat.toFixed(2)} ₽`);
+          details.push('');
+          details.push('ℹ️ Эта сумма включает закупки материалов (предоплаты и/или полные оплаты).');
+          details.push('   Материалы могут быть заказаны для будущего использования и доставлены позже.');
+        }
+        
+        // Теперь покажем ФАКТИЧЕСКИ ИСПОЛЬЗОВАННЫЕ материалы за день
         const materialsMap = new Map<string, { qty: number; net: number; vat: number }>();
         
         for (const hour of day.hours) {
@@ -112,37 +128,73 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
           }
         }
 
-        materialsMap.forEach((data, matId) => {
-          const matTotal = data.net + data.vat;
-          const matName = referenceData?.materials[matId]?.name || matId;
-          const unitCost = referenceData?.materials[matId]?.unitCost || 0;
-          details.push(`${matName}: ${data.qty.toFixed(2)} ед. × ${unitCost.toFixed(2)} ₽/ед. = ${data.net.toFixed(2)} ₽ (+ НДС ${data.vat.toFixed(2)} ₽) = ${matTotal.toFixed(2)} ₽`);
-          total += data.net;
-          totalVat += data.vat;
-        });
-
-        if (details.length === 0) {
-          details.push('Материалы не закупались в этот день');
-        } else {
-          // Добавляем пояснение, что материалы закупаются заранее
+        if (materialsMap.size > 0) {
           details.push('');
-          details.push('ℹ️ ВАЖНО: В первый день закупаются ВСЕ материалы, необходимые для производства ВСЕГО заказа.');
-          details.push('   Материалы используются постепенно в течение производства, но оплачиваются сразу.');
+          details.push('📦 ФАКТИЧЕСКИ ИСПОЛЬЗОВАНО В ПРОИЗВОДСТВЕ:');
+          details.push('');
+          let totalUsedNet = 0;
+          let totalUsedVat = 0;
+          materialsMap.forEach((data, matId) => {
+            const matTotal = data.net + data.vat;
+            const matName = referenceData?.materials[matId]?.name || matId;
+            const unitCost = referenceData?.materials[matId]?.unitCost || 0;
+            details.push(`• ${matName}: ${data.qty.toFixed(2)} ед. × ${unitCost.toFixed(2)} ₽/ед. = ${data.net.toFixed(2)} ₽ (+ НДС ${data.vat.toFixed(2)} ₽)`);
+            totalUsedNet += data.net;
+            totalUsedVat += data.vat;
+          });
+          details.push('');
+          details.push(`Итого использовано: ${(totalUsedNet + totalUsedVat).toFixed(2)} ₽`);
+          
+          // Показываем разницу, если она значительна
+          if (totalMaterialsPaid > 0 && Math.abs(totalMaterialsPaid - (totalUsedNet + totalUsedVat)) > 100) {
+            const diff = totalMaterialsPaid - (totalUsedNet + totalUsedVat);
+            details.push('');
+            details.push(`⚠️ РАЗНИЦА: ${diff.toFixed(2)} ₽`);
+            details.push('   Это материалы, оплаченные сегодня для использования в будущем.');
+          }
+        } else if (totalMaterialsPaid > 0) {
+          details.push('');
+          details.push('📦 Материалы оплачены, но еще не использовались в производстве.');
+          details.push('   Они будут использованы в последующие дни.');
         }
+
+        if (totalMaterialsPaid === 0 && materialsMap.size === 0) {
+          details.push('Материалы не закупались и не использовались в этот день');
+        }
+        
+        total = totalMaterialsNet;
+        totalVat = totalMaterialsVat;
         break;
 
       case 'labor':
-        // Агрегируем зарплаты по сотрудникам
-        const laborByEmployee = new Map<string, number>();
+        // Агрегируем зарплаты по сотрудникам с операциями
+        const laborByEmployee = new Map<string, { cost: number; operations: Map<string, { operationName: string; chainName: string; cost: number }> }>();
         
         for (const hour of day.hours) {
           for (const chain of hour.chains) {
             for (const op of chain.ops) {
               if (op.employeesUsed && op.employeesUsed.length > 0) {
                 for (const emp of op.employeesUsed) {
-                  const existing = laborByEmployee.get(emp.employeeId) || 0;
-                  laborByEmployee.set(emp.employeeId, existing + emp.cost);
+                  let empData = laborByEmployee.get(emp.employeeId);
+                  if (!empData) {
+                    empData = { cost: 0, operations: new Map() };
+                    laborByEmployee.set(emp.employeeId, empData);
+                  }
+                  empData.cost += emp.cost;
                   total += emp.cost;
+                  
+                  // Добавляем информацию об операции
+                  const opKey = `${chain.chainName}|${op.opName || op.opId}`;
+                  const opData = empData.operations.get(opKey);
+                  if (opData) {
+                    opData.cost += emp.cost;
+                  } else {
+                    empData.operations.set(opKey, {
+                      operationName: op.opName || op.opId || 'Unknown',
+                      chainName: chain.chainName || 'Unknown Chain',
+                      cost: emp.cost
+                    });
+                  }
                 }
               } else if (op.laborCost > 0) {
                 // Fallback если детализация недоступна
@@ -153,11 +205,12 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
         }
 
         if (laborByEmployee.size > 0) {
-          // Группируем сотрудников с их зарплатами
-          const employeeDetails: Array<{ name: string; cost: number }> = [];
-          laborByEmployee.forEach((cost, empId) => {
+          // Группируем сотрудников с их зарплатами и операциями
+          const employeeDetails: Array<{ name: string; cost: number; operations: Array<{ operationName: string; chainName: string; cost: number }> }> = [];
+          laborByEmployee.forEach((data, empId) => {
             const empName = referenceData?.employees[empId]?.name || empId;
-            employeeDetails.push({ name: empName, cost });
+            const operations = Array.from(data.operations.values());
+            employeeDetails.push({ name: empName, cost: data.cost, operations });
           });
           
           // Сортируем по убыванию стоимости
@@ -165,8 +218,13 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
           
           details.push('👷 ЗАРПЛАТЫ ПО СОТРУДНИКАМ:');
           details.push('');
-          employeeDetails.forEach(({ name, cost }) => {
+          employeeDetails.forEach(({ name, cost, operations }) => {
             details.push(`• ${name}: ${cost.toFixed(2)} ₽`);
+            if (operations.length > 0) {
+              operations.forEach(op => {
+                details.push(`  └─ ${op.chainName} → ${op.operationName}: ${op.cost.toFixed(2)} ₽`);
+              });
+            }
           });
         } else {
           details.push('Зарплаты не начислялись в этот день');
