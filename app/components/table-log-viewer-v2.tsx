@@ -56,9 +56,10 @@ interface OperationProduction {
 interface TableLogViewerV2Props {
   simulationResult: SimulationResult;
   materialNames: Map<string, string>; // materialId -> materialName
+  operationMetadata: Map<string, { chainName: string; operationName: string; chainOrder: number; operationOrder: number }>; // chainId|operationId -> metadata
 }
 
-export default function TableLogViewerV2({ simulationResult, materialNames }: TableLogViewerV2Props) {
+export default function TableLogViewerV2({ simulationResult, materialNames, operationMetadata }: TableLogViewerV2Props) {
   const [viewMode, setViewMode] = useState<"hours" | "days">("hours");
   const [selectedCell, setSelectedCell] = useState<HourDetails | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -67,6 +68,7 @@ export default function TableLogViewerV2({ simulationResult, materialNames }: Ta
     const operationsMap = new Map<string, OperationProduction>();
     
     let maxAbsoluteHour = 0;
+    let maxActiveAbsoluteHour = 0; // Максимальный час с реальной активностью
     const hoursPerDay = simulationResult.days[0]?.hours?.length || 8;
 
     // Проходим по всем дням и часам
@@ -74,21 +76,31 @@ export default function TableLogViewerV2({ simulationResult, materialNames }: Ta
       for (const hourLog of day.hours) {
         const absoluteHour = (day.day - 1) * hoursPerDay + hourLog.hour;
         maxAbsoluteHour = Math.max(maxAbsoluteHour, absoluteHour);
+        
+        // Проверяем, есть ли активность в этот час
+        let hasActivity = false;
 
         // Проходим по всем цепочкам и операциям
         for (const chain of hourLog.chains) {
           for (const op of chain.ops) {
+            // Проверяем, есть ли производство
+            if (op.produced > 0) {
+              hasActivity = true;
+              maxActiveAbsoluteHour = Math.max(maxActiveAbsoluteHour, absoluteHour);
+            }
             const key = `${chain.chainId}|${op.opId}`;
 
             if (!operationsMap.has(key)) {
-              // Находим имена цепочки и операции из первого вхождения
+              // Получаем метаданные операции
+              const metadata = operationMetadata.get(key);
+              
               operationsMap.set(key, {
                 chainId: chain.chainId,
-                chainName: "Chain", // Будет обновлено позже
-                chainOrder: 0, // Будет обновлено позже
+                chainName: metadata?.chainName || 'Unknown Chain',
+                chainOrder: metadata?.chainOrder || 0,
                 operationId: op.opId,
-                operationName: "Operation", // Будет обновлено позже
-                operationOrder: 0, // Будет обновлено позже
+                operationName: metadata?.operationName || 'Unknown Operation',
+                operationOrder: metadata?.operationOrder || 0,
                 hourlyProduction: new Map(),
                 dailyProduction: new Map(),
                 operationSpans: [],
@@ -154,9 +166,15 @@ export default function TableLogViewerV2({ simulationResult, materialNames }: Ta
       });
     });
 
+    // Используем максимальный час с активностью, добавляем небольшой буфер
+    // Если активности не было, показываем хотя бы первый день
+    const effectiveMaxHour = maxActiveAbsoluteHour > 0 
+      ? maxActiveAbsoluteHour + hoursPerDay // Добавляем один день буфера
+      : Math.min(hoursPerDay, maxAbsoluteHour);
+
     // Группируем часы по дням
     const days: Array<{ dayNum: number; hours: number[] }> = [];
-    for (let absHour = 1; absHour <= maxAbsoluteHour; absHour++) {
+    for (let absHour = 1; absHour <= effectiveMaxHour; absHour++) {
       const dayNum = Math.ceil(absHour / hoursPerDay);
       let day = days.find(d => d.dayNum === dayNum);
       if (!day) {
@@ -180,10 +198,10 @@ export default function TableLogViewerV2({ simulationResult, materialNames }: Ta
       operations: sortedOperations,
       days,
       daysOnly,
-      maxAbsoluteHour,
+      maxAbsoluteHour: effectiveMaxHour,
       hoursPerDay,
     };
-  }, [simulationResult]);
+  }, [simulationResult, operationMetadata]);
 
   const handleCellClick = (
     operation: OperationProduction,

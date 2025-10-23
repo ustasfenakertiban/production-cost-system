@@ -71,6 +71,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
   const [simulationLog, setSimulationLog] = useState<string>("");
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [materialNames, setMaterialNames] = useState<Map<string, string>>(new Map());
+  const [operationMetadata, setOperationMetadata] = useState<Map<string, { chainName: string; operationName: string; chainOrder: number; operationOrder: number }>>(new Map());
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [operationBreakdown, setOperationBreakdown] = useState<OperationCostBreakdown[]>([]);
   const [totalCosts, setTotalCosts] = useState<{
@@ -88,6 +89,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     setSimulationLog("");
     setSimulationResult(null);
     setMaterialNames(new Map());
+    setOperationMetadata(new Map());
     setValidationErrors([]);
     setOperationBreakdown([]);
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
@@ -145,6 +147,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     setSimulationLog("");
     setSimulationResult(null);
     setMaterialNames(new Map());
+    setOperationMetadata(new Map());
     setValidationErrors([]);
     setOperationBreakdown([]);
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
@@ -272,8 +275,23 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       
       // Создаем Map с названиями материалов
       const matNames = new Map<string, string>();
+      // Создаем Map с метаданными операций (названия цепочек и операций)
+      const opMetadata = new Map<string, { chainName: string; operationName: string; chainOrder: number; operationOrder: number }>();
+      
       if (data.operations && Array.isArray(data.operations)) {
         data.operations.forEach((op: any) => {
+          // Сохраняем метаданные операций
+          if (op.chainId && op.operationId) {
+            const key = `${op.chainId}|${op.operationId}`;
+            opMetadata.set(key, {
+              chainName: op.chainName || 'Unknown Chain',
+              operationName: op.operationName || 'Unknown Operation',
+              chainOrder: op.chainOrder || 0,
+              operationOrder: op.operationOrder || 0,
+            });
+          }
+          
+          // Извлекаем названия материалов
           if (op.materialCosts && Array.isArray(op.materialCosts)) {
             op.materialCosts.forEach((m: any) => {
               if (m.materialId && m.materialName) {
@@ -284,6 +302,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
         });
       }
       setMaterialNames(matNames);
+      setOperationMetadata(opMetadata);
       
       // Преобразуем в формат для графиков
       const breakdown = (data.operations || []).map((op: any) => {
@@ -636,10 +655,11 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                 <TableLogViewer log={simulationLog} />
               </TabsContent>
               <TabsContent value="table-v2" className="mt-4">
-                {simulationResult && materialNames ? (
+                {simulationResult && materialNames && operationMetadata ? (
                   <TableLogViewerV2 
                     simulationResult={simulationResult} 
-                    materialNames={materialNames} 
+                    materialNames={materialNames}
+                    operationMetadata={operationMetadata}
                   />
                 ) : (
                   <div className="text-center text-muted-foreground py-12">
