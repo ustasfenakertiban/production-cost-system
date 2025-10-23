@@ -31,6 +31,7 @@ import OperationsTotalCostChart from "@/components/operations-total-cost-chart";
 import OperationsLaborCostChart from "@/components/operations-labor-cost-chart";
 import CashFlowChart from "@/components/cash-flow-chart";
 import SummaryTable from "@/components/summary-table";
+import FinancialSummary from "@/components/financial-summary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmployeeSelectionDialog } from "@/components/orders/EmployeeSelectionDialog";
 import { SimulationResult } from "@/lib/simulation-v2/types";
@@ -89,6 +90,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     totalDays: number;
     totalDuration: number;
   } | null>(null);
+  const [orderQuantity, setOrderQuantity] = useState<number>(0);
   const [isSimulating, setIsSimulating] = useState(false);
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -190,9 +192,12 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
         throw new Error(`Для товара "${firstItem.product?.name || 'Unknown'}" не указан технологический процесс`);
       }
 
+      const quantity = firstItem.quantity || 1000;
+      setOrderQuantity(quantity);
+
       const requestBody = {
         orderId: orderId,
-        orderQuantity: firstItem.quantity || 1000,
+        orderQuantity: quantity,
         productId: firstItem.product?.id || "unknown",
         productName: firstItem.product?.name || "Unknown",
         processId: firstItem.productionProcess.id,
@@ -378,7 +383,12 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       logLines.push(`💰 ИТОГО РАСХОДЫ: ${(data.totalCost || 0).toFixed(2)} ₽`);
       logLines.push(`💵 Выручка: ${(data.revenue || 0).toFixed(2)} ₽`);
       logLines.push(`📈 Валовая маржа: ${(data.grossMargin || 0).toFixed(2)} ₽`);
-      logLines.push(`🏦 Конечный баланс: ${(data.cashEnding || 0).toFixed(2)} ₽`);
+      logLines.push("");
+      logLines.push(`═══════════════════════════════════════════════════════`);
+      logLines.push(`    🏦 ОСТАТОК СРЕДСТВ ПОСЛЕ ПРОИЗВОДСТВА`);
+      logLines.push(`═══════════════════════════════════════════════════════`);
+      logLines.push(`    ${(data.cashEnding || 0).toFixed(2)} ₽`);
+      logLines.push(`═══════════════════════════════════════════════════════`);
 
       setSimulationLog(logLines.join("\n"));
       
@@ -688,8 +698,9 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="summary" className="w-full">
-              <TabsList className="grid w-full max-w-7xl grid-cols-9">
+              <TabsList className="grid w-full max-w-7xl grid-cols-10">
                 <TabsTrigger value="summary">Итоги</TabsTrigger>
+                <TabsTrigger value="financial">Финансовые итоги</TabsTrigger>
                 <TabsTrigger value="costs">Структура затрат</TabsTrigger>
                 <TabsTrigger value="operations-total">Затраты по операциям</TabsTrigger>
                 <TabsTrigger value="operations-labor">Зарплаты по операциям</TabsTrigger>
@@ -718,6 +729,21 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                 ) : (
                   <div className="text-center text-muted-foreground py-12">
                     Запустите симуляцию, чтобы увидеть итоговую сводку
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="financial" className="mt-4">
+                {summaryData && totalCosts.total > 0 ? (
+                  <FinancialSummary 
+                    orderId={orderId}
+                    orderQuantity={orderQuantity}
+                    cashEnding={summaryData.cashEnding}
+                    totalDays={summaryData.totalDays}
+                    totalPeriodicCost={totalCosts.periodic}
+                  />
+                ) : (
+                  <div className="text-center text-muted-foreground py-12">
+                    Запустите симуляцию, чтобы увидеть финансовые итоги
                   </div>
                 )}
               </TabsContent>
