@@ -221,13 +221,14 @@ export class SimulationEngine {
             const depreciation = alloc.equipmentUsed.reduce((sum, eq) => sum + (this.resources.equipment.get(eq.id)!.hourlyDepreciation * (eq.minutes / 60) * mult), 0);
             const entry: OperationHourLog = {
               opId: op.spec.id,
+              opName: op.spec.name,
               produced: pulled,
               pulledFromPrev: prev ? pulled : 0,
               materialsConsumed: res.details,
               laborCost,
               depreciation
             };
-            this.resources.logOperationHour(this.currentDay, h, chain.spec.id, entry);
+            this.resources.logOperationHour(this.currentDay, h, chain.spec.id, chain.spec.name, entry);
           }
         }
         this.resources.endHour(this.currentDay, h);

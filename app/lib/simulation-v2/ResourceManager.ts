@@ -315,14 +315,14 @@ export class ResourceManager {
     // nothing special for now
   }
 
-  logOperationHour(day: number, hour: number, chainId: string, entry: OperationHourLog) {
+  logOperationHour(day: number, hour: number, chainId: string, chainName: string, entry: OperationHourLog) {
     const hours = this.hourLogs.get(day);
     if (!hours) return;
     const h = hours.find(x => x.hour === hour);
     if (!h) return;
     let ch = h.chains.find(c => c.chainId === chainId);
     if (!ch) {
-      ch = { chainId, ops: [] };
+      ch = { chainId, chainName, ops: [] };
       h.chains.push(ch);
     }
     ch.ops.push(entry);

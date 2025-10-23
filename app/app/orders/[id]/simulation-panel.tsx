@@ -226,56 +226,130 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
 
       // Преобразуем результат v2 в формат v1 для отображения
       const logLines: string[] = [];
-      logLines.push("=== СИМУЛЯЦИЯ v2 (ООП) ===");
-      logLines.push(`Заказ: ${data.orderId || 'N/A'}`);
-      logLines.push(`Количество: ${data.orderQuantity || 0}`);
-      logLines.push(`Общее время: ${(data.totalDuration ?? 0).toFixed(2)} часов`);
-      logLines.push(`Общая стоимость: ${(data.totalCost ?? 0).toFixed(2)}`);
-      logLines.push("");
       
-      // Диагностическая информация
-      if (data.diagnostics) {
-        logLines.push("=== ДИАГНОСТИКА ===");
-        logLines.push(`Начальный баланс: ${data.diagnostics.initialCashBalance ?? 0}₽`);
-        logLines.push(`Конечный баланс: ${(data.diagnostics.finalCashBalance ?? 0).toFixed(2)}₽`);
-        logLines.push(`Ожидание материалов: ${data.diagnostics.waitForMaterialDelivery ? 'ДА' : 'НЕТ'}`);
-        logLines.push(`Сумма заказа: ${data.diagnostics.totalOrderAmount ?? 0}₽`);
-        logLines.push(`Материалов в базе: ${data.diagnostics.materialsCount ?? 0}`);
-        logLines.push(`Цепочек операций: ${data.diagnostics.chainsCount ?? 0}`);
-        logLines.push("");
-        logLines.push("График платежей:");
-        if (data.diagnostics.paymentSchedule && data.diagnostics.paymentSchedule.length > 0) {
-          data.diagnostics.paymentSchedule.forEach((p: string) => logLines.push(`  ${p}`));
-        } else {
-          logLines.push("  (нет платежей)");
-        }
-        logLines.push("");
-        logLines.push("Заказы материалов:");
-        if (data.diagnostics.materialOrders && data.diagnostics.materialOrders.length > 0) {
-          data.diagnostics.materialOrders.forEach((m: string) => logLines.push(`  ${m}`));
-        } else {
-          logLines.push("  (нет заказов материалов)");
-        }
+      // Генерируем лог в формате, понятном TreeLogViewer
+      if (data._raw?.days && Array.isArray(data._raw.days)) {
+        logLines.push("═══════════════════════════════════════════════════════");
+        logLines.push("       СИМУЛЯЦИЯ ПРОИЗВОДСТВЕННОГО ПРОЦЕССА v2");
+        logLines.push("═══════════════════════════════════════════════════════");
+        logLines.push(`Заказ: ${data.orderId || 'N/A'} | Количество: ${data.orderQuantity || 0}`);
+        logLines.push(`Начальный баланс: ${data.diagnostics?.initialCashBalance ?? 0}₽`);
         logLines.push("");
         
-        // Подробная информация о материалах из БД
-        if (data.diagnostics.materialsFromDb && data.diagnostics.materialsFromDb.length > 0) {
-          logLines.push("Материалы из базы данных (параметры):");
-          data.diagnostics.materialsFromDb.forEach((m: string) => logLines.push(`  ${m}`));
+        // Обрабатываем каждый день
+        for (const day of data._raw.days) {
           logLines.push("");
+          logLines.push(`📅 День ${day.day}`);
+          logLines.push(`   💰 Баланс начало дня: ${(day.cashStart || 0).toFixed(2)} ₽`);
+          
+          // Поступления
+          if (day.cashIn && Object.values(day.cashIn).some((v: any) => v > 0)) {
+            if (day.cashIn.clientPayments > 0) {
+              logLines.push(`   ✓ Оплата от клиента: +${day.cashIn.clientPayments.toFixed(2)} ₽`);
+            }
+          }
+          
+          // Обрабатываем часы
+          if (day.hours && Array.isArray(day.hours)) {
+            for (const hour of day.hours) {
+              const absoluteHour = (day.day - 1) * (data.diagnostics?.workingHoursPerDay || 8) + hour.hour;
+              logLines.push("");
+              logLines.push(`   ⏰ Час ${hour.hour} (абсолютный час: ${absoluteHour})`);
+              
+              let hasActiveOps = false;
+              
+              // Обрабатываем цепочки операций
+              if (hour.chains && Array.isArray(hour.chains)) {
+                for (const chain of hour.chains) {
+                  if (chain.ops && Array.isArray(chain.ops)) {
+                    for (const op of chain.ops) {
+                      if (op.produced > 0) {
+                        hasActiveOps = true;
+                        const chainName = chain.chainName || `Chain ${chain.chainId}`;
+                        const opName = op.opName || `Op ${op.opId}`;
+                        
+                        logLines.push(`      🏃 Операция "${chainName} → ${opName}"`);
+                        logLines.push(`         ▶️ Произведено: ${op.produced} шт.`);
+                        
+                        if (op.pulledFromPrev > 0) {
+                          logLines.push(`         ⬅️ Получено от предыдущей операции: ${op.pulledFromPrev} шт.`);
+                        }
+                        
+                        if (op.laborCost > 0) {
+                          logLines.push(`         👷 Труд: ${op.laborCost.toFixed(2)} ₽`);
+                        }
+                        
+                        if (op.depreciation > 0) {
+                          logLines.push(`         ⚙️ Амортизация оборудования: ${op.depreciation.toFixed(2)} ₽`);
+                        }
+                        
+                        if (op.materialsConsumed && Array.isArray(op.materialsConsumed)) {
+                          for (const mat of op.materialsConsumed) {
+                            const matCost = (mat.net || 0) + (mat.vat || 0);
+                            if (matCost > 0) {
+                              logLines.push(`         📦 Материал: ${mat.qty || 0} шт. (${matCost.toFixed(2)} ₽)`);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              if (!hasActiveOps) {
+                logLines.push(`      ⏸️ Ожидающие операции`);
+                logLines.push(`         Нет активных операций в этот час`);
+              }
+            }
+          }
+          
+          // Расходы за день
+          logLines.push("");
+          if (day.cashOut && Object.values(day.cashOut).some((v: any) => v > 0)) {
+            logLines.push(`   💸 Расходы дня:`);
+            if (day.cashOut.materials > 0) {
+              logLines.push(`      📦 Материалы: -${(day.cashOut.materials + (day.cashOut.materialsVat || 0)).toFixed(2)} ₽`);
+            }
+            if (day.cashOut.labor > 0) {
+              logLines.push(`      👷 Зарплаты: -${day.cashOut.labor.toFixed(2)} ₽`);
+            }
+            if (day.cashOut.depreciation > 0) {
+              logLines.push(`      ⚙️ Амортизация: -${day.cashOut.depreciation.toFixed(2)} ₽`);
+            }
+            if (day.cashOut.periodic > 0) {
+              logLines.push(`      📅 Периодические расходы: -${(day.cashOut.periodic + (day.cashOut.periodicVat || 0)).toFixed(2)} ₽`);
+            }
+          }
+          
+          logLines.push(`   💰 Баланс конец дня: ${(day.cashEnd || 0).toFixed(2)} ₽`);
         }
+        
+        logLines.push("");
+        logLines.push("═══════════════════════════════════════════════════════");
+        logLines.push("                 ИТОГОВАЯ СВОДКА");
+        logLines.push("═══════════════════════════════════════════════════════");
+      } else {
+        // Fallback: если нет структурированных данных
+        logLines.push("=== СИМУЛЯЦИЯ v2 (ООП) ===");
+        logLines.push(`Заказ: ${data.orderId || 'N/A'}`);
+        logLines.push(`Количество: ${data.orderQuantity || 0}`);
+        logLines.push(`Общее время: ${(data.totalDuration ?? 0).toFixed(2)} часов`);
+        logLines.push(`Общая стоимость: ${(data.totalCost ?? 0).toFixed(2)}`);
+        logLines.push("");
       }
       
-      logLines.push("=== ОПЕРАЦИИ ===");
-      for (const op of data.operations || []) {
-        logLines.push(`\n[${op.chainName || 'N/A'}] ${op.operationName || 'N/A'}`);
-        logLines.push(`  Порядок цепочки: ${op.chainOrder ?? 'N/A'}`);
-        logLines.push(`  Порядок операции: ${op.operationOrder ?? 'N/A'}`);
-        logLines.push(`  Целевое количество: ${op.targetQuantity ?? 0}`);
-        logLines.push(`  Выполнено: ${op.completedQuantity ?? 0}`);
-        logLines.push(`  Время: ${(op.totalHours ?? 0).toFixed(2)} часов`);
-        logLines.push(`  Стоимость: ${(op.totalCost ?? 0).toFixed(2)}`);
-      }
+      // Итоговые показатели (всегда)
+      logLines.push(`Выполнено за ${data.totalDays || 0} дней (${(data.totalDuration || 0).toFixed(1)} часов)`);
+      logLines.push(`📦 Материалы: ${(data.totalMaterialCost || 0).toFixed(2)} ₽`);
+      logLines.push(`⚙️ Оборудование: ${(data.totalEquipmentCost || 0).toFixed(2)} ₽`);
+      logLines.push(`👷 Сотрудники: ${(data.totalLaborCost || 0).toFixed(2)} ₽`);
+      logLines.push(`📅 Периодические расходы: ${(data.totalPeriodicCost || 0).toFixed(2)} ₽`);
+      logLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+      logLines.push(`💰 ИТОГО РАСХОДЫ: ${(data.totalCost || 0).toFixed(2)} ₽`);
+      logLines.push(`💵 Выручка: ${(data.revenue || 0).toFixed(2)} ₽`);
+      logLines.push(`📈 Валовая маржа: ${(data.grossMargin || 0).toFixed(2)} ₽`);
+      logLines.push(`🏦 Конечный баланс: ${(data.cashEnding || 0).toFixed(2)} ₽`);
 
       setSimulationLog(logLines.join("\n"));
       

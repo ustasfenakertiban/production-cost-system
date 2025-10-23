@@ -129,11 +129,13 @@ export interface HourLog {
 
 export interface ChainHourLog {
   chainId: string;
+  chainName?: string;
   ops: OperationHourLog[];
 }
 
 export interface OperationHourLog {
   opId: string;
+  opName?: string;
   produced: number;
   pulledFromPrev: number;
   materialsConsumed: Array<{ materialId: string; qty: number; net: number; vat: number }>;
