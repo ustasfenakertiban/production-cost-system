@@ -30,6 +30,7 @@ import CostBreakdownChart, { OperationCostBreakdown } from "@/components/cost-br
 import OperationsTotalCostChart from "@/components/operations-total-cost-chart";
 import OperationsLaborCostChart from "@/components/operations-labor-cost-chart";
 import CashFlowChart from "@/components/cash-flow-chart";
+import SummaryTable from "@/components/summary-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmployeeSelectionDialog } from "@/components/orders/EmployeeSelectionDialog";
 import { SimulationResult } from "@/lib/simulation-v2/types";
@@ -78,8 +79,16 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     materials: number;
     equipment: number;
     labor: number;
+    periodic: number;
     total: number;
-  }>({ materials: 0, equipment: 0, labor: 0, total: 0 });
+  }>({ materials: 0, equipment: 0, labor: 0, periodic: 0, total: 0 });
+  const [summaryData, setSummaryData] = useState<{
+    revenue?: number;
+    grossMargin?: number;
+    cashEnding: number;
+    totalDays: number;
+    totalDuration: number;
+  } | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -92,7 +101,8 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     setOperationMetadata(new Map());
     setValidationErrors([]);
     setOperationBreakdown([]);
-    setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
+    setTotalCosts({ materials: 0, equipment: 0, labor: 0, periodic: 0, total: 0 });
+    setSummaryData(null);
 
     try {
       const response = await fetch(`/api/orders/${orderId}/simulate`, {
@@ -150,7 +160,8 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     setOperationMetadata(new Map());
     setValidationErrors([]);
     setOperationBreakdown([]);
-    setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
+    setTotalCosts({ materials: 0, equipment: 0, labor: 0, periodic: 0, total: 0 });
+    setSummaryData(null);
 
     try {
       console.log('[FRONTEND] Starting simulation v2 with employees:', selectedEmployeeIds);
@@ -336,7 +347,15 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
         materials: data.totalMaterialCost ?? 0,
         equipment: data.totalEquipmentCost ?? 0,
         labor: data.totalLaborCost ?? 0,
+        periodic: data.totalPeriodicCost ?? 0,
         total: data.totalCost ?? 0,
+      });
+      setSummaryData({
+        revenue: data.revenue,
+        grossMargin: data.grossMargin,
+        cashEnding: data.cashEnding ?? 0,
+        totalDays: data.totalDays ?? 0,
+        totalDuration: data.totalDuration ?? 0,
       });
       
       toast({
@@ -592,8 +611,9 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="costs" className="w-full">
-              <TabsList className="grid w-full max-w-7xl grid-cols-8">
+            <Tabs defaultValue="summary" className="w-full">
+              <TabsList className="grid w-full max-w-7xl grid-cols-9">
+                <TabsTrigger value="summary">Итоги</TabsTrigger>
                 <TabsTrigger value="costs">Структура затрат</TabsTrigger>
                 <TabsTrigger value="operations-total">Затраты по операциям</TabsTrigger>
                 <TabsTrigger value="operations-labor">Зарплаты по операциям</TabsTrigger>
@@ -603,6 +623,28 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                 <TabsTrigger value="table-v2">Таблица v2</TabsTrigger>
                 <TabsTrigger value="text">Текстовый лог</TabsTrigger>
               </TabsList>
+              <TabsContent value="summary" className="mt-4">
+                {summaryData && totalCosts.total > 0 ? (
+                  <SummaryTable 
+                    data={{
+                      totalMaterialCost: totalCosts.materials,
+                      totalEquipmentCost: totalCosts.equipment,
+                      totalLaborCost: totalCosts.labor,
+                      totalPeriodicCost: totalCosts.periodic,
+                      totalCost: totalCosts.total,
+                      revenue: summaryData.revenue,
+                      grossMargin: summaryData.grossMargin,
+                      cashEnding: summaryData.cashEnding,
+                      totalDays: summaryData.totalDays,
+                      totalDuration: summaryData.totalDuration,
+                    }}
+                  />
+                ) : (
+                  <div className="text-center text-muted-foreground py-12">
+                    Запустите симуляцию, чтобы увидеть итоговую сводку
+                  </div>
+                )}
+              </TabsContent>
               <TabsContent value="costs" className="mt-4">
                 {operationBreakdown.length > 0 ? (
                   <CostBreakdownChart 
