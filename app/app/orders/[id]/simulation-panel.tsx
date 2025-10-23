@@ -25,11 +25,14 @@ import { Play, Download, Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import TreeLogViewer from "@/components/tree-log-viewer";
 import TableLogViewer from "@/components/table-log-viewer";
+import TableLogViewerV2 from "@/components/table-log-viewer-v2";
 import CostBreakdownChart, { OperationCostBreakdown } from "@/components/cost-breakdown-chart";
 import OperationsTotalCostChart from "@/components/operations-total-cost-chart";
 import OperationsLaborCostChart from "@/components/operations-labor-cost-chart";
+import CashFlowChart from "@/components/cash-flow-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmployeeSelectionDialog } from "@/components/orders/EmployeeSelectionDialog";
+import { SimulationResult } from "@/lib/simulation-v2/types";
 
 interface SimulationPanelProps {
   orderId: string;
@@ -66,6 +69,8 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     productivityAlgorithm: "BOTTLENECK",
   });
   const [simulationLog, setSimulationLog] = useState<string>("");
+  const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
+  const [materialNames, setMaterialNames] = useState<Map<string, string>>(new Map());
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [operationBreakdown, setOperationBreakdown] = useState<OperationCostBreakdown[]>([]);
   const [totalCosts, setTotalCosts] = useState<{
@@ -81,6 +86,8 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
   const handleSimulate = async () => {
     setIsSimulating(true);
     setSimulationLog("");
+    setSimulationResult(null);
+    setMaterialNames(new Map());
     setValidationErrors([]);
     setOperationBreakdown([]);
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
@@ -136,6 +143,8 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
   const runSimulationV2WithEmployees = async (selectedEmployeeIds: string[]) => {
     setIsSimulating(true);
     setSimulationLog("");
+    setSimulationResult(null);
+    setMaterialNames(new Map());
     setValidationErrors([]);
     setOperationBreakdown([]);
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, total: 0 });
@@ -255,6 +264,26 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       }
 
       setSimulationLog(logLines.join("\n"));
+      
+      // Сохраняем полный результат симуляции для новых компонентов
+      if (data._raw) {
+        setSimulationResult(data._raw);
+      }
+      
+      // Создаем Map с названиями материалов
+      const matNames = new Map<string, string>();
+      if (data.operations && Array.isArray(data.operations)) {
+        data.operations.forEach((op: any) => {
+          if (op.materialCosts && Array.isArray(op.materialCosts)) {
+            op.materialCosts.forEach((m: any) => {
+              if (m.materialId && m.materialName) {
+                matNames.set(m.materialId, m.materialName);
+              }
+            });
+          }
+        });
+      }
+      setMaterialNames(matNames);
       
       // Преобразуем в формат для графиков
       const breakdown = (data.operations || []).map((op: any) => {
@@ -545,12 +574,14 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="costs" className="w-full">
-              <TabsList className="grid w-full max-w-5xl grid-cols-6">
+              <TabsList className="grid w-full max-w-7xl grid-cols-8">
                 <TabsTrigger value="costs">Структура затрат</TabsTrigger>
                 <TabsTrigger value="operations-total">Затраты по операциям</TabsTrigger>
                 <TabsTrigger value="operations-labor">Зарплаты по операциям</TabsTrigger>
+                <TabsTrigger value="cashflow">Денежные потоки</TabsTrigger>
                 <TabsTrigger value="tree">Древовидный вид</TabsTrigger>
-                <TabsTrigger value="table">Таблица</TabsTrigger>
+                <TabsTrigger value="table">Таблица v1</TabsTrigger>
+                <TabsTrigger value="table-v2">Таблица v2</TabsTrigger>
                 <TabsTrigger value="text">Текстовый лог</TabsTrigger>
               </TabsList>
               <TabsContent value="costs" className="mt-4">
@@ -589,11 +620,32 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                   </div>
                 )}
               </TabsContent>
+              <TabsContent value="cashflow" className="mt-4">
+                {simulationResult ? (
+                  <CashFlowChart simulationResult={simulationResult} />
+                ) : (
+                  <div className="text-center text-muted-foreground py-12">
+                    Запустите симуляцию, чтобы увидеть денежные потоки
+                  </div>
+                )}
+              </TabsContent>
               <TabsContent value="tree" className="mt-4 border rounded-lg p-4 max-h-[600px] overflow-auto">
                 <TreeLogViewer log={simulationLog} />
               </TabsContent>
               <TabsContent value="table" className="mt-4">
                 <TableLogViewer log={simulationLog} />
+              </TabsContent>
+              <TabsContent value="table-v2" className="mt-4">
+                {simulationResult && materialNames ? (
+                  <TableLogViewerV2 
+                    simulationResult={simulationResult} 
+                    materialNames={materialNames} 
+                  />
+                ) : (
+                  <div className="text-center text-muted-foreground py-12">
+                    Запустите симуляцию, чтобы увидеть таблицу
+                  </div>
+                )}
               </TabsContent>
               <TabsContent value="text" className="mt-4">
                 <Textarea
