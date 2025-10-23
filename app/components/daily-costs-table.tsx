@@ -162,7 +162,9 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
               
               purchasesThisDay.forEach((purchase, idx) => {
                 const fullCost = purchase.qty * purchase.unitCost;
-                const fullVat = fullCost * purchase.vatRate;
+                // ВАЖНО: vatRate уже в процентах (20, а не 0.20), поэтому делим на 100
+                const vatRateDecimal = purchase.vatRate / 100;
+                const fullVat = fullCost * vatRateDecimal;
                 const fullTotal = fullCost + fullVat;
                 
                 details.push(`${idx + 1}. ${purchase.materialName}`);
@@ -170,7 +172,7 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
                 details.push(`      Количество: ${purchase.qty.toFixed(2)} ед.`);
                 details.push(`      Цена за единицу: ${purchase.unitCost.toFixed(2)} ₽/ед.`);
                 details.push(`      Полная стоимость партии: ${fullCost.toFixed(2)} ₽`);
-                details.push(`      НДС (${(purchase.vatRate * 100).toFixed(0)}%): ${fullVat.toFixed(2)} ₽`);
+                details.push(`      НДС (${purchase.vatRate.toFixed(0)}%): ${fullVat.toFixed(2)} ₽`);
                 details.push(`      Итого партия: ${fullTotal.toFixed(2)} ₽`);
                 details.push('');
                 
