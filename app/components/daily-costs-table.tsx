@@ -30,6 +30,19 @@ interface DailyCostsTableProps {
   referenceData: ReferenceData | null;
 }
 
+interface MaterialPurchaseItem {
+  materialId: string;
+  materialName: string;
+  qty: number;
+  unitCost: number;
+  vatRate: number;
+  netAmount: number;
+  vatAmount: number;
+  totalAmount: number;
+  orderDay: number;
+  etaArrivalDay: number;
+}
+
 interface ExpenseDetail {
   day: number;
   type: 'materials' | 'labor' | 'depreciation' | 'periodic' | 'cashIn';
@@ -83,10 +96,13 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
     const details: string[] = [];
     let total = 0;
     let totalVat = 0;
+    
+    // Получаем доступ к simulationResult для детализации покупок материалов
+    const currentSimResult = simulationResult;
 
     switch (type) {
       case 'materials':
-        // Сначала покажем ОБЩУЮ ОПЛАТУ за материалы в этот день
+        // Общая сумма оплаты за день
         const totalMaterialsPaid = (day.cashOut?.materials ?? 0) + (day.cashOut?.materialsVat ?? 0);
         const totalMaterialsNet = day.cashOut?.materials ?? 0;
         const totalMaterialsVat = day.cashOut?.materialsVat ?? 0;
@@ -98,11 +114,88 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
           details.push(`  └─ Базовая стоимость: ${totalMaterialsNet.toFixed(2)} ₽`);
           details.push(`  └─ НДС: ${totalMaterialsVat.toFixed(2)} ₽`);
           details.push('');
-          details.push('ℹ️ Эта сумма включает закупки материалов (предоплаты и/или полные оплаты).');
-          details.push('   Материалы могут быть заказаны для будущего использования и доставлены позже.');
+          
+          // Детализация покупок материалов
+          if (currentSimResult.materialBatches && currentSimResult.materialBatches.length > 0) {
+            // Находим все покупки, которые оплачивались в этот день
+            const purchasesThisDay: MaterialPurchaseItem[] = [];
+            
+            for (const batch of currentSimResult.materialBatches) {
+              let netPaid = 0;
+              let vatPaid = 0;
+              
+              // Проверяем предоплату
+              if (batch.orderDay === day.day) {
+                netPaid += batch.prepayNet;
+                vatPaid += batch.prepayVat;
+              }
+              
+              // Проверяем постоплату (происходит в день прибытия материалов)
+              if (batch.etaArrivalDay === day.day) {
+                netPaid += batch.postpayNet;
+                vatPaid += batch.postpayVat;
+              }
+              
+              if (netPaid > 0 || vatPaid > 0) {
+                const matName = referenceData?.materials[batch.materialId]?.name || batch.materialId;
+                purchasesThisDay.push({
+                  materialId: batch.materialId,
+                  materialName: matName,
+                  qty: batch.qty,
+                  unitCost: batch.unitCost,
+                  vatRate: batch.vatRate,
+                  netAmount: netPaid,
+                  vatAmount: vatPaid,
+                  totalAmount: netPaid + vatPaid,
+                  orderDay: batch.orderDay,
+                  etaArrivalDay: batch.etaArrivalDay,
+                });
+              }
+            }
+            
+            if (purchasesThisDay.length > 0) {
+              details.push('🛒 ДЕТАЛИЗАЦИЯ ПОКУПОК:');
+              details.push('');
+              
+              let subtotalNet = 0;
+              let subtotalVat = 0;
+              
+              purchasesThisDay.forEach((purchase, idx) => {
+                details.push(`${idx + 1}. ${purchase.materialName}`);
+                details.push(`   Количество: ${purchase.qty.toFixed(2)} ед.`);
+                details.push(`   Цена за единицу: ${purchase.unitCost.toFixed(2)} ₽/ед.`);
+                details.push(`   Базовая стоимость: ${(purchase.qty * purchase.unitCost).toFixed(2)} ₽`);
+                details.push(`   НДС (${(purchase.vatRate * 100).toFixed(0)}%): ${(purchase.qty * purchase.unitCost * purchase.vatRate).toFixed(2)} ₽`);
+                details.push(`   Оплачено сегодня: ${purchase.totalAmount.toFixed(2)} ₽`);
+                
+                if (purchase.orderDay === day.day && purchase.etaArrivalDay !== day.day) {
+                  details.push(`   📅 Заказ размещен сегодня (День ${purchase.orderDay})`);
+                  details.push(`   🚚 Ожидается прибытие: День ${purchase.etaArrivalDay}`);
+                  details.push(`   💳 Тип оплаты: Предоплата`);
+                } else if (purchase.etaArrivalDay === day.day && purchase.orderDay !== day.day) {
+                  details.push(`   📅 Заказ размещен: День ${purchase.orderDay}`);
+                  details.push(`   🚚 Прибытие сегодня (День ${purchase.etaArrivalDay})`);
+                  details.push(`   💳 Тип оплаты: Постоплата`);
+                } else if (purchase.orderDay === day.day && purchase.etaArrivalDay === day.day) {
+                  details.push(`   📅 Заказ размещен и получен сегодня (День ${day.day})`);
+                  details.push(`   💳 Тип оплаты: Полная оплата`);
+                }
+                
+                details.push('');
+                subtotalNet += purchase.netAmount;
+                subtotalVat += purchase.vatAmount;
+              });
+              
+              details.push(`Всего покупок: ${purchasesThisDay.length} шт.`);
+              details.push(`Итого оплачено: ${(subtotalNet + subtotalVat).toFixed(2)} ₽`);
+            }
+          }
+          
+          details.push('');
+          details.push('─'.repeat(50));
         }
         
-        // Теперь покажем ФАКТИЧЕСКИ ИСПОЛЬЗОВАННЫЕ материалы за день
+        // Показываем фактически использованные материалы за день
         const materialsMap = new Map<string, { qty: number; net: number; vat: number }>();
         
         for (const hour of day.hours) {
@@ -135,7 +228,6 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
           let totalUsedNet = 0;
           let totalUsedVat = 0;
           materialsMap.forEach((data, matId) => {
-            const matTotal = data.net + data.vat;
             const matName = referenceData?.materials[matId]?.name || matId;
             const unitCost = referenceData?.materials[matId]?.unitCost || 0;
             details.push(`• ${matName}: ${data.qty.toFixed(2)} ед. × ${unitCost.toFixed(2)} ₽/ед. = ${data.net.toFixed(2)} ₽ (+ НДС ${data.vat.toFixed(2)} ₽)`);
@@ -145,12 +237,17 @@ export default function DailyCostsTable({ simulationResult, referenceData }: Dai
           details.push('');
           details.push(`Итого использовано: ${(totalUsedNet + totalUsedVat).toFixed(2)} ₽`);
           
-          // Показываем разницу, если она значительна
+          // Показываем разницу между оплатой и использованием
           if (totalMaterialsPaid > 0 && Math.abs(totalMaterialsPaid - (totalUsedNet + totalUsedVat)) > 100) {
             const diff = totalMaterialsPaid - (totalUsedNet + totalUsedVat);
             details.push('');
             details.push(`⚠️ РАЗНИЦА: ${diff.toFixed(2)} ₽`);
-            details.push('   Это материалы, оплаченные сегодня для использования в будущем.');
+            if (diff > 0) {
+              details.push('   Материалы оплачены, но еще не использованы в производстве.');
+              details.push('   Они хранятся на складе для будущего использования.');
+            } else {
+              details.push('   Использованы материалы, оплаченные ранее.');
+            }
           }
         } else if (totalMaterialsPaid > 0) {
           details.push('');
