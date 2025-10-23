@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Table,
   TableBody,
@@ -10,13 +10,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SimulationResult } from "@/lib/simulation-v2/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import type { SimulationResult, DayLog } from "@/lib/simulation-v2/types";
 
 interface DailyCostsTableProps {
   simulationResult: SimulationResult;
 }
 
+interface ExpenseDetail {
+  day: number;
+  type: 'materials' | 'labor' | 'depreciation' | 'periodic' | 'cashIn';
+  details: string[];
+  total: number;
+  totalVat?: number;
+}
+
 export default function DailyCostsTable({ simulationResult }: DailyCostsTableProps) {
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseDetail | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const tableData = useMemo(() => {
     if (!simulationResult?.days || simulationResult.days.length === 0) {
       return [];
@@ -55,6 +72,154 @@ export default function DailyCostsTable({ simulationResult }: DailyCostsTablePro
     }).format(value) + ' ₽';
   };
 
+  const getExpenseDetails = (day: DayLog, type: 'materials' | 'labor' | 'depreciation' | 'periodic' | 'cashIn'): ExpenseDetail => {
+    const details: string[] = [];
+    let total = 0;
+    let totalVat = 0;
+
+    switch (type) {
+      case 'materials':
+        // Агрегируем материалы по часам
+        const materialsMap = new Map<string, { qty: number; net: number; vat: number }>();
+        
+        for (const hour of day.hours) {
+          for (const chain of hour.chains) {
+            for (const op of chain.ops) {
+              if (op.materialsConsumed && op.materialsConsumed.length > 0) {
+                for (const mat of op.materialsConsumed) {
+                  const existing = materialsMap.get(mat.materialId);
+                  if (existing) {
+                    existing.qty += mat.qty;
+                    existing.net += mat.net;
+                    existing.vat += mat.vat;
+                  } else {
+                    materialsMap.set(mat.materialId, {
+                      qty: mat.qty,
+                      net: mat.net,
+                      vat: mat.vat,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        materialsMap.forEach((data, matId) => {
+          const matTotal = data.net + data.vat;
+          details.push(`${matId}: ${data.qty.toFixed(2)} ед. (${data.net.toFixed(2)} ₽ + НДС ${data.vat.toFixed(2)} ₽ = ${matTotal.toFixed(2)} ₽)`);
+          total += data.net;
+          totalVat += data.vat;
+        });
+
+        if (details.length === 0) {
+          details.push('Материалы не закупались в этот день');
+        }
+        break;
+
+      case 'labor':
+        // Агрегируем зарплаты по часам и операциям
+        const laborByChainOp = new Map<string, number>();
+        
+        for (const hour of day.hours) {
+          for (const chain of hour.chains) {
+            for (const op of chain.ops) {
+              if (op.laborCost > 0) {
+                const key = `${chain.chainName || chain.chainId} → ${op.opName || op.opId}`;
+                const existing = laborByChainOp.get(key) || 0;
+                laborByChainOp.set(key, existing + op.laborCost);
+                total += op.laborCost;
+              }
+            }
+          }
+        }
+
+        laborByChainOp.forEach((cost, key) => {
+          details.push(`${key}: ${cost.toFixed(2)} ₽`);
+        });
+
+        if (details.length === 0) {
+          details.push('Зарплаты не начислялись в этот день');
+        }
+        break;
+
+      case 'depreciation':
+        // Агрегируем амортизацию по часам и операциям
+        const depreciationByChainOp = new Map<string, number>();
+        
+        for (const hour of day.hours) {
+          for (const chain of hour.chains) {
+            for (const op of chain.ops) {
+              if (op.depreciation > 0) {
+                const key = `${chain.chainName || chain.chainId} → ${op.opName || op.opId}`;
+                const existing = depreciationByChainOp.get(key) || 0;
+                depreciationByChainOp.set(key, existing + op.depreciation);
+                total += op.depreciation;
+              }
+            }
+          }
+        }
+
+        depreciationByChainOp.forEach((cost, key) => {
+          details.push(`${key}: ${cost.toFixed(2)} ₽`);
+        });
+
+        if (details.length === 0) {
+          details.push('Амортизация не начислялась в этот день');
+        }
+        break;
+
+      case 'periodic':
+        if (day.cashOut?.periodic > 0 || day.cashOut?.periodicVat > 0) {
+          const periodicNet = day.cashOut?.periodic || 0;
+          const periodicVat = day.cashOut?.periodicVat || 0;
+          total = periodicNet;
+          totalVat = periodicVat;
+          details.push(`Периодические расходы (базовые): ${periodicNet.toFixed(2)} ₽`);
+          details.push(`НДС на периодические расходы: ${periodicVat.toFixed(2)} ₽`);
+          details.push(`Итого с НДС: ${(periodicNet + periodicVat).toFixed(2)} ₽`);
+        } else {
+          details.push('Периодические расходы не начислялись в этот день');
+        }
+        break;
+
+      case 'cashIn':
+        const cashIn = day.cashIn || 0;
+        total = cashIn;
+        if (cashIn > 0) {
+          details.push(`Оплата от клиента по графику платежей: ${cashIn.toFixed(2)} ₽`);
+        } else {
+          details.push('Поступлений в этот день не было');
+        }
+        break;
+    }
+
+    return {
+      day: day.day,
+      type,
+      details,
+      total,
+      totalVat: totalVat > 0 ? totalVat : undefined,
+    };
+  };
+
+  const handleCellClick = (day: DayLog, type: 'materials' | 'labor' | 'depreciation' | 'periodic' | 'cashIn') => {
+    const expenseDetail = getExpenseDetails(day, type);
+    setSelectedExpense(expenseDetail);
+    setIsDialogOpen(true);
+  };
+
+  const getTypeName = (type: string) => {
+    switch (type) {
+      case 'materials': return 'Материалы';
+      case 'labor': return 'Зарплаты';
+      case 'depreciation': return 'Амортизация';
+      case 'periodic': return 'Периодические расходы';
+      case 'cashIn': return 'Поступления';
+      default: return type;
+    }
+  };
+
   if (tableData.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-12">
@@ -83,6 +248,7 @@ export default function DailyCostsTable({ simulationResult }: DailyCostsTablePro
   });
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Расходы и денежные потоки по дням</CardTitle>
@@ -108,36 +274,59 @@ export default function DailyCostsTable({ simulationResult }: DailyCostsTablePro
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tableData.map((row, idx) => (
-                <TableRow key={row.day} className={idx % 2 === 0 ? "bg-muted/20" : ""}>
-                  <TableCell className="text-center font-medium">{row.day}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(row.cashStart)}</TableCell>
-                  <TableCell className="text-right font-mono text-green-600">
-                    {row.cashIn > 0 ? `+${formatCurrency(row.cashIn)}` : '—'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-red-600">
-                    {row.materials > 0 ? formatCurrency(row.materials) : '—'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-orange-600">
-                    {row.labor > 0 ? formatCurrency(row.labor) : '—'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-purple-600">
-                    {row.depreciation > 0 ? formatCurrency(row.depreciation) : '—'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-yellow-600">
-                    {row.periodic > 0 ? formatCurrency(row.periodic) : '—'}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-semibold">
-                    {formatCurrency(row.totalCost)}
-                  </TableCell>
-                  <TableCell className={`text-right font-mono font-semibold ${row.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {row.netCashFlow >= 0 ? `+${formatCurrency(row.netCashFlow)}` : formatCurrency(row.netCashFlow)}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-bold">
-                    {formatCurrency(row.cashEnd)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {tableData.map((row, idx) => {
+                const dayLog = simulationResult.days.find(d => d.day === row.day);
+                return (
+                  <TableRow key={row.day} className={idx % 2 === 0 ? "bg-muted/20" : ""}>
+                    <TableCell className="text-center font-medium">{row.day}</TableCell>
+                    <TableCell className="text-right font-mono">{formatCurrency(row.cashStart)}</TableCell>
+                    <TableCell 
+                      className="text-right font-mono text-green-600 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                      onClick={() => dayLog && handleCellClick(dayLog, 'cashIn')}
+                      title="Кликните для просмотра детализации поступлений"
+                    >
+                      {row.cashIn > 0 ? `+${formatCurrency(row.cashIn)}` : '—'}
+                    </TableCell>
+                    <TableCell 
+                      className="text-right font-mono text-red-600 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      onClick={() => dayLog && handleCellClick(dayLog, 'materials')}
+                      title="Кликните для просмотра детализации материалов"
+                    >
+                      {row.materials > 0 ? formatCurrency(row.materials) : '—'}
+                    </TableCell>
+                    <TableCell 
+                      className="text-right font-mono text-orange-600 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                      onClick={() => dayLog && handleCellClick(dayLog, 'labor')}
+                      title="Кликните для просмотра детализации зарплат"
+                    >
+                      {row.labor > 0 ? formatCurrency(row.labor) : '—'}
+                    </TableCell>
+                    <TableCell 
+                      className="text-right font-mono text-purple-600 cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                      onClick={() => dayLog && handleCellClick(dayLog, 'depreciation')}
+                      title="Кликните для просмотра детализации амортизации"
+                    >
+                      {row.depreciation > 0 ? formatCurrency(row.depreciation) : '—'}
+                    </TableCell>
+                    <TableCell 
+                      className="text-right font-mono text-yellow-600 cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors"
+                      onClick={() => dayLog && handleCellClick(dayLog, 'periodic')}
+                      title="Кликните для просмотра детализации периодических расходов"
+                    >
+                      {row.periodic > 0 ? formatCurrency(row.periodic) : '—'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-semibold">
+                      {formatCurrency(row.totalCost)}
+                    </TableCell>
+                    <TableCell className={`text-right font-mono font-semibold ${row.netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {row.netCashFlow >= 0 ? `+${formatCurrency(row.netCashFlow)}` : formatCurrency(row.netCashFlow)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-bold">
+                      {formatCurrency(row.cashEnd)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {/* Итоговая строка */}
               <TableRow className="bg-primary/10 font-bold border-t-2">
                 <TableCell className="text-center">ИТОГО</TableCell>
@@ -172,5 +361,70 @@ export default function DailyCostsTable({ simulationResult }: DailyCostsTablePro
         </div>
       </CardContent>
     </Card>
+
+    {/* Диалог детализации расходов */}
+    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {selectedExpense && `Детализация: ${getTypeName(selectedExpense.type)}`}
+          </DialogTitle>
+          <DialogDescription>
+            {selectedExpense && `День ${selectedExpense.day}`}
+          </DialogDescription>
+        </DialogHeader>
+        {selectedExpense && (
+          <div className="space-y-4">
+            <div className="bg-primary/10 p-4 rounded-lg border-2 border-primary/30">
+              <div className="text-sm text-muted-foreground mb-1">Общая сумма за день:</div>
+              <div className="text-2xl font-bold">
+                {formatCurrency(selectedExpense.total + (selectedExpense.totalVat || 0))}
+              </div>
+              {selectedExpense.totalVat && selectedExpense.totalVat > 0 && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  <div>Без НДС: {formatCurrency(selectedExpense.total)}</div>
+                  <div>НДС: {formatCurrency(selectedExpense.totalVat)}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-semibold text-sm">📋 ДЕТАЛИЗАЦИЯ:</h4>
+              <div className="bg-muted/30 p-4 rounded-lg space-y-2 max-h-[400px] overflow-y-auto">
+                {selectedExpense.details.length > 0 ? (
+                  <ul className="space-y-2">
+                    {selectedExpense.details.map((detail, idx) => (
+                      <li 
+                        key={idx} 
+                        className="border-b border-border/50 pb-2 last:border-0 text-sm"
+                      >
+                        {detail}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center text-muted-foreground py-4">
+                    Нет детализации для отображения
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {selectedExpense.type === 'materials' && selectedExpense.details.length > 1 && (
+              <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-100 mb-2">
+                  ℹ️ Обратите внимание
+                </h4>
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  В первый день закупаются все материалы, необходимые для производства всего заказа.
+                  Это включает материалы для всех операций, которые будут выполняться в течение всего периода производства.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  </>
   );
 }
