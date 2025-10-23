@@ -19,30 +19,19 @@ export async function loadMaterials(orderId?: string): Promise<MaterialSpec[]> {
       where: { orderId }
     });
     console.log(`[DataLoader] Loaded ${batches.length} material purchase batches for order ${orderId}`);
-  }
-  
-  // Создаем Map для быстрого доступа к партиям по materialId
-  const batchByMaterial = new Map(batches.map(b => [b.materialId, b]));
-  
-  // Если указан orderId, но нет партий - проверяем шаблоны
-  if (orderId && batches.length === 0) {
-    const templates = await prisma.materialPurchaseBatchTemplate.findMany();
-    if (templates.length === 0) {
+    
+    // Если для заказа нет партий - это ошибка
+    if (batches.length === 0) {
       throw new Error(
         'Не настроены партии закупок материалов для этого заказа. ' +
-        'Пожалуйста, создайте шаблоны закупок материалов (Purchases → Templates) ' +
-        'и примените их к заказу, либо настройте партии вручную в карточке заказа.'
-      );
-    } else {
-      throw new Error(
-        `Найдено ${templates.length} шаблон(ов) закупок, но они не применены к заказу. ` +
-        'Откройте карточку заказа и примените шаблон закупок материалов.'
+        'Откройте карточку заказа и настройте партии закупок материалов вручную, ' +
+        'либо импортируйте их из шаблона (если есть сохраненный шаблон из другого заказа).'
       );
     }
   }
   
-  // Собираем материалы без партий
-  const materialsWithoutBatches = rows.filter(r => !batchByMaterial.has(r.id));
+  // Создаем Map для быстрого доступа к партиям по materialId
+  const batchByMaterial = new Map(batches.map(b => [b.materialId, b]));
   
   return rows.map(r => {
     const batch = batchByMaterial.get(r.id);
