@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import TreeLogViewer from "@/components/tree-log-viewer";
 import TableLogViewer from "@/components/table-log-viewer";
 import TableLogViewerV2 from "@/components/table-log-viewer-v2";
+import DailyCostsTable from "@/components/daily-costs-table";
 import CostBreakdownChart, { OperationCostBreakdown } from "@/components/cost-breakdown-chart";
 import OperationsTotalCostChart from "@/components/operations-total-cost-chart";
 import OperationsLaborCostChart from "@/components/operations-labor-cost-chart";
@@ -698,52 +699,45 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="summary" className="w-full">
-              <TabsList className="grid w-full max-w-7xl grid-cols-10">
-                <TabsTrigger value="summary">Итоги</TabsTrigger>
-                <TabsTrigger value="financial">Финансовые итоги</TabsTrigger>
-                <TabsTrigger value="costs">Структура затрат</TabsTrigger>
-                <TabsTrigger value="operations-total">Затраты по операциям</TabsTrigger>
-                <TabsTrigger value="operations-labor">Зарплаты по операциям</TabsTrigger>
-                <TabsTrigger value="cashflow">Денежные потоки</TabsTrigger>
-                <TabsTrigger value="tree">Древовидный вид</TabsTrigger>
-                <TabsTrigger value="table">Таблица v1</TabsTrigger>
-                <TabsTrigger value="table-v2">Таблица v2</TabsTrigger>
-                <TabsTrigger value="text">Текстовый лог</TabsTrigger>
+              <TabsList className="flex flex-wrap w-full gap-1 h-auto bg-muted p-1">
+                <TabsTrigger value="summary" className="flex-shrink-0">Итоги</TabsTrigger>
+                <TabsTrigger value="table-v2" className="flex-shrink-0">Таблица</TabsTrigger>
+                <TabsTrigger value="costs" className="flex-shrink-0">Структура затрат</TabsTrigger>
+                <TabsTrigger value="operations-total" className="flex-shrink-0">Затраты по операциям</TabsTrigger>
+                <TabsTrigger value="operations-labor" className="flex-shrink-0">Зарплаты</TabsTrigger>
+                <TabsTrigger value="cashflow" className="flex-shrink-0">Денежные потоки</TabsTrigger>
+                <TabsTrigger value="tree" className="flex-shrink-0">Древовидный вид</TabsTrigger>
+                <TabsTrigger value="table" className="flex-shrink-0">Таблица v1</TabsTrigger>
+                <TabsTrigger value="text" className="flex-shrink-0">Текстовый лог</TabsTrigger>
               </TabsList>
               <TabsContent value="summary" className="mt-4">
                 {summaryData && totalCosts.total > 0 ? (
-                  <SummaryTable 
-                    data={{
-                      totalMaterialCost: totalCosts.materials,
-                      totalEquipmentCost: totalCosts.equipment,
-                      totalLaborCost: totalCosts.labor,
-                      totalPeriodicCost: totalCosts.periodic,
-                      totalCost: totalCosts.total,
-                      revenue: summaryData.revenue,
-                      grossMargin: summaryData.grossMargin,
-                      cashEnding: summaryData.cashEnding,
-                      totalDays: summaryData.totalDays,
-                      totalDuration: summaryData.totalDuration,
-                    }}
-                  />
+                  <div className="space-y-6">
+                    <SummaryTable 
+                      data={{
+                        totalMaterialCost: totalCosts.materials,
+                        totalEquipmentCost: totalCosts.equipment,
+                        totalLaborCost: totalCosts.labor,
+                        totalPeriodicCost: totalCosts.periodic,
+                        totalCost: totalCosts.total,
+                        revenue: summaryData.revenue,
+                        grossMargin: summaryData.grossMargin,
+                        cashEnding: summaryData.cashEnding,
+                        totalDays: summaryData.totalDays,
+                        totalDuration: summaryData.totalDuration,
+                      }}
+                    />
+                    <FinancialSummary 
+                      orderId={orderId}
+                      orderQuantity={orderQuantity}
+                      cashEnding={summaryData.cashEnding}
+                      totalDays={summaryData.totalDays}
+                      totalPeriodicCost={totalCosts.periodic}
+                    />
+                  </div>
                 ) : (
                   <div className="text-center text-muted-foreground py-12">
                     Запустите симуляцию, чтобы увидеть итоговую сводку
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="financial" className="mt-4">
-                {summaryData && totalCosts.total > 0 ? (
-                  <FinancialSummary 
-                    orderId={orderId}
-                    orderQuantity={orderQuantity}
-                    cashEnding={summaryData.cashEnding}
-                    totalDays={summaryData.totalDays}
-                    totalPeriodicCost={totalCosts.periodic}
-                  />
-                ) : (
-                  <div className="text-center text-muted-foreground py-12">
-                    Запустите симуляцию, чтобы увидеть финансовые итоги
                   </div>
                 )}
               </TabsContent>
@@ -799,12 +793,20 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
                 <TableLogViewer log={simulationLog} />
               </TabsContent>
               <TabsContent value="table-v2" className="mt-4">
-                {simulationResult && materialNames && operationMetadata ? (
-                  <TableLogViewerV2 
-                    simulationResult={simulationResult} 
-                    materialNames={materialNames}
-                    operationMetadata={operationMetadata}
-                  />
+                {simulationResult ? (
+                  <div className="space-y-6">
+                    <DailyCostsTable simulationResult={simulationResult} />
+                    {materialNames && operationMetadata && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-4">Производство по операциям</h3>
+                        <TableLogViewerV2 
+                          simulationResult={simulationResult} 
+                          materialNames={materialNames}
+                          operationMetadata={operationMetadata}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="text-center text-muted-foreground py-12">
                     Запустите симуляцию, чтобы увидеть таблицу

@@ -120,6 +120,8 @@ export interface DayLog {
   cashOut: DayCashOut;
   nonCash: DayNonCash;
   hours: HourLog[];
+  cashStart?: number;
+  cashEnd?: number;
 }
 
 export interface HourLog {

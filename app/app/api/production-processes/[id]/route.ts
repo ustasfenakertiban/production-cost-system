@@ -59,15 +59,22 @@ export async function PUT(
 ) {
   try {
     const data = await request.json();
-    const { name, description, comment } = data;
+    const { name, description, comment, productId, comments } = data;
+
+    const updateData: any = {
+      name,
+      description,
+      comment: comment || comments, // поддержка обоих полей
+    };
+
+    // Обновляем productId, если он передан
+    if (productId) {
+      updateData.productId = productId;
+    }
 
     const process = await prisma.productionProcess.update({
       where: { id: params.id },
-      data: {
-        name,
-        description,
-        comment,
-      },
+      data: updateData,
       include: {
         product: true,
         operationChains: true

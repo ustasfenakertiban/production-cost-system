@@ -275,17 +275,19 @@ export class SimulationEngine {
 
     const rm: any = this.resources;
 
-    const revenue = this.revenueTotal || (this.totalOrderAmount ?? 0);
-    const costCore = (rm.materialCostAccrued ?? 0) + (rm.laborCostAccrued ?? 0) + (rm.equipmentDepreciationAccrued ?? 0) + (rm.periodicNetAccrued ?? 0);
-    const grossMargin = revenue - costCore;
-
     console.log('[SimEngine] Building result. daily.size:', rm.daily?.size ?? 0);
     if (rm.daily?.size > 0) {
       const firstDay = Array.from(rm.daily.entries())[0];
       console.log('[SimEngine] First day sample:', JSON.stringify(firstDay, null, 2));
     }
 
-    const daysArr: DayLog[] = Array.from((rm.daily?.entries?.() ?? [])).map(([day, v]: any) => {
+    const daysArr: DayLog[] = [];
+    let runningCashBalance = this.settings.initialCashBalance;
+    
+    // Сортируем дни по порядку
+    const sortedDays: Array<[number, any]> = Array.from((rm.daily?.entries?.() ?? [])).sort((a: any, b: any) => a[0] - b[0]);
+    
+    for (const [day, v] of sortedDays) {
       // Совместимость: если в v нет hours — подставить []
       if (!v.hours) {
         console.log(`[SimEngine] Day ${day}: missing hours field, adding empty array`);
@@ -293,10 +295,57 @@ export class SimulationEngine {
       } else {
         console.log(`[SimEngine] Day ${day}: has ${v.hours?.length ?? 0} hours`);
       }
-      return { day, ...v };
-    });
+      
+      const cashStart = runningCashBalance;
+      
+      // Рассчитываем поступления и расходы за день
+      const cashIn = v.cashIn ?? 0;
+      const cashOutTotal = 
+        (v.cashOut?.materials ?? 0) + 
+        (v.cashOut?.materialsVat ?? 0) + 
+        (v.cashOut?.labor ?? 0) + 
+        (v.cashOut?.periodic ?? 0) + 
+        (v.cashOut?.periodicVat ?? 0);
+      
+      runningCashBalance = cashStart + cashIn - cashOutTotal;
+      const cashEnd = runningCashBalance;
+      
+      daysArr.push({ 
+        day, 
+        ...v,
+        cashStart,
+        cashEnd,
+      });
+    }
 
     console.log('[SimEngine] Final daysArr.length:', daysArr.length);
+
+    // Суммируем периодические расходы из всех дней (для политики 'daily' они записаны туда)
+    let totalPeriodicNet = 0;
+    let totalPeriodicVAT = 0;
+    for (const day of daysArr) {
+      totalPeriodicNet += day.cashOut?.periodic ?? 0;
+      totalPeriodicVAT += day.cashOut?.periodicVat ?? 0;
+    }
+
+    // Если политика end_of_simulation, используем accumulated значения
+    if (this.settings.periodicExpensePaymentPolicy === 'end_of_simulation') {
+      totalPeriodicNet = rm.periodicNetAccrued ?? 0;
+      totalPeriodicVAT = rm.periodicVatAccrued ?? 0;
+    }
+
+    const revenue = this.revenueTotal || (this.totalOrderAmount ?? 0);
+    const costCore = (rm.materialCostAccrued ?? 0) + (rm.laborCostAccrued ?? 0) + (rm.equipmentDepreciationAccrued ?? 0) + totalPeriodicNet;
+    const grossMargin = revenue - costCore;
+
+    console.log('[SimEngine] Periodic expenses:', { totalPeriodicNet, totalPeriodicVAT, policy: this.settings.periodicExpensePaymentPolicy });
+    console.log('[SimEngine] Cost breakdown:', {
+      materials: rm.materialCostAccrued ?? 0,
+      labor: rm.laborCostAccrued ?? 0,
+      depreciation: rm.equipmentDepreciationAccrued ?? 0,
+      periodic: totalPeriodicNet,
+      total: costCore
+    });
 
     const result: SimulationResult = {
       daysTaken: this.currentDay - 1,
@@ -305,8 +354,8 @@ export class SimulationEngine {
         materialVAT: rm.materialVatAccrued ?? 0,
         labor: rm.laborCostAccrued ?? 0,
         depreciation: rm.equipmentDepreciationAccrued ?? 0,
-        periodicNet: rm.periodicNetAccrued ?? 0,
-        periodicVAT: rm.periodicVatAccrued ?? 0,
+        periodicNet: totalPeriodicNet,
+        periodicVAT: totalPeriodicVAT,
         revenue,
         grossMargin,
         cashEnding: rm.cashBalance ?? 0
