@@ -75,6 +75,11 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [materialNames, setMaterialNames] = useState<Map<string, string>>(new Map());
   const [operationMetadata, setOperationMetadata] = useState<Map<string, { chainName: string; operationName: string; chainOrder: number; operationOrder: number }>>(new Map());
+  const [referenceData, setReferenceData] = useState<{
+    materials: Record<string, { id: string; name: string; unitCost: number }>;
+    equipment: Record<string, { id: string; name: string }>;
+    employees: Record<string, { id: string; name: string; hourlyWage: number }>;
+  } | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [operationBreakdown, setOperationBreakdown] = useState<OperationCostBreakdown[]>([]);
   const [totalCosts, setTotalCosts] = useState<{
@@ -102,6 +107,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     setSimulationResult(null);
     setMaterialNames(new Map());
     setOperationMetadata(new Map());
+    setReferenceData(null);
     setValidationErrors([]);
     setOperationBreakdown([]);
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, periodic: 0, total: 0 });
@@ -161,6 +167,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
     setSimulationResult(null);
     setMaterialNames(new Map());
     setOperationMetadata(new Map());
+    setReferenceData(null);
     setValidationErrors([]);
     setOperationBreakdown([]);
     setTotalCosts({ materials: 0, equipment: 0, labor: 0, periodic: 0, total: 0 });
@@ -401,6 +408,11 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
       // Сохраняем материалы и метаданные операций (уже созданные выше)
       setMaterialNames(matNames);
       setOperationMetadata(opMetadata);
+      
+      // Сохраняем справочные данные из API
+      if (data.referenceData) {
+        setReferenceData(data.referenceData);
+      }
       
       // Преобразуем в формат для графиков
       const breakdown = (data.operations || []).map((op: any) => {
@@ -795,7 +807,7 @@ export default function SimulationPanel({ orderId }: SimulationPanelProps) {
               <TabsContent value="table-v2" className="mt-4">
                 {simulationResult ? (
                   <div className="space-y-6">
-                    <DailyCostsTable simulationResult={simulationResult} />
+                    <DailyCostsTable simulationResult={simulationResult} referenceData={referenceData} />
                     {materialNames && operationMetadata && (
                       <div>
                         <h3 className="text-lg font-semibold mb-4">Производство по операциям</h3>

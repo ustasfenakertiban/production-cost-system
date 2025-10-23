@@ -219,6 +219,19 @@ export class SimulationEngine {
             // Логирование операции
             const laborCost = alloc.employeesUsed.reduce((sum, e) => sum + (this.resources.employees.get(e.id)!.hourlyWage * (e.minutes / 60)), 0);
             const depreciation = alloc.equipmentUsed.reduce((sum, eq) => sum + (this.resources.equipment.get(eq.id)!.hourlyDepreciation * (eq.minutes / 60) * mult), 0);
+            
+            // Создаем детализацию по сотрудникам
+            const employeesUsed = alloc.employeesUsed.map(e => ({
+              employeeId: e.id,
+              cost: this.resources.employees.get(e.id)!.hourlyWage * (e.minutes / 60)
+            }));
+            
+            // Создаем детализацию по оборудованию
+            const equipmentUsed = alloc.equipmentUsed.map(eq => ({
+              equipmentId: eq.id,
+              cost: this.resources.equipment.get(eq.id)!.hourlyDepreciation * (eq.minutes / 60) * mult
+            }));
+            
             const entry: OperationHourLog = {
               opId: op.spec.id,
               opName: op.spec.name,
@@ -226,7 +239,9 @@ export class SimulationEngine {
               pulledFromPrev: prev ? pulled : 0,
               materialsConsumed: res.details,
               laborCost,
-              depreciation
+              depreciation,
+              employeesUsed,
+              equipmentUsed
             };
             this.resources.logOperationHour(this.currentDay, h, chain.spec.id, chain.spec.name, entry);
           }

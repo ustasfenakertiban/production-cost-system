@@ -241,6 +241,22 @@ export async function POST(req: NextRequest) {
       return a.operationOrder - b.operationOrder;
     });
     
+    // Создаем мапы для справочных данных
+    const materialMap: Record<string, { id: string; name: string; unitCost: number }> = {};
+    materials.forEach(m => {
+      materialMap[m.id] = { id: m.id, name: m.name, unitCost: m.unitCost };
+    });
+
+    const equipmentMap: Record<string, { id: string; name: string }> = {};
+    equipment.forEach(e => {
+      equipmentMap[e.id] = { id: e.id, name: e.name };
+    });
+
+    const employeeMap: Record<string, { id: string; name: string; hourlyWage: number }> = {};
+    employees.forEach(emp => {
+      employeeMap[emp.id] = { id: emp.id, name: emp.name, hourlyWage: emp.hourlyWage };
+    });
+
     const response = {
       orderId: orderId || null,
       orderQuantity: orderQuantity || 0,
@@ -265,6 +281,12 @@ export async function POST(req: NextRequest) {
       warnings: result.warnings,
       // Добавляем исходный результат для отладки
       _raw: result,
+      // Справочные данные
+      referenceData: {
+        materials: materialMap,
+        equipment: equipmentMap,
+        employees: employeeMap,
+      },
       // Диагностическая информация
       diagnostics: {
         initialCashBalance: settings.initialCashBalance,

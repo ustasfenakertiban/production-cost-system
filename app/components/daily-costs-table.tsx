@@ -19,8 +19,15 @@ import {
 } from "@/components/ui/dialog";
 import type { SimulationResult, DayLog } from "@/lib/simulation-v2/types";
 
+interface ReferenceData {
+  materials: Record<string, { id: string; name: string; unitCost: number }>;
+  equipment: Record<string, { id: string; name: string }>;
+  employees: Record<string, { id: string; name: string; hourlyWage: number }>;
+}
+
 interface DailyCostsTableProps {
   simulationResult: SimulationResult;
+  referenceData: ReferenceData | null;
 }
 
 interface ExpenseDetail {
@@ -31,7 +38,7 @@ interface ExpenseDetail {
   totalVat?: number;
 }
 
-export default function DailyCostsTable({ simulationResult }: DailyCostsTableProps) {
+export default function DailyCostsTable({ simulationResult, referenceData }: DailyCostsTableProps) {
   const [selectedExpense, setSelectedExpense] = useState<ExpenseDetail | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const tableData = useMemo(() => {
@@ -107,64 +114,103 @@ export default function DailyCostsTable({ simulationResult }: DailyCostsTablePro
 
         materialsMap.forEach((data, matId) => {
           const matTotal = data.net + data.vat;
-          details.push(`${matId}: ${data.qty.toFixed(2)} ед. (${data.net.toFixed(2)} ₽ + НДС ${data.vat.toFixed(2)} ₽ = ${matTotal.toFixed(2)} ₽)`);
+          const matName = referenceData?.materials[matId]?.name || matId;
+          const unitCost = referenceData?.materials[matId]?.unitCost || 0;
+          details.push(`${matName}: ${data.qty.toFixed(2)} ед. × ${unitCost.toFixed(2)} ₽/ед. = ${data.net.toFixed(2)} ₽ (+ НДС ${data.vat.toFixed(2)} ₽) = ${matTotal.toFixed(2)} ₽`);
           total += data.net;
           totalVat += data.vat;
         });
 
         if (details.length === 0) {
           details.push('Материалы не закупались в этот день');
+        } else {
+          // Добавляем пояснение, что материалы закупаются заранее
+          details.push('');
+          details.push('ℹ️ ВАЖНО: В первый день закупаются ВСЕ материалы, необходимые для производства ВСЕГО заказа.');
+          details.push('   Материалы используются постепенно в течение производства, но оплачиваются сразу.');
         }
         break;
 
       case 'labor':
-        // Агрегируем зарплаты по часам и операциям
-        const laborByChainOp = new Map<string, number>();
+        // Агрегируем зарплаты по сотрудникам
+        const laborByEmployee = new Map<string, number>();
         
         for (const hour of day.hours) {
           for (const chain of hour.chains) {
             for (const op of chain.ops) {
-              if (op.laborCost > 0) {
-                const key = `${chain.chainName || chain.chainId} → ${op.opName || op.opId}`;
-                const existing = laborByChainOp.get(key) || 0;
-                laborByChainOp.set(key, existing + op.laborCost);
+              if (op.employeesUsed && op.employeesUsed.length > 0) {
+                for (const emp of op.employeesUsed) {
+                  const existing = laborByEmployee.get(emp.employeeId) || 0;
+                  laborByEmployee.set(emp.employeeId, existing + emp.cost);
+                  total += emp.cost;
+                }
+              } else if (op.laborCost > 0) {
+                // Fallback если детализация недоступна
                 total += op.laborCost;
               }
             }
           }
         }
 
-        laborByChainOp.forEach((cost, key) => {
-          details.push(`${key}: ${cost.toFixed(2)} ₽`);
-        });
-
-        if (details.length === 0) {
+        if (laborByEmployee.size > 0) {
+          // Группируем сотрудников с их зарплатами
+          const employeeDetails: Array<{ name: string; cost: number }> = [];
+          laborByEmployee.forEach((cost, empId) => {
+            const empName = referenceData?.employees[empId]?.name || empId;
+            employeeDetails.push({ name: empName, cost });
+          });
+          
+          // Сортируем по убыванию стоимости
+          employeeDetails.sort((a, b) => b.cost - a.cost);
+          
+          details.push('👷 ЗАРПЛАТЫ ПО СОТРУДНИКАМ:');
+          details.push('');
+          employeeDetails.forEach(({ name, cost }) => {
+            details.push(`• ${name}: ${cost.toFixed(2)} ₽`);
+          });
+        } else {
           details.push('Зарплаты не начислялись в этот день');
         }
         break;
 
       case 'depreciation':
-        // Агрегируем амортизацию по часам и операциям
-        const depreciationByChainOp = new Map<string, number>();
+        // Агрегируем амортизацию по оборудованию
+        const depreciationByEquipment = new Map<string, number>();
         
         for (const hour of day.hours) {
           for (const chain of hour.chains) {
             for (const op of chain.ops) {
-              if (op.depreciation > 0) {
-                const key = `${chain.chainName || chain.chainId} → ${op.opName || op.opId}`;
-                const existing = depreciationByChainOp.get(key) || 0;
-                depreciationByChainOp.set(key, existing + op.depreciation);
+              if (op.equipmentUsed && op.equipmentUsed.length > 0) {
+                for (const eq of op.equipmentUsed) {
+                  const existing = depreciationByEquipment.get(eq.equipmentId) || 0;
+                  depreciationByEquipment.set(eq.equipmentId, existing + eq.cost);
+                  total += eq.cost;
+                }
+              } else if (op.depreciation > 0) {
+                // Fallback если детализация недоступна
                 total += op.depreciation;
               }
             }
           }
         }
 
-        depreciationByChainOp.forEach((cost, key) => {
-          details.push(`${key}: ${cost.toFixed(2)} ₽`);
-        });
-
-        if (details.length === 0) {
+        if (depreciationByEquipment.size > 0) {
+          // Группируем оборудование с амортизацией
+          const equipmentDetails: Array<{ name: string; cost: number }> = [];
+          depreciationByEquipment.forEach((cost, eqId) => {
+            const eqName = referenceData?.equipment[eqId]?.name || eqId;
+            equipmentDetails.push({ name: eqName, cost });
+          });
+          
+          // Сортируем по убыванию стоимости
+          equipmentDetails.sort((a, b) => b.cost - a.cost);
+          
+          details.push('⚙️ АМОРТИЗАЦИЯ ПО ОБОРУДОВАНИЮ:');
+          details.push('');
+          equipmentDetails.forEach(({ name, cost }) => {
+            details.push(`• ${name}: ${cost.toFixed(2)} ₽`);
+          });
+        } else {
           details.push('Амортизация не начислялась в этот день');
         }
         break;
@@ -410,17 +456,7 @@ export default function DailyCostsTable({ simulationResult }: DailyCostsTablePro
               </div>
             </div>
 
-            {selectedExpense.type === 'materials' && selectedExpense.details.length > 1 && (
-              <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
-                <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-100 mb-2">
-                  ℹ️ Обратите внимание
-                </h4>
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  В первый день закупаются все материалы, необходимые для производства всего заказа.
-                  Это включает материалы для всех операций, которые будут выполняться в течение всего периода производства.
-                </p>
-              </div>
-            )}
+
           </div>
         )}
       </DialogContent>

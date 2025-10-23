@@ -143,6 +143,8 @@ export interface OperationHourLog {
   materialsConsumed: Array<{ materialId: string; qty: number; net: number; vat: number }>;
   laborCost: number;
   depreciation: number;
+  employeesUsed?: Array<{ employeeId: string; cost: number }>;
+  equipmentUsed?: Array<{ equipmentId: string; cost: number }>;
 }
 
 export interface MaterialBatchDebug {
