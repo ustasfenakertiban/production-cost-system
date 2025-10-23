@@ -24,12 +24,32 @@ export async function loadMaterials(orderId?: string): Promise<MaterialSpec[]> {
   // Создаем Map для быстрого доступа к партиям по materialId
   const batchByMaterial = new Map(batches.map(b => [b.materialId, b]));
   
+  // Если указан orderId, но нет партий - проверяем шаблоны
+  if (orderId && batches.length === 0) {
+    const templates = await prisma.materialPurchaseBatchTemplate.findMany();
+    if (templates.length === 0) {
+      throw new Error(
+        'Не настроены партии закупок материалов для этого заказа. ' +
+        'Пожалуйста, создайте шаблоны закупок материалов (Purchases → Templates) ' +
+        'и примените их к заказу, либо настройте партии вручную в карточке заказа.'
+      );
+    } else {
+      throw new Error(
+        `Найдено ${templates.length} шаблон(ов) закупок, но они не применены к заказу. ` +
+        'Откройте карточку заказа и примените шаблон закупок материалов.'
+      );
+    }
+  }
+  
+  // Собираем материалы без партий
+  const materialsWithoutBatches = rows.filter(r => !batchByMaterial.has(r.id));
+  
   return rows.map(r => {
     const batch = batchByMaterial.get(r.id);
     
     // Если есть партия для этого материала - используем ее данные
     if (batch) {
-      const quantity = Number(batch.quantity ?? 100);
+      const quantity = Number(batch.quantity ?? 0);
       console.log(`[DataLoader] Material "${r.name}": using batch data - quantity=${quantity}, minStock=${batch.minStock ?? 0}`);
       
       return {
@@ -44,15 +64,16 @@ export async function loadMaterials(orderId?: string): Promise<MaterialSpec[]> {
       };
     }
     
-    // Если партии нет - используем значения по умолчанию
-    console.log(`[DataLoader] Material "${r.name}": no batch found, using defaults (minOrderQty=100)`);
+    // Если партии нет для заказа - это ошибка (дефолты не используем!)
+    console.warn(`[DataLoader] Material "${r.name}": no batch found!`);
+    // Возвращаем с нулевыми значениями, чтобы не влиять на симуляцию
     return {
       id: String(r.id),
       name: r.name,
       unitCost: Number(r.cost ?? 0),
       vatRate: Number(r.vatPercentage ?? 0),
-      minStock: 20, // 20 единиц минимальный остаток
-      minOrderQty: 100, // 100 единиц минимальный размер заказа
+      minStock: 0,
+      minOrderQty: 0, // Нулевой размер заказа = материал не будет закупаться
       leadTimeProductionDays: 0,
       leadTimeShippingDays: 0,
     };
