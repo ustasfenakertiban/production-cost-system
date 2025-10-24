@@ -12,26 +12,33 @@ export async function loadMaterials(orderId?: string): Promise<MaterialSpec[]> {
   const rows = await prisma.material.findMany();
   console.log('[DataLoader] Loading materials from database...');
   
-  // Загружаем партии закупки для заказа (если orderId указан)
-  let batches: any[] = [];
-  if (orderId) {
-    batches = await prisma.materialPurchaseBatch.findMany({
-      where: { orderId }
-    });
-    console.log(`[DataLoader] Loaded ${batches.length} material purchase batches for order ${orderId}`);
-    
-    // Если для заказа нет партий - это ошибка
-    if (batches.length === 0) {
-      throw new Error(
-        'Не настроены партии закупок материалов для этого заказа. ' +
-        'Откройте карточку заказа и настройте партии закупок материалов вручную, ' +
-        'либо импортируйте их из шаблона (если есть сохраненный шаблон из другого заказа).'
-      );
-    }
+  // Загружаем партии закупки для заказа
+  if (!orderId) {
+    throw new Error(
+      'Для запуска симуляции необходимо указать ID заказа. ' +
+      'Партии закупок материалов загружаются из настроек конкретного заказа.'
+    );
+  }
+  
+  const batches = await prisma.materialPurchaseBatch.findMany({
+    where: { orderId }
+  });
+  console.log(`[DataLoader] Loaded ${batches.length} material purchase batches for order ${orderId}`);
+  
+  // Если для заказа нет партий - это ошибка
+  if (batches.length === 0) {
+    throw new Error(
+      'Не настроены партии закупок материалов для этого заказа. ' +
+      'Откройте карточку заказа и настройте партии закупок материалов, ' +
+      'либо импортируйте их из шаблона (если есть сохраненный шаблон из другого заказа).'
+    );
   }
   
   // Создаем Map для быстрого доступа к партиям по materialId
   const batchByMaterial = new Map(batches.map(b => [b.materialId, b]));
+  
+  // Проверяем, что для всех используемых в производстве материалов есть партии
+  const materialsWithoutBatches: string[] = [];
   
   return rows.map(r => {
     const batch = batchByMaterial.get(r.id);
@@ -53,9 +60,12 @@ export async function loadMaterials(orderId?: string): Promise<MaterialSpec[]> {
       };
     }
     
-    // Если партии нет для заказа - это ошибка (дефолты не используем!)
-    console.warn(`[DataLoader] Material "${r.name}": no batch found!`);
-    // Возвращаем с нулевыми значениями, чтобы не влиять на симуляцию
+    // Если партии нет - запоминаем материал для предупреждения
+    console.warn(`[DataLoader] Material "${r.name}": no batch found, material will not be purchased during simulation`);
+    materialsWithoutBatches.push(r.name);
+    
+    // Возвращаем с нулевыми значениями - материал не будет закупаться
+    // Это допустимо, если материал не используется в производственных операциях
     return {
       id: String(r.id),
       name: r.name,

@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     
     // Загрузка данных
     const [materials, equipment, allEmployees, processSpec, settings, periodicExpenses] = await Promise.all([
-      loadMaterials(), 
+      loadMaterials(orderId), 
       loadEquipment(), 
       loadEmployees(), 
       loadOperationChains(), 
