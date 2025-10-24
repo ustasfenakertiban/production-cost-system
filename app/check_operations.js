@@ -1,79 +1,85 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
-  // Найдем операции с названием содержащим "сушка"
-  const operations = await prisma.operation.findMany({
-    where: {
-      name: {
-        contains: 'сушка',
-        mode: 'insensitive'
-      }
-    },
+  console.log('\n=== Проверка операций и используемых материалов ===\n');
+  
+  const chains = await prisma.operationChain.findMany({
+    where: { enabled: true },
     include: {
-      operationRoles: {
+      operations: {
+        where: { enabled: true },
         include: {
-          role: true
-        }
-      },
-      operationEquipment: {
-        include: {
-          equipment: true
-        }
-      },
-      operationMaterials: {
-        include: {
-          material: true
+          operationMaterials: {
+            where: { enabled: true },
+            include: {
+              material: true
+            }
+          }
         }
       }
     }
   });
-
-  console.log('\n=== ОПЕРАЦИИ СУШКИ ===\n');
   
-  for (const op of operations) {
-    console.log(`\n📋 Операция: ${op.name}`);
-    console.log(`   ID: ${op.id}`);
-    console.log(`   Производительность: ${op.estimatedProductivityPerHour} шт/час (variance: ${op.estimatedProductivityPerHourVariance})`);
-    console.log(`   Цикл: ${op.cycleHours} час(ов)`);
-    console.log(`   Включена: ${op.enabled ? 'Да' : 'Нет'}`);
+  console.log(`Найдено цепочек операций: ${chains.length}\n`);
+  
+  for (const chain of chains) {
+    console.log(`Цепочка: ${chain.name} (${chain.chainType})`);
+    console.log(`  Операций: ${chain.operations.length}`);
     
-    console.log(`\n   👤 РОЛИ (${op.operationRoles.length}):`);
-    op.operationRoles.forEach(role => {
-      console.log(`      - ${role.role.name}`);
-      console.log(`        Ставка: ${role.rate} руб/час`);
-      console.log(`        Время: ${role.timeSpent} час`);
-      console.log(`        Производительность: ${role.piecesPerHour} шт/час`);
-      console.log(`        Постоянное присутствие: ${role.requiresContinuousPresence ? 'Да' : 'Нет'}`);
-      console.log(`        Включена: ${role.enabled ? 'Да' : 'Нет'}`);
-    });
-
-    console.log(`\n   ⚙️  ОБОРУДОВАНИЕ (${op.operationEquipment.length}):`);
-    op.operationEquipment.forEach(eq => {
-      console.log(`      - ${eq.equipment.name}`);
-      console.log(`        Стоимость: ${eq.hourlyRate} руб/час`);
-      console.log(`        Время работы: ${eq.machineTime} час`);
-      console.log(`        Производительность: ${eq.piecesPerHour} шт/час`);
-      console.log(`        Включено: ${eq.enabled ? 'Да' : 'Нет'}`);
-    });
-
-    console.log(`\n   💎 МАТЕРИАЛЫ (${op.operationMaterials.length}):`);
-    op.operationMaterials.forEach(mat => {
-      console.log(`      - ${mat.material.name}`);
-      console.log(`        Количество: ${mat.quantity} ед.`);
-      console.log(`        Цена: ${mat.unitPrice} руб/ед.`);
-      console.log(`        Включен: ${mat.enabled ? 'Да' : 'Нет'}`);
-    });
+    if (chain.operations.length === 0) {
+      console.log('  ⚠️ НЕТ ОПЕРАЦИЙ!');
+      continue;
+    }
     
-    console.log('\n' + '='.repeat(80));
+    for (const op of chain.operations) {
+      console.log(`\n  Операция: ${op.name}`);
+      console.log(`    Производительность: ${op.estimatedProductivityPerHour} ед/час`);
+      console.log(`    Материалов: ${op.operationMaterials.length}`);
+      
+      if (op.operationMaterials.length === 0) {
+        console.log(`    ⚠️ Операция не использует материалы`);
+      } else {
+        for (const om of op.operationMaterials) {
+          console.log(`      - ${om.material.name}: ${om.quantity} на единицу`);
+        }
+      }
+    }
+    console.log('');
+  }
+  
+  // Проверим, есть ли заказы с элементами
+  const orders = await prisma.order.findMany({
+    include: {
+      orderItems: {
+        include: {
+          productionProcess: {
+            include: {
+              operations: true
+            }
+          }
+        }
+      }
+    }
+  });
+  
+  console.log('\n=== Проверка заказов ===\n');
+  for (const order of orders) {
+    console.log(`Заказ: ${order.name}`);
+    console.log(`  Позиций: ${order.orderItems.length}`);
+    
+    if (order.orderItems.length === 0) {
+      console.log('  ⚠️ НЕТ ПОЗИЦИЙ В ЗАКАЗЕ!');
+    } else {
+      for (const item of order.orderItems) {
+        console.log(`    Позиция: процесс ${item.productionProcess?.name || 'N/A'}, количество: ${item.quantity}`);
+      }
+    }
+    console.log('');
   }
 }
 
 main()
-  .catch(e => {
-    console.error('Ошибка:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());

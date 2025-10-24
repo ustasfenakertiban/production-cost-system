@@ -83,7 +83,7 @@ export class ResourceManager {
     for (const m of this.materials.values()) {
       const stock = this.getStock(m.id);
       const threshold = s.thresholdRatio * m.minStock;
-      const hasIncoming = this.plannedBatches.some(b => b.materialId === m.id && b.etaArrivalDay >= currentDay);
+      const hasIncoming = this.plannedBatches.some(b => b.materialId === m.id && b.etaArrivalDay > currentDay);
       if (currentDay <= 3) {
         console.log(`[ResourceMgr]   Material "${m.name}": stock=${stock}, threshold=${threshold}, minStock=${m.minStock}, hasIncoming=${hasIncoming}`);
       }
